@@ -13,6 +13,8 @@ local SKY_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs
 local TOGGLES_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ToggleSwitches.lua"
 local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Fullbright.lua"
 local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NoFog.lua"
+local ADMINESP_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/AdminESP.lua"
+
 
 
 local player = Players.LocalPlayer
@@ -619,9 +621,21 @@ local function ensureFeatureLoaded(key: string, url: string)
 end
 
 -- Visuals tab (EXAMPLE TOGGLES)
-Toggles.AddToggleCard(pageVisuals, "visuals_boxes", "ESP Boxes", "Draw 2D boxes on players.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	print("ESP Boxes:", state)
-end)
+Toggles.AddToggleCard(pageVisuals,
+	"visuals_adminesp",
+	"Player ESP",
+	"Name, health bar, and highlight.",
+	4,
+	false,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state: boolean)
+		if state then
+			ensureFeatureLoaded("visuals_adminesp", ADMINESP_URL)
+		end
+	end
+)
+
 
 Toggles.AddToggleCard(pageVisuals, "visuals_names", "Name Tags", "Show player names above them.", 2, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("Name Tags:", state)
