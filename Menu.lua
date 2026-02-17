@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 
 local SKY_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ClientSky.lua"
 local TOGGLES_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ToggleSwitches.lua"
+local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Fullbright.lua"
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -40,6 +41,17 @@ local CONFIG = {
 }
 
 local SIDEBAR_WIDTH = 140
+
+--// Global shared toggle access (so other remote scripts can read/subscribe)
+local function getGlobal(): any
+	local gg = (typeof(getgenv) == "function") and getgenv() or nil
+	if gg then
+		return gg
+	end
+	return _G
+end
+
+local G = getGlobal()
 
 --// Utilities
 local function make(instanceType: string, props: {[string]: any}?): Instance
@@ -178,13 +190,23 @@ local function loadRemoteModule(url: string): any
 	return result
 end
 
-
 local Toggles = loadRemoteModule(TOGGLES_URL)
 if not Toggles then
 	error("Failed to load ToggleSwitches module from GitHub")
 end
 
+-- expose module API globally so feature scripts can Subscribe without re-fetching
+G.__HIGGI_TOGGLES_API = Toggles
+
+-- Shared services table for module
+local TOGGLE_SERVICES = {
+	TweenService = TweenService,
+	UserInputService = UserInputService,
+}
+
+--================================================================================
 -- Drag helper (RenderStepped, sync-safe)
+--================================================================================
 type DragSync = {
 	Target: GuiObject,
 	StartPos: UDim2,
@@ -273,7 +295,9 @@ local function enableDrag(dragHandle: GuiObject, mainTarget: GuiObject, onDragSt
 	end)
 end
 
---// Build GUI
+--================================================================================
+-- Build GUI
+--================================================================================
 local existing = playerGui:FindFirstChild(CONFIG.GuiName)
 if existing then
 	existing:Destroy()
@@ -501,7 +525,7 @@ local function makePage(name: string): ScrollingFrame
 	return page
 end
 
--- Optional: simple action card (kept from your original)
+-- Optional: simple action card
 local function addCard(parent: Instance, textTop: string, textBottom: string, order: number, onClick: (() -> ())?)
 	local card = make("TextButton", {
 		Name = "Card",
@@ -579,49 +603,70 @@ local pageAbout = makePage("About")
 -- Main tab (keep placeholders for now)
 addPlaceholders(pageMain, "Main", 1)
 
--- Shared services table for module
-local TOGGLE_SERVICES = {
-	TweenService = TweenService,
-	UserInputService = UserInputService,
-}
+--================================================================================
+-- Toggle-driven lazy feature loading
+--================================================================================
+local featureLoaded: {[string]: boolean} = {}
+
+local function ensureFeatureLoaded(key: string, url: string)
+	if featureLoaded[key] then
+		return
+	end
+	featureLoaded[key] = true
+	runRemote(url)
+end
 
 -- Visuals tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageVisuals, "visuals_boxes", "ESP Boxes", "Draw 2D boxes on players.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("ESP Boxes:", state)
 end)
+
 Toggles.AddToggleCard(pageVisuals, "visuals_names", "Name Tags", "Show player names above them.", 2, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("Name Tags:", state)
 end)
+
 Toggles.AddToggleCard(pageVisuals, "visuals_tracers", "Tracers", "Lines from you to targets.", 3, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("Tracers:", state)
 end)
+
 addPlaceholders(pageVisuals, "Visuals", 4)
 
 -- World tab: action + toggles + placeholders
 addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
 end)
-Toggles.AddToggleCard(pageWorld, "world_fullbright", "Fullbright", "Brighten the world lighting.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	print("Fullbright:", state)
+
+-- Fullbright: default OFF, and only loads Fullbright.lua when user first turns it ON.
+-- Fullbright.lua is responsible for applying/reverting based on toggle state.
+Toggles.AddToggleCard(pageWorld, "world_fullbright", "Fullbright", "Force maximum brightness locally.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
+	if state then
+		ensureFeatureLoaded("world_fullbright", FULLBRIGHT_URL)
+	end
 end)
+
 Toggles.AddToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("No Fog:", state)
 end)
+
 addPlaceholders(pageWorld, "World", 4)
 
 -- Settings tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageSettings, "settings_keybinds", "Keybind Hints", "Show keybind tips in UI.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("Keybind Hints:", state)
 end)
+
 Toggles.AddToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI click sounds.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("UI Sounds:", state)
 end)
+
 addPlaceholders(pageSettings, "Settings", 3)
 
 -- About tab (keep placeholders)
 addPlaceholders(pageAbout, "About", 1)
 
+--================================================================================
 -- Tab system
+--================================================================================
 type TabDef = {
 	Name: string,
 	Page: ScrollingFrame,
@@ -659,7 +704,7 @@ local function setTabVisuals(activeName: string)
 			btn.BackgroundColor3 = isActive and CONFIG.Bg or CONFIG.Bg2
 			local stroke = btn:FindFirstChildOfClass("UIStroke")
 			if stroke then
-				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke ;
+				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke
 				(stroke :: UIStroke).Transparency = isActive and 0.05 or 0.25
 			end
 			local accent = btn:FindFirstChild("AccentBar")
@@ -746,7 +791,9 @@ for i, t in ipairs(tabs) do
 	makeTabButton(t, i)
 end
 
+--================================================================================
 -- Positions / animation states
+--================================================================================
 local togglePos = select(1, getCornerPositions(CONFIG.ToggleSize, CONFIG.PopupSize, CONFIG.Margin))
 toggleButton.Position = togglePos
 
@@ -872,3 +919,5 @@ setOpen(false)
 
 -- If you ever need to read a toggle anywhere in this file:
 -- print("ESP Boxes currently:", Toggles.GetState("visuals_boxes", false))
+-- If you ever need to force-load a feature:
+-- ensureFeatureLoaded("world_fullbright", FULLBRIGHT_URL)
