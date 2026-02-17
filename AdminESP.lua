@@ -202,7 +202,7 @@ local function buildGlow(plr: Player)
 
 	-- outline
 	h.OutlineColor = Color3.fromRGB(255, 255, 255)
-	h.OutlineTransparency = 0.2
+	h.OutlineTransparency = 0.1
 
 	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	h.Parent = char
