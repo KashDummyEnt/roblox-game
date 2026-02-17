@@ -197,7 +197,7 @@ local function buildHealth(plr: Player)
 	bill.Name = HEALTH_TAG
 	bill.AlwaysOnTop = true
 	bill.MaxDistance = MAX_DISTANCE
-	bill.StudsOffset = Vector3.new(0, 2.9, 0) -- temporary, will be corrected dynamically
+	bill.StudsOffset = Vector3.new(0, -3.2, 0)
 	bill.Size = UDim2.new(0, HP_BASE_W, 0, HP_BASE_H)
 	bill.Parent = root
 
@@ -387,15 +387,11 @@ if featureState.Health then
 
 		hpGui.Size = UDim2.new(0, w, 0, h)
 
-		local studOffsetFromName = (nameHeightPixels / 50) + 0.5
-
-		hpGui.StudsOffset = Vector3.new(
-			0,
-			2.9 - studOffsetFromName,
-			0
-		)
+		-- Keep healthbar below the player (classic style)
+		hpGui.StudsOffset = Vector3.new(0, -3.2, 0)
 	end
 end
+
 
 					end
 				end
