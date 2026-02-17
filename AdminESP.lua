@@ -254,11 +254,10 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (FINAL FIXED VERSION)
+-- SNAPLINES (STABLE 360 VERSION)
 ------------------------------------------------------------------
 
 local snapLines: {[number]: any} = {}
-local snaplineConn: RBXScriptConnection? = nil
 
 local function clearSnaplines()
 	for userId, line in pairs(snapLines) do
@@ -267,18 +266,27 @@ local function clearSnaplines()
 				line:Remove()
 			end)
 		end
+		snapLines[userId] = nil
 	end
-	table.clear(snapLines)
+end
+
+local function getLine(plr: Player)
+	if snapLines[plr.UserId] then
+		return snapLines[plr.UserId]
+	end
+
+	local line = Drawing.new("Line")
+	line.Visible = false
+	line.Thickness = 1
+	line.Color = Color3.fromRGB(255, 0, 0)
+	line.Transparency = 1
+
+	snapLines[plr.UserId] = line
+	return line
 end
 
 local function enableSnaplines()
-	-- Hard reset every time
-	clearSnaplines()
-
-	if snaplineConn then
-		snaplineConn:Disconnect()
-		snaplineConn = nil
-	end
+	if snaplineConn then return end
 
 	snaplineConn = RunService.RenderStepped:Connect(function()
 		local cam = workspace.CurrentCamera
@@ -293,22 +301,16 @@ local function enableSnaplines()
 				local root = char and char:FindFirstChild("HumanoidRootPart")
 				local hum = char and char:FindFirstChildOfClass("Humanoid")
 
+				local line = getLine(plr)
+
 				if not root or not hum or hum.Health <= 0 then
+					line.Visible = false
 					continue
 				end
 
-				local line = snapLines[plr.UserId]
-				if not line then
-					line = Drawing.new("Line")
-					line.Thickness = 1
-					line.Color = Color3.fromRGB(255, 0, 0)
-					line.Transparency = 1
-					snapLines[plr.UserId] = line
-				end
+				local screenPos, onScreen = cam:WorldToViewportPoint(root.Position)
 
-				local screenPos = cam:WorldToViewportPoint(root.Position)
-
-				-- Handle behind camera
+				-- Flip if behind camera
 				if screenPos.Z < 0 then
 					screenPos = Vector3.new(
 						vp.X - screenPos.X,
@@ -317,6 +319,7 @@ local function enableSnaplines()
 					)
 				end
 
+				-- Clamp to screen edge (360 tracking)
 				local pad = 8
 				local x = math.clamp(screenPos.X, pad, vp.X - pad)
 				local y = math.clamp(screenPos.Y, pad, vp.Y - pad)
@@ -324,6 +327,16 @@ local function enableSnaplines()
 				line.From = centerBottom
 				line.To = Vector2.new(x, y)
 				line.Visible = true
+			end
+		end
+
+		-- Clean up players who left
+		for userId, line in pairs(snapLines) do
+			if not Players:GetPlayerByUserId(userId) then
+				pcall(function()
+					line:Remove()
+				end)
+				snapLines[userId] = nil
 			end
 		end
 	end)
@@ -334,10 +347,8 @@ local function disableSnaplines()
 		snaplineConn:Disconnect()
 		snaplineConn = nil
 	end
-
 	clearSnaplines()
 end
-
 
 
 ------------------------------------------------------------------
