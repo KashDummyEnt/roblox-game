@@ -257,30 +257,97 @@ end
 -- SNAPLINES
 ------------------------------------------------------------------
 
+------------------------------------------------------------------
+-- SNAPLINES (PERSISTENT DRAWING POOL)
+------------------------------------------------------------------
+
+local snapLines: {[number]: any} = {} -- userid -> Drawing Line
+
+local function destroySnapLine(userId: number)
+	local ln = snapLines[userId]
+	if ln then
+		pcall(function()
+			ln.Visible = false
+			ln:Remove()
+		end)
+		snapLines[userId] = nil
+	end
+end
+
+local function getSnapLine(userId: number): any
+	local ln = snapLines[userId]
+	if ln then
+		return ln
+	end
+
+	local newLine = Drawing.new("Line")
+	newLine.Visible = false
+	newLine.Thickness = 1
+	newLine.Transparency = 1
+	newLine.Color = Color3.fromRGB(255, 0, 0)
+
+	snapLines[userId] = newLine
+	return newLine
+end
+
 local function enableSnaplines()
 	if snaplineConn then return end
+
+	-- sanity check: some executors don’t support Drawing
+	local ok = pcall(function()
+		local t = Drawing.new("Line")
+		t:Remove()
+	end)
+	if not ok then
+		warn("[AdminESP] Drawing API not supported in this executor (snaplines won't work).")
+		return
+	end
 
 	snaplineConn = RunService.RenderStepped:Connect(function()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
+		local origin = Vector2.new(cam.ViewportSize.X * 0.5, cam.ViewportSize.Y)
+
 		for _, plr in ipairs(Players:GetPlayers()) do
-			if plr ~= LocalPlayer and plr.Character then
-				local root = plr.Character:FindFirstChild("HumanoidRootPart")
-				if root then
-					local screenPos, onScreen = cam:WorldToViewportPoint(root.Position)
-					if onScreen then
-						local line = Drawing.new("Line")
-						line.From = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y)
-						line.To = Vector2.new(screenPos.X, screenPos.Y)
-						line.Color = Color3.fromRGB(255,0,0)
-						line.Thickness = 1
-						line.Visible = true
-						task.delay(0, function()
-							line:Remove()
-						end)
+			if plr ~= LocalPlayer then
+				local userId = plr.UserId
+				local char = plr.Character
+				local ln = getSnapLine(userId)
+
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+				if root and hum and hum.Health > 0 then
+					local v3, onScreen = cam:WorldToViewportPoint(root.Position)
+					if onScreen and v3.Z > 0 then
+						ln.From = origin
+						ln.To = Vector2.new(v3.X, v3.Y)
+						ln.Visible = true
+					else
+						ln.Visible = false
 					end
+				else
+					ln.Visible = false
 				end
+			end
+		end
+
+		-- cleanup lines for players that left
+		for userId, ln in pairs(snapLines) do
+			local stillHere = false
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr.UserId == userId then
+					stillHere = true
+					break
+				end
+			end
+			if not stillHere then
+				pcall(function()
+					ln.Visible = false
+					ln:Remove()
+				end)
+				snapLines[userId] = nil
 			end
 		end
 	end)
@@ -291,7 +358,12 @@ local function disableSnaplines()
 		snaplineConn:Disconnect()
 		snaplineConn = nil
 	end
+
+	for userId, _ in pairs(snapLines) do
+		destroySnapLine(userId)
+	end
 end
+
 
 ------------------------------------------------------------------
 -- APPLY LOGIC
