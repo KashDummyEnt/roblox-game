@@ -288,13 +288,41 @@ local function ensureCharWatcher(plr: Player)
 	end
 end
 
+local playerAddedConn: RBXScriptConnection? = nil
+local playerRemovingConn: RBXScriptConnection? = nil
+
 local function ensureGlobalWatchers()
+
+	-- Handle future joins
+	if not playerAddedConn then
+		playerAddedConn = Players.PlayerAdded:Connect(function(plr)
+			if plr ~= LocalPlayer then
+				ensureCharWatcher(plr)
+				task.defer(function()
+					applyForPlayer(plr)
+				end)
+			end
+		end)
+	end
+
+	-- Handle leaves
+	if not playerRemovingConn then
+		playerRemovingConn = Players.PlayerRemoving:Connect(function(plr)
+			if plr ~= LocalPlayer then
+				cleanupPlayer(plr)
+			end
+		end)
+	end
+
+	-- Handle players already in server
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer then
 			ensureCharWatcher(plr)
+			applyForPlayer(plr)
 		end
 	end
 end
+
 
 ------------------------------------------------------------------
 -- DISTANCE SCALING
