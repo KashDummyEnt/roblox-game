@@ -197,8 +197,8 @@ local function buildGlow(plr: Player)
 	h.Name = GLOW_TAG
 
 	-- center / fill
-	h.FillColor = Color3.fromRGB(255, 0, 0)
-	h.FillTransparency = 0.6
+	h.FillColor = Color3.fromRGB(255, 40, 40)
+	h.FillTransparency = 0.7
 
 	-- outline
 	h.OutlineColor = Color3.fromRGB(255, 255, 255)
