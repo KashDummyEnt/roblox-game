@@ -2,7 +2,7 @@
 -- Menu.lua
 -- PopupMenu client UI + 5 left tabs + GitHub action button
 -- Load in Roblox with:
--- loadstring(game:HttpGet('https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Menu.lua'))()
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Menu.lua"))()
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -20,6 +20,7 @@ local CONFIG = {
 	ToggleButtonName = "MenuToggleButton",
 	PopupName = "PopupPanel",
 
+	-- If you want anchored corner behavior for the toggle button only.
 	AnchorCorner = "BottomLeft", -- "BottomLeft" | "BottomRight" | "TopLeft" | "TopRight"
 	Margin = 16,
 
@@ -69,6 +70,33 @@ local function addStroke(parent: Instance, thickness: number, color: Color3, tra
 	})
 end
 
+local function isTouchDevice(): boolean
+	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+
+local function getViewportSize(): Vector2
+	local cam = workspace.CurrentCamera
+	if cam then
+		return cam.ViewportSize
+	end
+	return Vector2.new(1920, 1080)
+end
+
+local function clampPopupPos(pos: Vector2, popupSize: Vector2, anchor: Vector2, viewport: Vector2): Vector2
+	local w, h = popupSize.X, popupSize.Y
+
+	local topLeftX = pos.X - (anchor.X * w)
+	local topLeftY = pos.Y - (anchor.Y * h)
+
+	topLeftX = math.clamp(topLeftX, 0, viewport.X - w)
+	topLeftY = math.clamp(topLeftY, 0, viewport.Y - h)
+
+	return Vector2.new(
+		topLeftX + (anchor.X * w),
+		topLeftY + (anchor.Y * h)
+	)
+end
+
 local function getCornerPositions(toggleSize: number, popupSize: Vector2, margin: number)
 	local ts = toggleSize
 	local psX, psY = popupSize.X, popupSize.Y
@@ -80,41 +108,24 @@ local function getCornerPositions(toggleSize: number, popupSize: Vector2, margin
 	if CONFIG.AnchorCorner == "BottomLeft" then
 		local togglePos = u2(0, margin, 1, -(margin + ts))
 		local popupPos = u2(0, margin, 1, -(margin + ts + 12))
-		return togglePos, popupPos, popupPos
+		return togglePos, popupPos
 	end
 
 	if CONFIG.AnchorCorner == "BottomRight" then
 		local togglePos = u2(1, -(margin + ts), 1, -(margin + ts))
 		local popupPos = u2(1, -(margin + psX), 1, -(margin + ts + 12))
-		return togglePos, popupPos, popupPos
+		return togglePos, popupPos
 	end
 
 	if CONFIG.AnchorCorner == "TopLeft" then
 		local togglePos = u2(0, margin, 0, margin)
 		local popupPos = u2(0, margin, 0, margin + ts + 12)
-		return togglePos, popupPos, popupPos
+		return togglePos, popupPos
 	end
 
 	local togglePos = u2(1, -(margin + ts), 0, margin)
 	local popupPos = u2(1, -(margin + psX), 0, margin + ts + 12)
-	return togglePos, popupPos, popupPos
-end
-
-local function getAnchorPointForCorner(corner: string): Vector2
-	if corner == "BottomLeft" then
-		return Vector2.new(0, 1)
-	end
-	if corner == "BottomRight" then
-		return Vector2.new(1, 1)
-	end
-	if corner == "TopLeft" then
-		return Vector2.new(0, 0)
-	end
-	return Vector2.new(1, 0)
-end
-
-local function isTouchDevice(): boolean
-	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	return togglePos, popupPos
 end
 
 local function runRemote(url: string)
@@ -189,7 +200,9 @@ local function enableDrag(dragHandle: GuiObject, mainTarget: GuiObject, onDragSt
 		end
 
 		dragConn = RunService.RenderStepped:Connect(function()
-			if not dragging or not dragStart or not mainStartPos then return end
+			if not dragging or not dragStart or not mainStartPos then
+				return
+			end
 
 			local currentPos = (input.UserInputType == Enum.UserInputType.MouseButton1) and UserInputService:GetMouseLocation() or input.Position
 			local delta = currentPos - dragStart
@@ -223,29 +236,6 @@ local function enableDrag(dragHandle: GuiObject, mainTarget: GuiObject, onDragSt
 			stopDrag()
 		end
 	end)
-end
-
-local function getViewportSize(): Vector2
-	local cam = workspace.CurrentCamera
-	if cam then
-		return cam.ViewportSize
-	end
-	return Vector2.new(1920, 1080)
-end
-
-local function clampPopupPos(pos: Vector2, popupSize: Vector2, anchor: Vector2, viewport: Vector2): Vector2
-	local w, h = popupSize.X, popupSize.Y
-
-	local topLeftX = pos.X - (anchor.X * w)
-	local topLeftY = pos.Y - (anchor.Y * h)
-
-	topLeftX = math.clamp(topLeftX, 0, viewport.X - w)
-	topLeftY = math.clamp(topLeftY, 0, viewport.Y - h)
-
-	return Vector2.new(
-		topLeftX + (anchor.X * w),
-		topLeftY + (anchor.Y * h)
-	)
 end
 
 --// Build GUI
@@ -312,7 +302,7 @@ local popup = make("Frame", {
 	Parent = screenGui,
 })
 popup.ClipsDescendants = true
-popup.AnchorPoint = getAnchorPointForCorner(CONFIG.AnchorCorner)popup.AnchorPoint = Vector2.new(-1, 1)
+popup.AnchorPoint = Vector2.new(0, 0)
 addCorner(popup, 14)
 addStroke(popup, 1, CONFIG.Stroke, 0.15)
 
@@ -528,13 +518,15 @@ local pageAbout = makePage("About")
 addCard(pageMain, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
 end)
+
 addCard(pageMain, "Close Menu", "Hides the panel.", 2, function()
-	-- wired after setOpen exists
+	-- wired later after setOpen exists
 end)
 
 addCard(pageVisuals, "Apply Skybox", "Same action, different tab.", 1, function()
 	runRemote(SKY_URL)
 end)
+
 addCard(pageVisuals, "Placeholder", "Add visuals toggles here.", 2, function()
 	print("Visuals placeholder")
 end)
@@ -567,7 +559,9 @@ local tabs: {TabDef} = {
 local currentTabName = ""
 
 local function setActivePage(name: string)
-	if currentTabName == name then return end
+	if currentTabName == name then
+		return
+	end
 	currentTabName = name
 
 	for _, t in ipairs(tabs) do
@@ -677,8 +671,8 @@ local togglePos = select(1, getCornerPositions(CONFIG.ToggleSize, CONFIG.PopupSi
 toggleButton.Position = togglePos
 
 local isOpen = false
-popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
 popup.Visible = false
+popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
 body.Visible = false
 
 local openTween: Tween? = nil
@@ -688,39 +682,42 @@ local closeTween: Tween? = nil
 local freeTogglePositioning = false
 local freeMenuPositioning = false
 
-local function placePopupNearToggle()
-	local toggleAbs = toggleButton.AbsolutePosition
-	local toggleSize = toggleButton.AbsoluteSize
-	local gap = 12
-
-	local anchor = popup.AnchorPoint
-	local desired: Vector2
-
-	if CONFIG.AnchorCorner == "BottomLeft" then
-		desired = Vector2.new(toggleAbs.X, toggleAbs.Y - gap)
-	elseif CONFIG.AnchorCorner == "BottomRight" then
-		desired = Vector2.new(toggleAbs.X + toggleSize.X, toggleAbs.Y - gap)
-	elseif CONFIG.AnchorCorner == "TopLeft" then
-		desired = Vector2.new(toggleAbs.X, toggleAbs.Y + toggleSize.Y + gap)
-	else
-		desired = Vector2.new(toggleAbs.X + toggleSize.X, toggleAbs.Y + toggleSize.Y + gap)
-	end
-
+-- Place menu centered in viewport (first open / if never dragged)
+local function placePopupCentered()
 	local viewport = getViewportSize()
+	local pos = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
+	local anchor = Vector2.new(0.5, 0.5)
+	local clamped = clampPopupPos(pos, CONFIG.PopupSize, anchor, viewport)
+
+	popup.AnchorPoint = anchor
+	popup.Position = UDim2.fromOffset(clamped.X, clamped.Y)
+end
+
+local function placePopupClampedToViewport()
+	local viewport = getViewportSize()
+	local anchor = popup.AnchorPoint
+	local absPos = popup.AbsolutePosition
+	local desired = Vector2.new(absPos.X + (anchor.X * CONFIG.PopupSize.X), absPos.Y + (anchor.Y * CONFIG.PopupSize.Y))
 	local clamped = clampPopupPos(desired, CONFIG.PopupSize, anchor, viewport)
 	popup.Position = UDim2.fromOffset(clamped.X, clamped.Y)
 end
 
 local function tweenPopup(open: boolean)
-	if openTween then openTween:Cancel() end
-	if closeTween then closeTween:Cancel() end
+	if openTween then
+		openTween:Cancel()
+	end
+	if closeTween then
+		closeTween:Cancel()
+	end
 
 	if open then
 		popup.Visible = true
 
-		-- If user hasn't dragged menu, spawn it near toggle on open
 		if not freeMenuPositioning then
-			placePopupNearToggle()
+			placePopupCentered()
+		else
+			-- if user dragged it before, at least ensure it isn't offscreen
+			placePopupClampedToViewport()
 		end
 
 		popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
@@ -751,7 +748,9 @@ local function tweenPopup(open: boolean)
 end
 
 local function setOpen(nextOpen: boolean)
-	if isOpen == nextOpen then return end
+	if isOpen == nextOpen then
+		return
+	end
 	isOpen = nextOpen
 
 	toggleIcon.Text = isOpen and "×" or "≡"
@@ -798,8 +797,10 @@ closeBtn.MouseButton1Click:Connect(function()
 	setOpen(false)
 end)
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
+UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	if gameProcessed then
+		return
+	end
 	if input.KeyCode == Enum.KeyCode.Escape then
 		setOpen(false)
 	end
