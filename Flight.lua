@@ -1,30 +1,56 @@
+--!strict
 -- Flight.lua
 -- Toggle-driven Flight + Noclip
--- Requires ToggleSwitches system
+-- API-safe (matches AdminESP style)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
-local player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
 
--- Get shared toggle API
-local function getGlobal()
-	if typeof(getgenv) == "function" then
-		return getgenv()
+------------------------------------------------------------------
+-- GLOBAL TOGGLE API ACCESS (MATCHES ESP STYLE)
+------------------------------------------------------------------
+
+local function getGlobal(): any
+	local gg = (typeof(getgenv) == "function") and getgenv() or nil
+	if gg then
+		return gg
 	end
 	return _G
 end
 
 local G = getGlobal()
-local Toggles = G.__HIGGI_TOGGLES_API
 
+local function waitForTogglesApi(timeout: number): any?
+	local start = os.clock()
+	while os.clock() - start < timeout do
+		local api = G.__HIGGI_TOGGLES_API
+		if type(api) == "table" and type(api.Subscribe) == "function" then
+			return api
+		end
+		task.wait(0.05)
+	end
+	return nil
+end
+
+local Toggles = waitForTogglesApi(6)
 if not Toggles then
-	warn("Flight.lua: Toggle API not found.")
+	warn("[Flight] Toggle API missing")
 	return
 end
 
+------------------------------------------------------------------
+-- CONFIG
+------------------------------------------------------------------
+
 local KEY = "world_flight"
+local SPEED = 60
+
+------------------------------------------------------------------
+-- STATE
+------------------------------------------------------------------
 
 local flying = false
 local bodyVelocity: BodyVelocity? = nil
@@ -32,23 +58,27 @@ local bodyGyro: BodyGyro? = nil
 local flightConn: RBXScriptConnection? = nil
 local noclipConn: RBXScriptConnection? = nil
 
-local SPEED = 60
+------------------------------------------------------------------
+-- HELPERS
+------------------------------------------------------------------
 
 local function getCharacter()
-	return player.Character
+	return LocalPlayer.Character
 end
 
-local function getHRP()
+local function getHRP(): BasePart?
 	local char = getCharacter()
-	if not char then return nil end
-	return char:FindFirstChild("HumanoidRootPart")
+	return char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 end
 
-local function getHumanoid()
+local function getHumanoid(): Humanoid?
 	local char = getCharacter()
-	if not char then return nil end
-	return char:FindFirstChildOfClass("Humanoid")
+	return char and char:FindFirstChildOfClass("Humanoid")
 end
+
+------------------------------------------------------------------
+-- NOCLIP
+------------------------------------------------------------------
 
 local function enableNoclip()
 	if noclipConn then return end
@@ -71,6 +101,10 @@ local function disableNoclip()
 		noclipConn = nil
 	end
 end
+
+------------------------------------------------------------------
+-- FLIGHT
+------------------------------------------------------------------
 
 local function enableFlight()
 	if flying then return end
@@ -156,8 +190,11 @@ local function disableFlight()
 	disableNoclip()
 end
 
--- Listen to toggle
-Toggles.Subscribe(KEY, function(state)
+------------------------------------------------------------------
+-- TOGGLE BIND
+------------------------------------------------------------------
+
+Toggles.Subscribe(KEY, function(state: boolean)
 	if state then
 		enableFlight()
 	else
@@ -165,8 +202,16 @@ Toggles.Subscribe(KEY, function(state)
 	end
 end)
 
--- Handle respawn
-player.CharacterAdded:Connect(function()
+-- If already enabled before script loaded
+if Toggles.GetState(KEY, false) then
+	enableFlight()
+end
+
+------------------------------------------------------------------
+-- RESPAWN SUPPORT
+------------------------------------------------------------------
+
+LocalPlayer.CharacterAdded:Connect(function()
 	task.wait(0.5)
 	if Toggles.GetState(KEY, false) then
 		enableFlight()
