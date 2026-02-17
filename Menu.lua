@@ -583,9 +583,9 @@ local function addToggleCard(
 		end
 
 		if instant then
-			track.BackgroundColor3 = goalTrackColor ;
+			track.BackgroundColor3 = goalTrackColor;
 			(trackStroke :: UIStroke).Color = goalStrokeColor ;
-			(trackStroke :: UIStroke).Transparency = goalStrokeTrans
+			(trackStroke :: UIStroke).Transparency = goalStrokeTrans;
 			knob.Position = goalKnobPos
 			return
 		end
