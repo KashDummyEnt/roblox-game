@@ -520,21 +520,98 @@ local function setBoxEnabled(data: BoxData, enabled: boolean)
 	end
 end
 
+local function computeHitboxOBB(char: Model): (CFrame?, Vector3?)
+	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return nil, nil
+	end
+
+	local minV = Vector3.new(math.huge, math.huge, math.huge)
+	local maxV = Vector3.new(-math.huge, -math.huge, -math.huge)
+
+	local found = false
+	local rootCF = root.CFrame
+
+	for _, inst in ipairs(char:GetDescendants()) do
+		if inst:IsA("BasePart") then
+			local part = inst :: BasePart
+
+			-- Skip obvious accessory handles
+			if part.Name == "Handle" and part.Parent and part.Parent:IsA("Accessory") then
+				continue
+			end
+
+			-- Use CanQuery as “can be hit by raycasts”
+			if not part.CanQuery then
+				continue
+			end
+
+			-- Transform the part into root-local space so the box is oriented with the character
+			local rel = rootCF:ToObjectSpace(part.CFrame)
+			local sx = part.Size.X * 0.5
+			local sy = part.Size.Y * 0.5
+			local sz = part.Size.Z * 0.5
+
+			-- 8 corners of the part in root-local space
+			local corners = {
+				(rel * CFrame.new(-sx, -sy, -sz)).Position,
+				(rel * CFrame.new(-sx, -sy,  sz)).Position,
+				(rel * CFrame.new(-sx,  sy, -sz)).Position,
+				(rel * CFrame.new(-sx,  sy,  sz)).Position,
+				(rel * CFrame.new( sx, -sy, -sz)).Position,
+				(rel * CFrame.new( sx, -sy,  sz)).Position,
+				(rel * CFrame.new( sx,  sy, -sz)).Position,
+				(rel * CFrame.new( sx,  sy,  sz)).Position,
+			}
+
+			for _, p in ipairs(corners) do
+				minV = Vector3.new(
+					math.min(minV.X, p.X),
+					math.min(minV.Y, p.Y),
+					math.min(minV.Z, p.Z)
+				)
+				maxV = Vector3.new(
+					math.max(maxV.X, p.X),
+					math.max(maxV.Y, p.Y),
+					math.max(maxV.Z, p.Z)
+				)
+			end
+
+			found = true
+		end
+	end
+
+	if not found then
+		return nil, nil
+	end
+
+	local size = maxV - minV
+	local centerLocal = (minV + maxV) * 0.5
+
+	-- World-space oriented box aligned to HumanoidRootPart
+	local cf = rootCF * CFrame.new(centerLocal)
+	return cf, size
+end
+
 local function updateBoxFor(plr: Player, data: BoxData)
 	local char = plr.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
-
 	if not char or not hum or hum.Health <= 0 then
 		setBoxEnabled(data, false)
 		return
 	end
 
-	local cf, size = char:GetBoundingBox()
+	local cf, size = computeHitboxOBB(char)
+	if not cf or not size then
+		setBoxEnabled(data, false)
+		return
+	end
 
 	data.part.CFrame = cf
 	data.ad.Size = size
 	setBoxEnabled(data, true)
 end
+
 
 local function enableBoxes()
 	clearBoxes()
