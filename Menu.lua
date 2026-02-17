@@ -12,6 +12,8 @@ local RunService = game:GetService("RunService")
 local SKY_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ClientSky.lua"
 local TOGGLES_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ToggleSwitches.lua"
 local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Fullbright.lua"
+local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NoFog.lua"
+
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -644,9 +646,12 @@ Toggles.AddToggleCard(pageWorld, "world_fullbright", "Fullbright", "Force maximu
 	end
 end)
 
-Toggles.AddToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	print("No Fog:", state)
+Toggles.AddToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
+	if state then
+		ensureFeatureLoaded("world_nofog", NOFOG_URL)
+	end
 end)
+
 
 addPlaceholders(pageWorld, "World", 4)
 
