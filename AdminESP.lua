@@ -65,7 +65,7 @@ local NAME_MIN_W, NAME_MIN_H = 50, 14
 local HP_MIN_W, HP_MIN_H = 40, 6
 
 
-local MAX_DISTANCE = 500
+local MAX_DISTANCE = 9999
 
 ------------------------------------------------------------------
 -- STATE
