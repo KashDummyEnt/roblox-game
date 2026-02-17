@@ -1,9 +1,23 @@
--- ToggleSwitches.lua (REMOTE MODULE, LUA-SAFE)
+-- ToggleSwitches.lua (REMOTE MODULE, LUA-SAFE, SHARED STATE)
 -- Must return a table.
 
 local ToggleSwitches = {}
 
-local toggleStates = {}
+local function getGlobal()
+	if typeof(getgenv) == "function" then
+		return getgenv()
+	end
+	return _G
+end
+
+local G = getGlobal()
+
+G.__HIGGI_TOGGLES = G.__HIGGI_TOGGLES or {
+	states = {},
+	listeners = {}, -- [key] = {fn, fn, ...}
+}
+
+local Store = G.__HIGGI_TOGGLES
 
 local function make(instanceType, props)
 	local inst = Instance.new(instanceType)
@@ -36,29 +50,71 @@ local function isTouchDevice(userInputService)
 	return userInputService.TouchEnabled and not userInputService.KeyboardEnabled
 end
 
+local function notify(key, state)
+	local list = Store.listeners[key]
+	if not list then
+		return
+	end
+	for i = 1, #list do
+		local fn = list[i]
+		if type(fn) == "function" then
+			pcall(fn, state)
+		end
+	end
+end
+
+function ToggleSwitches.Subscribe(key, fn)
+	if type(fn) ~= "function" then
+		return function() end
+	end
+
+	Store.listeners[key] = Store.listeners[key] or {}
+	local list = Store.listeners[key]
+	table.insert(list, fn)
+
+	local alive = true
+	return function()
+		if not alive then
+			return
+		end
+		alive = false
+		for i = #list, 1, -1 do
+			if list[i] == fn then
+				table.remove(list, i)
+				break
+			end
+		end
+	end
+end
+
 function ToggleSwitches.GetState(key, defaultState)
-	local v = toggleStates[key]
+	local v = Store.states[key]
 	if v == nil then
 		v = defaultState or false
-		toggleStates[key] = v
+		Store.states[key] = v
 	end
 	return v
 end
 
 function ToggleSwitches.SetState(key, value)
-	toggleStates[key] = value and true or false
+	local nextState = value and true or false
+	if Store.states[key] == nextState then
+		return
+	end
+	Store.states[key] = nextState
+	notify(key, nextState)
 end
 
 function ToggleSwitches.FlipState(key, defaultState)
 	local cur = ToggleSwitches.GetState(key, defaultState)
 	local nextState = not cur
-	toggleStates[key] = nextState
+	ToggleSwitches.SetState(key, nextState)
 	return nextState
 end
 
 function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultState, config, services, onChanged)
-	if toggleStates[key] == nil then
-		toggleStates[key] = defaultState and true or false
+	if Store.states[key] == nil then
+		Store.states[key] = defaultState and true or false
 	end
 
 	local TweenService = services.TweenService
@@ -170,17 +226,21 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 
 	local function setState(nextState)
 		nextState = nextState and true or false
-		if toggleStates[key] == nextState then
+		if Store.states[key] == nextState then
 			return
 		end
-		toggleStates[key] = nextState
+
+		Store.states[key] = nextState
 		applyVisual(nextState, false)
+
+		notify(key, nextState)
+
 		if onChanged then
 			onChanged(nextState)
 		end
 	end
 
-	applyVisual(toggleStates[key], true)
+	applyVisual(Store.states[key], true)
 
 	if not isTouchDevice(UserInputService) then
 		card.MouseEnter:Connect(function()
@@ -191,15 +251,15 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 		end)
 
 		switchBtn.MouseEnter:Connect(function()
-			track.BackgroundColor3 = (toggleStates[key] and config.Accent) or config.Bg2
+			track.BackgroundColor3 = (Store.states[key] and config.Accent) or config.Bg2
 		end)
 		switchBtn.MouseLeave:Connect(function()
-			applyVisual(toggleStates[key], true)
+			applyVisual(Store.states[key], true)
 		end)
 	end
 
 	switchBtn.MouseButton1Click:Connect(function()
-		setState(not toggleStates[key])
+		setState(not Store.states[key])
 	end)
 
 	local clickCatcher = make("TextButton", {
@@ -213,7 +273,7 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 		Parent = card,
 	})
 	clickCatcher.MouseButton1Click:Connect(function()
-		setState(not toggleStates[key])
+		setState(not Store.states[key])
 	end)
 
 	titleLbl.ZIndex = 46
@@ -224,13 +284,13 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 
 	return {
 		Get = function()
-			return toggleStates[key] and true or false
+			return Store.states[key] and true or false
 		end,
 		Set = function(v)
 			setState(v)
 		end,
 		Flip = function()
-			setState(not toggleStates[key])
+			setState(not Store.states[key])
 		end,
 	}
 end
