@@ -254,19 +254,10 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (360 EDGE-CLAMP)
+-- SNAPLINES (STABLE 360 VERSION)
 ------------------------------------------------------------------
 
-local snapLines: {[number]: any} = {} -- userid -> Drawing Line
-
-local function canUseDrawing(): boolean
-	local ok = pcall(function()
-		local l = Drawing.new("Line")
-		l.Visible = false
-		l:Remove()
-	end)
-	return ok
-end
+local snapLines: {[number]: any} = {}
 
 local function clearSnaplines()
 	for userId, line in pairs(snapLines) do
@@ -279,110 +270,72 @@ local function clearSnaplines()
 	end
 end
 
-local function getLineFor(plr: Player): any?
-	local userId = plr.UserId
-	if snapLines[userId] then
-		return snapLines[userId]
+local function getLine(plr: Player)
+	if snapLines[plr.UserId] then
+		return snapLines[plr.UserId]
 	end
 
-	local ok, line = pcall(function()
-		local l = Drawing.new("Line")
-		l.Visible = false
-		l.Thickness = 1
-		l.Color = Color3.fromRGB(255, 0, 0)
-		l.Transparency = 1
-		return l
-	end)
+	local line = Drawing.new("Line")
+	line.Visible = false
+	line.Thickness = 1
+	line.Color = Color3.fromRGB(255, 0, 0)
+	line.Transparency = 1
 
-	if not ok then
-		return nil
-	end
-
-	snapLines[userId] = line
+	snapLines[plr.UserId] = line
 	return line
-end
-
-local function clampToScreenEdge(x: number, y: number, vpX: number, vpY: number, pad: number): (number, number)
-	local minX = pad
-	local minY = pad
-	local maxX = vpX - pad
-	local maxY = vpY - pad
-
-	if x < minX then x = minX end
-	if x > maxX then x = maxX end
-	if y < minY then y = minY end
-	if y > maxY then y = maxY end
-
-	return x, y
 end
 
 local function enableSnaplines()
 	if snaplineConn then return end
-
-	if not canUseDrawing() then
-		warn("[AdminESP] Drawing API not available, snaplines disabled")
-		return
-	end
 
 	snaplineConn = RunService.RenderStepped:Connect(function()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
 		local vp = cam.ViewportSize
-		local vpX, vpY = vp.X, vp.Y
+		local centerBottom = Vector2.new(vp.X / 2, vp.Y)
 
-		local from = Vector2.new(vpX * 0.5, vpY) -- bottom-center
-		local EDGE_PAD = 12
-
-		-- Update/create lines
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if plr ~= LocalPlayer then
-				local line = getLineFor(plr)
-				if not line then
-					continue
-				end
-
 				local char = plr.Character
 				local root = char and char:FindFirstChild("HumanoidRootPart")
 				local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+				local line = getLine(plr)
 
 				if not root or not hum or hum.Health <= 0 then
 					line.Visible = false
 					continue
 				end
 
-				-- We ALWAYS compute a screen point
-				local screenPos = cam:WorldToViewportPoint(root.Position)
+				local screenPos, onScreen = cam:WorldToViewportPoint(root.Position)
 
-				local x = screenPos.X
-				local y = screenPos.Y
-
-				-- If target is behind camera, flip direction so it still points correctly
-				-- (ViewportPoint.Z < 0 means behind)
+				-- Flip if behind camera
 				if screenPos.Z < 0 then
-					-- Mirror around screen center to keep direction stable
-					x = vpX - x
-					y = vpY - y
+					screenPos = Vector3.new(
+						vp.X - screenPos.X,
+						vp.Y - screenPos.Y,
+						screenPos.Z
+					)
 				end
 
-				-- Clamp to screen edge so it "tracks 360"
-				x, y = clampToScreenEdge(x, y, vpX, vpY, EDGE_PAD)
+				-- Clamp to screen edge (360 tracking)
+				local pad = 8
+				local x = math.clamp(screenPos.X, pad, vp.X - pad)
+				local y = math.clamp(screenPos.Y, pad, vp.Y - pad)
 
-				line.From = from
+				line.From = centerBottom
 				line.To = Vector2.new(x, y)
 				line.Visible = true
 			end
 		end
 
-		-- Cleanup lines for players who left
+		-- Clean up players who left
 		for userId, line in pairs(snapLines) do
-			local plr = Players:GetPlayerByUserId(userId)
-			if not plr or plr == LocalPlayer then
-				if line then
-					pcall(function()
-						line:Remove()
-					end)
-				end
+			if not Players:GetPlayerByUserId(userId) then
+				pcall(function()
+					line:Remove()
+				end)
 				snapLines[userId] = nil
 			end
 		end
