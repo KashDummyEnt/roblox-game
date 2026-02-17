@@ -639,8 +639,6 @@ Toggles.AddToggleCard(pageVisuals, "visuals_snaplines", "Snaplines", "Lines to p
 end)
 
 
-addPlaceholders(pageVisuals, "Visuals", 1)
-
 -- World tab: action + toggles + placeholders
 addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
