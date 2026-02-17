@@ -638,9 +638,10 @@ Toggles.AddToggleCard(pageVisuals, "visuals_snaplines", "Snaplines", "Lines to p
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
 
-Toggles.AddToggleCard(pageVisuals, "visuals_boxes", "Boxes", "3D wireframe player boxes.", 5, false, CONFIG, TOGGLE_SERVICES, function(state)
+Toggles.AddToggleCard(pageVisuals, "visuals_box3d", "Boxes", "3D wireframe player boxes.", 5, false, CONFIG, TOGGLE_SERVICES, function(state)
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
+
 
 
 
