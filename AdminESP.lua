@@ -1,6 +1,6 @@
 --!strict
 -- AdminESP.lua
--- Toggle key expected: "visuals_adminesp"
+-- Controlled by multiple toggle keys
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -15,9 +15,14 @@ local function getGlobal(): any
 end
 
 local G = getGlobal()
-local TOGGLE_KEY = "visuals_adminesp"
 
--- wait for toggle API
+local TOGGLE_KEYS = {
+	Name = "visuals_name",
+	Health = "visuals_health",
+	Player = "visuals_player",
+	Snaplines = "visuals_snaplines",
+}
+
 local function waitForTogglesApi(timeout: number): any?
 	local start = os.clock()
 	while os.clock() - start < timeout do
@@ -40,25 +45,31 @@ end
 -- CONFIG
 ------------------------------------------------------------------
 
-local NAME_TAG = "AdminTag"
-local HEALTH_TAG = "AdminHealthBar"
-local GLOW_TAG = "AdminGlow"
-
-local MAX_DISTANCE = 500
+local NAME_TAG = "ESP_Name"
+local HEALTH_TAG = "ESP_Health"
+local GLOW_TAG = "ESP_Glow"
 
 local NAME_BASE_W, NAME_BASE_H = 90, 22
 local HP_BASE_W, HP_BASE_H = 70, 8
+local MAX_DISTANCE = 500
 
 ------------------------------------------------------------------
--- INTERNAL STATE
+-- STATE
 ------------------------------------------------------------------
 
-local enabled = false
+local featureState = {
+	Name = false,
+	Health = false,
+	Player = false,
+	Snaplines = false,
+}
+
 local playerConns: {[number]: {RBXScriptConnection}} = {}
 local scalerConn: RBXScriptConnection? = nil
+local snaplineConn: RBXScriptConnection? = nil
 
 ------------------------------------------------------------------
--- UTIL
+-- CLEANUP
 ------------------------------------------------------------------
 
 local function cleanupPlayer(plr: Player)
@@ -71,7 +82,9 @@ local function cleanupPlayer(plr: Player)
 
 	if plr.Character then
 		for _, inst in ipairs(plr.Character:GetDescendants()) do
-			if inst.Name == NAME_TAG or inst.Name == HEALTH_TAG or inst.Name == GLOW_TAG then
+			if inst.Name == NAME_TAG
+			or inst.Name == HEALTH_TAG
+			or inst.Name == GLOW_TAG then
 				inst:Destroy()
 			end
 		end
@@ -84,173 +97,177 @@ local function cleanupAll()
 			cleanupPlayer(plr)
 		end
 	end
-
-	if scalerConn then
-		scalerConn:Disconnect()
-		scalerConn = nil
-	end
 end
 
 ------------------------------------------------------------------
--- BUILD ESP
+-- BUILDERS
 ------------------------------------------------------------------
 
-local function buildESP(plr: Player)
-	if plr == LocalPlayer then return end
+local function buildName(plr: Player)
 	local char = plr.Character
 	if not char then return end
-
 	local head = char:FindFirstChild("Head")
+	if not head then return end
+	if head:FindFirstChild(NAME_TAG) then return end
+
+	local bill = Instance.new("BillboardGui")
+	bill.Name = NAME_TAG
+	bill.AlwaysOnTop = true
+	bill.MaxDistance = MAX_DISTANCE
+	bill.StudsOffset = Vector3.new(0, 2.9, 0)
+	bill.Size = UDim2.new(0, NAME_BASE_W, 0, NAME_BASE_H)
+	bill.Parent = head
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1,0,1,0)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.fromRGB(255,70,70)
+	label.TextStrokeTransparency = 0.5
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamSemibold
+	label.Text = plr.DisplayName
+	label.Parent = bill
+end
+
+local function buildHealth(plr: Player)
+	local char = plr.Character
+	if not char then return end
 	local root = char:FindFirstChild("HumanoidRootPart")
 	local hum = char:FindFirstChildOfClass("Humanoid")
-	if not head or not root or not hum then return end
+	if not root or not hum then return end
+	if root:FindFirstChild(HEALTH_TAG) then return end
 
-	-- NAME
-	if not head:FindFirstChild(NAME_TAG) then
-		local bill = Instance.new("BillboardGui")
-		bill.Name = NAME_TAG
-		bill.AlwaysOnTop = true
-		bill.MaxDistance = MAX_DISTANCE
-		bill.StudsOffset = Vector3.new(0, 2.9, 0)
-		bill.Size = UDim2.new(0, NAME_BASE_W, 0, NAME_BASE_H)
-		bill.Parent = head
+	local bill = Instance.new("BillboardGui")
+	bill.Name = HEALTH_TAG
+	bill.AlwaysOnTop = true
+	bill.MaxDistance = MAX_DISTANCE
+	bill.StudsOffset = Vector3.new(0, -3.2, 0)
+	bill.Size = UDim2.new(0, HP_BASE_W, 0, HP_BASE_H)
+	bill.Parent = root
 
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.new(1,0,1,0)
-		label.BackgroundTransparency = 1
-		label.TextColor3 = Color3.fromRGB(255,70,70)
-		label.TextStrokeTransparency = 0.5
-		label.TextScaled = true
-		label.Font = Enum.Font.GothamSemibold
-		label.Text = plr.DisplayName
-		label.Parent = bill
-	end
+	local back = Instance.new("Frame")
+	back.Size = UDim2.new(1,0,1,0)
+	back.BackgroundColor3 = Color3.fromRGB(25,25,25)
+	back.BorderSizePixel = 0
+	back.Parent = bill
 
-	-- HEALTH
-	if not root:FindFirstChild(HEALTH_TAG) then
-		local bill = Instance.new("BillboardGui")
-		bill.Name = HEALTH_TAG
-		bill.AlwaysOnTop = true
-		bill.MaxDistance = MAX_DISTANCE
-		bill.StudsOffset = Vector3.new(0, -3.2, 0)
-		bill.Size = UDim2.new(0, HP_BASE_W, 0, HP_BASE_H)
-		bill.Parent = root
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.new(1,0,1,0)
+	fill.BorderSizePixel = 0
+	fill.Parent = back
 
-		local back = Instance.new("Frame")
-		back.Size = UDim2.new(1,0,1,0)
-		back.BackgroundColor3 = Color3.fromRGB(25,25,25)
-		back.BorderSizePixel = 0
-		back.Parent = bill
-
-		local fill = Instance.new("Frame")
-		fill.Name = "HealthFill"
-		fill.Size = UDim2.new(1,0,1,0)
-		fill.BackgroundColor3 = Color3.fromRGB(80,255,120)
-		fill.BorderSizePixel = 0
-		fill.Parent = back
-
-		local function update()
-			local pct = 0
-			if hum.MaxHealth > 0 then
-				pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-			end
-			fill.Size = UDim2.new(pct,0,1,0)
-			fill.BackgroundColor3 = Color3.fromRGB(255*(1-pct),255*pct,60)
+	local function update()
+		local pct = 0
+		if hum.MaxHealth > 0 then
+			pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
 		end
-
-		update()
-
-		local healthConn = hum.HealthChanged:Connect(update)
-
-		playerConns[plr.UserId] = playerConns[plr.UserId] or {}
-		table.insert(playerConns[plr.UserId], healthConn)
+		fill.Size = UDim2.new(pct,0,1,0)
+		fill.BackgroundColor3 = Color3.fromRGB(255*(1-pct),255*pct,60)
 	end
 
-	-- GLOW
-	if not char:FindFirstChild(GLOW_TAG) then
-		local h = Instance.new("Highlight")
-		h.Name = GLOW_TAG
-		h.FillColor = Color3.fromRGB(255,0,0)
-		h.FillTransparency = 0.6
-		h.OutlineTransparency = 0.2
-		h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		h.Parent = char
-	end
+	update()
+
+	playerConns[plr.UserId] = playerConns[plr.UserId] or {}
+	table.insert(playerConns[plr.UserId], hum.HealthChanged:Connect(update))
+end
+
+local function buildGlow(plr: Player)
+	local char = plr.Character
+	if not char then return end
+	if char:FindFirstChild(GLOW_TAG) then return end
+
+	local h = Instance.new("Highlight")
+	h.Name = GLOW_TAG
+	h.FillColor = Color3.fromRGB(255,0,0)
+	h.FillTransparency = 0.6
+	h.OutlineTransparency = 0.2
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	h.Parent = char
 end
 
 ------------------------------------------------------------------
--- ENABLE / DISABLE
+-- SNAPLINES
 ------------------------------------------------------------------
 
-local function enable()
-	if enabled then return end
-	enabled = true
+local function enableSnaplines()
+	if snaplineConn then return end
 
-	for _, plr in ipairs(Players:GetPlayers()) do
-		buildESP(plr)
-	end
-
-	Players.PlayerAdded:Connect(function(plr)
-		plr.CharacterAdded:Connect(function()
-			task.wait(0.2)
-			if enabled then
-				buildESP(plr)
-			end
-		end)
-	end)
-
-	-- scaling loop
-	scalerConn = RunService.RenderStepped:Connect(function()
+	snaplineConn = RunService.RenderStepped:Connect(function()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
 		for _, plr in ipairs(Players:GetPlayers()) do
-			if plr ~= LocalPlayer then
-				local char = plr.Character
-				if char then
-					local head = char:FindFirstChild("Head")
-					local root = char:FindFirstChild("HumanoidRootPart")
-					if head and root then
-						local dist = (cam.CFrame.Position - root.Position).Magnitude
-						local scale = math.clamp(70 / dist, 0.25, 1)
-
-						local nameGui = head:FindFirstChild(NAME_TAG)
-						if nameGui then
-							nameGui.Size = UDim2.new(0, math.floor(NAME_BASE_W * scale), 0, math.floor(NAME_BASE_H * scale))
-						end
-
-						local hpGui = root:FindFirstChild(HEALTH_TAG)
-						if hpGui then
-							hpGui.Size = UDim2.new(0, math.floor(HP_BASE_W * scale), 0, math.floor(HP_BASE_H * scale))
-						end
+			if plr ~= LocalPlayer and plr.Character then
+				local root = plr.Character:FindFirstChild("HumanoidRootPart")
+				if root then
+					local screenPos, onScreen = cam:WorldToViewportPoint(root.Position)
+					if onScreen then
+						local line = Drawing.new("Line")
+						line.From = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y)
+						line.To = Vector2.new(screenPos.X, screenPos.Y)
+						line.Color = Color3.fromRGB(255,0,0)
+						line.Thickness = 1
+						line.Visible = true
+						task.delay(0, function()
+							line:Remove()
+						end)
 					end
 				end
 			end
 		end
 	end)
-
-	print("[AdminESP] enabled")
 end
 
-local function disable()
-	if not enabled then return end
-	enabled = false
-	cleanupAll()
-	print("[AdminESP] disabled")
-end
-
-------------------------------------------------------------------
--- TOGGLE BINDING
-------------------------------------------------------------------
-
-Toggles.Subscribe(TOGGLE_KEY, function(state: boolean)
-	if state then
-		enable()
-	else
-		disable()
+local function disableSnaplines()
+	if snaplineConn then
+		snaplineConn:Disconnect()
+		snaplineConn = nil
 	end
-end)
-
-if Toggles.GetState(TOGGLE_KEY, false) then
-	enable()
 end
+
+------------------------------------------------------------------
+-- APPLY STATE
+------------------------------------------------------------------
+
+local function applyToPlayer(plr: Player)
+	if plr == LocalPlayer then return end
+	if featureState.Name then buildName(plr) end
+	if featureState.Health then buildHealth(plr) end
+	if featureState.Player then buildGlow(plr) end
+end
+
+local function refreshAll()
+	cleanupAll()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		applyToPlayer(plr)
+	end
+end
+
+------------------------------------------------------------------
+-- TOGGLE BINDINGS
+------------------------------------------------------------------
+
+local function bind(feature: string, key: string)
+	Toggles.Subscribe(key, function(state: boolean)
+		featureState[feature] = state
+
+		if feature == "Snaplines" then
+			if state then enableSnaplines() else disableSnaplines() end
+			return
+		end
+
+		refreshAll()
+	end)
+
+	if Toggles.GetState(key, false) then
+		featureState[feature] = true
+	end
+end
+
+bind("Name", TOGGLE_KEYS.Name)
+bind("Health", TOGGLE_KEYS.Health)
+bind("Player", TOGGLE_KEYS.Player)
+bind("Snaplines", TOGGLE_KEYS.Snaplines)
+
+refreshAll()
