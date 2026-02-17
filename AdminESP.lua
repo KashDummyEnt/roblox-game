@@ -438,88 +438,34 @@ local function disableSnaplines()
 end
 
 ------------------------------------------------------------------
--- 3D BOXES (BEAMS AROUND MODEL:GetBoundingBox())
+-- 3D BOXES (BOXHANDLEADORNMENT AROUND MODEL:GetBoundingBox())
+-- Through-walls via AlwaysOnTop
 ------------------------------------------------------------------
 
 type BoxData = {
 	part: BasePart,
-	atts: {[string]: Attachment},
-	beams: {Beam},
+	ad: BoxHandleAdornment,
 }
 
 local boxDataByUserId: {[number]: BoxData} = {}
 
-local BOX_W0 = 0.06
-local BOX_W1 = 0.06
-
 local boxRemoveConn: RBXScriptConnection? = nil
-
-local function clearBoxes()
-	for _, data in pairs(boxDataByUserId) do
-		for _, b in ipairs(data.beams) do
-			if b then b:Destroy() end
-		end
-		for _, a in pairs(data.atts) do
-			if a then a:Destroy() end
-		end
-		if data.part then data.part:Destroy() end
-	end
-	table.clear(boxDataByUserId)
-end
 
 local function destroyBoxForUserId(userId: number)
 	local data = boxDataByUserId[userId]
 	if not data then return end
 
-	for _, b in ipairs(data.beams) do
-		if b then b:Destroy() end
-	end
-	for _, a in pairs(data.atts) do
-		if a then a:Destroy() end
-	end
+	if data.ad then data.ad:Destroy() end
 	if data.part then data.part:Destroy() end
 
 	boxDataByUserId[userId] = nil
 end
 
-local function makeCornerAttachments(parent: BasePart): {[string]: Attachment}
-	local atts: {[string]: Attachment} = {}
-
-	local function mk(name: string): Attachment
-		local a = Instance.new("Attachment")
-		a.Name = name
-		a.Parent = parent
-		atts[name] = a
-		return a
+local function clearBoxes()
+	for userId, _ in pairs(boxDataByUserId) do
+		destroyBoxForUserId(userId)
 	end
-
-	-- Naming: Axyz where x=0/1 for -/+ X, y=0/1 for -/+ Y, z=0/1 for -/+ Z
-	mk("A000")
-	mk("A001")
-	mk("A010")
-	mk("A011")
-	mk("A100")
-	mk("A101")
-	mk("A110")
-	mk("A111")
-
-	return atts
-end
-
-local function mkBeam(a0: Attachment, a1: Attachment): Beam
-	local beam = Instance.new("Beam")
-	beam.Attachment0 = a0
-	beam.Attachment1 = a1
-	beam.Width0 = BOX_W0
-	beam.Width1 = BOX_W1
-	beam.FaceCamera = true
-	beam.LightEmission = 1
-	beam.LightInfluence = 0
-	beam.Transparency = NumberSequence.new(0)
-	beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
-	beam.Enabled = true
-	beam.Parent = workspace
-	return beam
+	table.clear(boxDataByUserId)
 end
 
 local function ensureBoxFor(plr: Player): BoxData
@@ -528,6 +474,7 @@ local function ensureBoxFor(plr: Player): BoxData
 		return existing
 	end
 
+	-- Invisible holder part that we move to the boundingbox CFrame
 	local p = Instance.new("Part")
 	p.Name = ("ESP_Box3D_%d"):format(plr.UserId)
 	p.Anchored = true
@@ -539,33 +486,28 @@ local function ensureBoxFor(plr: Player): BoxData
 	p.Size = Vector3.new(0.2, 0.2, 0.2)
 	p.Parent = workspace
 
-	local atts = makeCornerAttachments(p)
+	local ad = Instance.new("BoxHandleAdornment")
+	ad.Name = "ESP_BoxAdornment"
+	ad.Adornee = p
+	ad.AlwaysOnTop = true
+	ad.ZIndex = 10
 
-	local beams: {Beam} = {}
+	-- This is the line thickness
+	ad.SizeRelativeOffset = Vector3.new(0, 0, 0)
+	ad.Transparency = 0
+	ad.Color3 = Color3.fromRGB(255, 0, 0)
 
-	-- 12 edges of a box:
-	-- Bottom rectangle (Y-): A0y0z
-	table.insert(beams, mkBeam(atts.A000, atts.A100))
-	table.insert(beams, mkBeam(atts.A100, atts.A101))
-	table.insert(beams, mkBeam(atts.A101, atts.A001))
-	table.insert(beams, mkBeam(atts.A001, atts.A000))
+	-- Wireframe look
+	ad.AlwaysOnTop = true
 
-	-- Top rectangle (Y+): A0y1z
-	table.insert(beams, mkBeam(atts.A010, atts.A110))
-	table.insert(beams, mkBeam(atts.A110, atts.A111))
-	table.insert(beams, mkBeam(atts.A111, atts.A011))
-	table.insert(beams, mkBeam(atts.A011, atts.A010))
+	-- You can swap to Enum.AdornCullingMode.Never if you want it to never cull
+	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
 
-	-- Vertical edges
-	table.insert(beams, mkBeam(atts.A000, atts.A010))
-	table.insert(beams, mkBeam(atts.A100, atts.A110))
-	table.insert(beams, mkBeam(atts.A101, atts.A111))
-	table.insert(beams, mkBeam(atts.A001, atts.A011))
+	ad.Parent = workspace
 
 	local data: BoxData = {
 		part = p,
-		atts = atts,
-		beams = beams,
+		ad = ad,
 	}
 
 	boxDataByUserId[plr.UserId] = data
@@ -573,40 +515,24 @@ local function ensureBoxFor(plr: Player): BoxData
 end
 
 local function setBoxEnabled(data: BoxData, enabled: boolean)
-	for _, b in ipairs(data.beams) do
-		b.Enabled = enabled
+	if data.ad then
+		data.ad.Visible = enabled
 	end
 end
 
 local function updateBoxFor(plr: Player, data: BoxData)
 	local char = plr.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
+
 	if not char or not hum or hum.Health <= 0 then
 		setBoxEnabled(data, false)
 		return
 	end
 
 	local cf, size = char:GetBoundingBox()
+
 	data.part.CFrame = cf
-
-	local hx = size.X * 0.5
-	local hy = size.Y * 0.5
-	local hz = size.Z * 0.5
-
-	-- corners in the part’s local space (since part.CFrame = bounding CF)
-	-- x: -hx (0) / +hx (1)
-	-- y: -hy (0) / +hy (1)
-	-- z: -hz (0) / +hz (1)
-	data.atts.A000.Position = Vector3.new(-hx, -hy, -hz)
-	data.atts.A001.Position = Vector3.new(-hx, -hy,  hz)
-	data.atts.A010.Position = Vector3.new(-hx,  hy, -hz)
-	data.atts.A011.Position = Vector3.new(-hx,  hy,  hz)
-
-	data.atts.A100.Position = Vector3.new( hx, -hy, -hz)
-	data.atts.A101.Position = Vector3.new( hx, -hy,  hz)
-	data.atts.A110.Position = Vector3.new( hx,  hy, -hz)
-	data.atts.A111.Position = Vector3.new( hx,  hy,  hz)
-
+	data.ad.Size = size
 	setBoxEnabled(data, true)
 end
 
