@@ -1,11 +1,14 @@
 --!strict
--- PopupMenu.client.lua
--- Drop this LocalScript into StarterPlayerScripts (or StarterGui).
--- It creates a circle toggle button + animated popup menu fully in code.
+-- Menu.lua
+-- PopupMenu client UI + GitHub action button
+-- Load in Roblox with:
+-- loadstring(game:HttpGet('https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Menu.lua'))()
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+
+local SKY_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ClientSky.lua"
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -62,11 +65,10 @@ local function addStroke(parent: Instance, thickness: number, color: Color3, tra
 end
 
 local function addShadow(parent: Instance)
-	-- lightweight fake shadow using an ImageLabel
 	local shadow = make("ImageLabel", {
 		Name = "Shadow",
 		BackgroundTransparency = 1,
-		Image = "rbxassetid://1316045217", -- soft shadow
+		Image = "rbxassetid://1316045217",
 		ImageTransparency = 0.45,
 		ScaleType = Enum.ScaleType.Slice,
 		SliceCenter = Rect.new(10, 10, 118, 118),
@@ -79,7 +81,6 @@ local function addShadow(parent: Instance)
 end
 
 local function getCornerPositions(toggleSize: number, popupSize: Vector2, margin: number)
-	-- returns togglePos, popupClosedPos, popupOpenPos
 	local ts = toggleSize
 	local psX, psY = popupSize.X, popupSize.Y
 
@@ -108,7 +109,6 @@ local function getCornerPositions(toggleSize: number, popupSize: Vector2, margin
 		return togglePos, popupClosed, popupOpen
 	end
 
-	-- TopRight default
 	local togglePos = u2(1, -(margin + ts), 0, margin)
 	local popupOpen = u2(1, -(margin + psX), 0, margin + ts + 12)
 	local popupClosed = u2(1, -(margin + psX), 0, margin + ts + 12 - psY)
@@ -117,6 +117,27 @@ end
 
 local function isTouchDevice(): boolean
 	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+
+local function runRemote(url: string)
+	local ok, code = pcall(function()
+		return game:HttpGet(url)
+	end)
+	if not ok then
+		warn("HttpGet failed:", code)
+		return
+	end
+
+	local fn, compileErr = loadstring(code)
+	if not fn then
+		warn("loadstring failed:", compileErr)
+		return
+	end
+
+	local ok2, runErr = pcall(fn)
+	if not ok2 then
+		warn("remote runtime error:", runErr)
+	end
 end
 
 --// Build GUI
@@ -133,8 +154,7 @@ local screenGui = make("ScreenGui", {
 	Parent = playerGui,
 })
 
--- Small scaling for mobile
-local rootScale = make("UIScale", {
+make("UIScale", {
 	Scale = isTouchDevice() and 1.05 or 1,
 	Parent = screenGui,
 })
@@ -205,7 +225,7 @@ local header = make("Frame", {
 	Parent = popup,
 })
 
-local title = make("TextLabel", {
+make("TextLabel", {
 	Name = "Title",
 	BackgroundTransparency = 1,
 	Text = "Menu",
@@ -219,7 +239,7 @@ local title = make("TextLabel", {
 	Parent = header,
 })
 
-local subtitle = make("TextLabel", {
+make("TextLabel", {
 	Name = "Subtitle",
 	BackgroundTransparency = 1,
 	Text = "client-side UI (script-built)",
@@ -250,7 +270,7 @@ addCorner(closeBtn, 10)
 addStroke(closeBtn, 1, CONFIG.Stroke, 0.25)
 
 -- Divider
-local divider = make("Frame", {
+make("Frame", {
 	Name = "Divider",
 	BackgroundColor3 = CONFIG.Stroke,
 	BackgroundTransparency = 0.6,
@@ -275,13 +295,13 @@ local content = make("ScrollingFrame", {
 	Parent = popup,
 })
 
-local layout = make("UIListLayout", {
+make("UIListLayout", {
 	Padding = UDim.new(0, 10),
 	SortOrder = Enum.SortOrder.LayoutOrder,
 	Parent = content,
 })
 
-local pad = make("UIPadding", {
+make("UIPadding", {
 	PaddingTop = UDim.new(0, 4),
 	PaddingBottom = UDim.new(0, 8),
 	PaddingLeft = UDim.new(0, 4),
@@ -289,19 +309,21 @@ local pad = make("UIPadding", {
 	Parent = content,
 })
 
-local function addCard(textTop: string, textBottom: string, order: number)
-	local card = make("Frame", {
+local function addCard(textTop: string, textBottom: string, order: number, onClick: (() -> ())?)
+	local card = make("TextButton", {
 		Name = "Card",
+		AutoButtonColor = false,
 		BackgroundColor3 = CONFIG.Bg2,
 		Size = UDim2.new(1, 0, 0, 64),
 		ZIndex = 42,
 		LayoutOrder = order,
+		Text = "",
 		Parent = content,
 	})
 	addCorner(card, 12)
 	addStroke(card, 1, CONFIG.Stroke, 0.35)
 
-	local top = make("TextLabel", {
+	make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = textTop,
 		TextColor3 = CONFIG.Text,
@@ -314,7 +336,7 @@ local function addCard(textTop: string, textBottom: string, order: number)
 		Parent = card,
 	})
 
-	local bottom = make("TextLabel", {
+	make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = textBottom,
 		TextColor3 = CONFIG.SubText,
@@ -328,11 +350,34 @@ local function addCard(textTop: string, textBottom: string, order: number)
 		ZIndex = 43,
 		Parent = card,
 	})
+
+	if onClick then
+		card.MouseButton1Click:Connect(onClick)
+
+		card.MouseEnter:Connect(function()
+			card.BackgroundColor3 = CONFIG.Bg
+		end)
+		card.MouseLeave:Connect(function()
+			card.BackgroundColor3 = CONFIG.Bg2
+		end)
+		card.MouseButton1Down:Connect(function()
+			card.BackgroundTransparency = 0.05
+		end)
+		card.MouseButton1Up:Connect(function()
+			card.BackgroundTransparency = 0
+		end)
+	end
 end
 
-addCard("Button 1", "Put settings, actions, whatever here.", 1)
-addCard("Button 2", "This is just UI structure. Hook logic later.", 2)
-addCard("Info", "Everything you see was created by this LocalScript.", 3)
+addCard("Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
+	runRemote(SKY_URL)
+end)
+
+addCard("Button 2", "This is just UI structure. Hook logic later.", 2, function()
+	print("Button 2 clicked")
+end)
+
+addCard("Info", "Everything you see was created by this LocalScript.", 3, nil)
 
 -- Positions / animation states
 local togglePos, popupClosedPos, popupOpenPos = getCornerPositions(CONFIG.ToggleSize, CONFIG.PopupSize, CONFIG.Margin)
@@ -376,7 +421,6 @@ local function setOpen(nextOpen: boolean)
 	if isOpen == nextOpen then return end
 	isOpen = nextOpen
 
-	-- little visual feedback
 	toggleIcon.Text = isOpen and "×" or "≡"
 	local ringStroke = accentRing:FindFirstChildOfClass("UIStroke")
 	if ringStroke then
@@ -394,12 +438,6 @@ closeBtn.MouseButton1Click:Connect(function()
 	setOpen(false)
 end)
 
--- Optional: click outside to close (simple version)
-screenGui:GetPropertyChangedSignal("Enabled"):Connect(function()
-	-- no-op placeholder; keep if you later want enable/disable
-end)
-
--- Escape key closes
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.KeyCode == Enum.KeyCode.Escape then
@@ -407,5 +445,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
--- Start closed
 setOpen(false)
