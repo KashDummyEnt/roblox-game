@@ -61,6 +61,9 @@ local GLOW_TAG = "ESP_Glow"
 
 local NAME_BASE_W, NAME_BASE_H = 90, 22
 local HP_BASE_W, HP_BASE_H = 70, 8
+local NAME_MIN_W, NAME_MIN_H = 50, 14
+local HP_MIN_W, HP_MIN_H = 40, 6
+
 
 local MAX_DISTANCE = 500
 
@@ -223,31 +226,42 @@ local function startScaler()
 				if char then
 					local head = char:FindFirstChild("Head")
 					local root = char:FindFirstChild("HumanoidRootPart")
+
 					if head and root then
 						local dist = (cam.CFrame.Position - root.Position).Magnitude
-						local scale = math.clamp(70 / dist, 0.25, 1)
 
+						-- smoother scaling (no forced 0.25 floor anymore)
+						local scale = math.clamp(70 / dist, 0, 1)
+
+						------------------------------------------------------------------
+						-- NAME SCALING (WITH MIN SIZE)
+						------------------------------------------------------------------
 						if featureState.Name then
 							local nameGui = head:FindFirstChild(NAME_TAG)
 							if nameGui then
-								nameGui.Size = UDim2.new(
-									0,
-									math.floor(NAME_BASE_W * scale),
-									0,
-									math.floor(NAME_BASE_H * scale)
-								)
+								local w = math.floor(NAME_BASE_W * scale)
+								local h = math.floor(NAME_BASE_H * scale)
+
+								w = math.max(w, NAME_MIN_W)
+								h = math.max(h, NAME_MIN_H)
+
+								nameGui.Size = UDim2.new(0, w, 0, h)
 							end
 						end
 
+						------------------------------------------------------------------
+						-- HEALTHBAR SCALING (WITH MIN SIZE)
+						------------------------------------------------------------------
 						if featureState.Health then
 							local hpGui = root:FindFirstChild(HEALTH_TAG)
 							if hpGui then
-								hpGui.Size = UDim2.new(
-									0,
-									math.floor(HP_BASE_W * scale),
-									0,
-									math.floor(HP_BASE_H * scale)
-								)
+								local w = math.floor(HP_BASE_W * scale)
+								local h = math.floor(HP_BASE_H * scale)
+
+								w = math.max(w, HP_MIN_W)
+								h = math.max(h, HP_MIN_H)
+
+								hpGui.Size = UDim2.new(0, w, 0, h)
 							end
 						end
 					end
@@ -263,6 +277,7 @@ local function stopScaler()
 		scalerConn = nil
 	end
 end
+
 
 ------------------------------------------------------------------
 -- SNAPLINES (BOXHANDLEADORNMENT "RODS" - FEET TO FEET, THROUGH WALLS)
