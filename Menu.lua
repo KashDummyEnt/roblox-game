@@ -1,6 +1,6 @@
 --!strict
 -- Menu.lua
--- PopupMenu client UI + 5 left tabs + toggle switch cards
+-- PopupMenu client UI + 5 left tabs + toggle switch cards (REMOTE MODULE)
 -- Load in Roblox with:
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Menu.lua"))()
 
@@ -10,6 +10,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
 local SKY_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ClientSky.lua"
+local TOGGLES_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ToggleSwitches.lua"
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -145,6 +146,35 @@ local function runRemote(url: string)
 	if not ok2 then
 		warn("remote runtime error:", runErr)
 	end
+end
+
+local function loadRemoteModule(url: string): any
+	local ok, code = pcall(function()
+		return game:HttpGet(url)
+	end)
+	if not ok then
+		warn("HttpGet failed:", code)
+		return nil
+	end
+
+	local chunk, compileErr = loadstring(code)
+	if not chunk then
+		warn("loadstring failed:", compileErr)
+		return nil
+	end
+
+	local ok2, result = pcall(chunk)
+	if not ok2 then
+		warn("remote module runtime error:", result)
+		return nil
+	end
+
+	return result
+end
+
+local Toggles = loadRemoteModule(TOGGLES_URL)
+if not Toggles then
+	error("Failed to load ToggleSwitches module from GitHub")
 end
 
 -- Drag helper (RenderStepped, sync-safe)
@@ -464,209 +494,6 @@ local function makePage(name: string): ScrollingFrame
 	return page
 end
 
---================================================================================
--- Toggle Switch System
---================================================================================
-
-local toggleStates: {[string]: boolean} = {}
-
-type ToggleHandle = {
-	Get: () -> boolean,
-	Set: (boolean) -> (),
-	Flip: () -> (),
-}
-
-local function addToggleCard(
-	parent: Instance,
-	key: string,
-	title: string,
-	desc: string,
-	order: number,
-	defaultState: boolean,
-	onChanged: ((boolean) -> ())?
-): ToggleHandle
-	if toggleStates[key] == nil then
-		toggleStates[key] = defaultState
-	end
-
-	local card = make("Frame", {
-		Name = "ToggleCard_" .. key,
-		BackgroundColor3 = CONFIG.Bg2,
-		Size = UDim2.new(1, 0, 0, 64),
-		ZIndex = 43,
-		LayoutOrder = order,
-		Parent = parent,
-	}) :: Frame
-	addCorner(card, 12)
-	addStroke(card, 1, CONFIG.Stroke, 0.35)
-
-	local titleLbl = make("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = title,
-		TextColor3 = CONFIG.Text,
-		TextSize = 15,
-		Font = Enum.Font.GothamSemibold,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -118, 0, 22),
-		Position = UDim2.new(0, 10, 0, 8),
-		ZIndex = 44,
-		Parent = card,
-	}) :: TextLabel
-
-	local descLbl = make("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = desc,
-		TextColor3 = CONFIG.SubText,
-		TextSize = 13,
-		Font = Enum.Font.Gotham,
-		TextWrapped = true,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-		Size = UDim2.new(1, -118, 0, 28),
-		Position = UDim2.new(0, 10, 0, 30),
-		ZIndex = 44,
-		Parent = card,
-	}) :: TextLabel
-
-	-- Switch (right side)
-	local SWITCH_W = 64
-	local SWITCH_H = 30
-	local PADDING_R = 14
-
-	local switchBtn = make("TextButton", {
-		Name = "Switch",
-		AutoButtonColor = false,
-		Text = "",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(SWITCH_W, SWITCH_H),
-		Position = UDim2.new(1, -(PADDING_R + SWITCH_W), 0.5, -(SWITCH_H / 2)),
-		ZIndex = 46,
-		Parent = card,
-	}) :: TextButton
-
-	-- Track
-	local track = make("Frame", {
-		Name = "Track",
-		BackgroundColor3 = CONFIG.Bg3,
-		Size = UDim2.new(1, 0, 1, 0),
-		Position = UDim2.new(0, 0, 0, 0),
-		ZIndex = 46,
-		Parent = switchBtn,
-	}) :: Frame
-	addCorner(track, math.floor(SWITCH_H / 2))
-	addStroke(track, 1, CONFIG.Stroke, 0.25)
-
-	-- Knob
-	local knob = make("Frame", {
-		Name = "Knob",
-		BackgroundColor3 = Color3.fromRGB(245, 245, 248),
-		Size = UDim2.fromOffset(SWITCH_H - 6, SWITCH_H - 6),
-		Position = UDim2.new(0, 3, 0, 3),
-		ZIndex = 47,
-		Parent = switchBtn,
-	}) :: Frame
-	addCorner(knob, 999)
-	addStroke(knob, 1, Color3.fromRGB(0, 0, 0), 0.75)
-
-	local function applyVisual(state: boolean, instant: boolean?)
-		local knobXOn = SWITCH_W - (SWITCH_H - 6) - 3
-		local knobXOff = 3
-
-		local goalTrackColor = state and CONFIG.Accent or CONFIG.Bg3
-		local goalStrokeColor = state and CONFIG.Accent or CONFIG.Stroke
-		local goalStrokeTrans = state and 0.05 or 0.25
-		local goalKnobPos = state and UDim2.new(0, knobXOn, 0, 3) or UDim2.new(0, knobXOff, 0, 3)
-
-		local trackStroke = track:FindFirstChildOfClass("UIStroke")
-		if not trackStroke then
-			return
-		end
-
-		if instant then
-			track.BackgroundColor3 = goalTrackColor;
-			(trackStroke :: UIStroke).Color = goalStrokeColor ;
-			(trackStroke :: UIStroke).Transparency = goalStrokeTrans;
-			knob.Position = goalKnobPos
-			return
-		end
-
-		local ti = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		TweenService:Create(track, ti, {BackgroundColor3 = goalTrackColor}):Play()
-		TweenService:Create((trackStroke :: UIStroke), ti, {Color = goalStrokeColor, Transparency = goalStrokeTrans}):Play()
-		TweenService:Create(knob, ti, {Position = goalKnobPos}):Play()
-	end
-
-	local function setState(nextState: boolean)
-		if toggleStates[key] == nextState then
-			return
-		end
-		toggleStates[key] = nextState
-		applyVisual(nextState, false)
-		if onChanged then
-			onChanged(nextState)
-		end
-	end
-
-	-- Initial render
-	applyVisual(toggleStates[key], true)
-
-	-- Hover polish (desktop only)
-	if not isTouchDevice() then
-		card.MouseEnter:Connect(function()
-			card.BackgroundColor3 = CONFIG.Bg3
-		end)
-		card.MouseLeave:Connect(function()
-			card.BackgroundColor3 = CONFIG.Bg2
-		end)
-
-		switchBtn.MouseEnter:Connect(function()
-			track.BackgroundColor3 = (toggleStates[key] and CONFIG.Accent) or CONFIG.Bg2
-		end)
-		switchBtn.MouseLeave:Connect(function()
-			applyVisual(toggleStates[key], true)
-		end)
-	end
-
-	-- Click the switch
-	switchBtn.MouseButton1Click:Connect(function()
-		setState(not toggleStates[key])
-	end)
-
-	-- Optional: click the card anywhere EXCEPT labels will also toggle
-	local clickCatcher = make("TextButton", {
-		Name = "ClickCatcher",
-		AutoButtonColor = false,
-		Text = "",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 1, 0),
-		Position = UDim2.new(0, 0, 0, 0),
-		ZIndex = 45,
-		Parent = card,
-	}) :: TextButton
-	clickCatcher.MouseButton1Click:Connect(function()
-		setState(not toggleStates[key])
-	end)
-
-	-- Keep labels above clickcatcher so text selection/hover feels normal
-	titleLbl.ZIndex = 46
-	descLbl.ZIndex = 46
-	switchBtn.ZIndex = 48
-	track.ZIndex = 48
-	knob.ZIndex = 49
-
-	return {
-		Get = function(): boolean
-			return toggleStates[key]
-		end,
-		Set = function(v: boolean)
-			setState(v)
-		end,
-		Flip = function()
-			setState(not toggleStates[key])
-		end,
-	}
-end
-
 -- Optional: simple action card (kept from your original)
 local function addCard(parent: Instance, textTop: string, textBottom: string, order: number, onClick: (() -> ())?)
 	local card = make("TextButton", {
@@ -745,14 +572,20 @@ local pageAbout = makePage("About")
 -- Main tab (keep placeholders for now)
 addPlaceholders(pageMain, "Main", 1)
 
+-- Shared services table for module
+local TOGGLE_SERVICES = {
+	TweenService = TweenService,
+	UserInputService = UserInputService,
+}
+
 -- Visuals tab (EXAMPLE TOGGLES)
-addToggleCard(pageVisuals, "visuals_boxes", "ESP Boxes", "Draw 2D boxes on players.", 1, true, function(state)
+Toggles.AddToggleCard(pageVisuals, "visuals_boxes", "ESP Boxes", "Draw 2D boxes on players.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("ESP Boxes:", state)
 end)
-addToggleCard(pageVisuals, "visuals_names", "Name Tags", "Show player names above them.", 2, true, function(state)
+Toggles.AddToggleCard(pageVisuals, "visuals_names", "Name Tags", "Show player names above them.", 2, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("Name Tags:", state)
 end)
-addToggleCard(pageVisuals, "visuals_tracers", "Tracers", "Lines from you to targets.", 3, false, function(state)
+Toggles.AddToggleCard(pageVisuals, "visuals_tracers", "Tracers", "Lines from you to targets.", 3, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("Tracers:", state)
 end)
 addPlaceholders(pageVisuals, "Visuals", 4)
@@ -761,19 +594,19 @@ addPlaceholders(pageVisuals, "Visuals", 4)
 addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
 end)
-addToggleCard(pageWorld, "world_fullbright", "Fullbright", "Brighten the world lighting.", 2, false, function(state)
+Toggles.AddToggleCard(pageWorld, "world_fullbright", "Fullbright", "Brighten the world lighting.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("Fullbright:", state)
 end)
-addToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, true, function(state)
+Toggles.AddToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("No Fog:", state)
 end)
 addPlaceholders(pageWorld, "World", 4)
 
 -- Settings tab (EXAMPLE TOGGLES)
-addToggleCard(pageSettings, "settings_keybinds", "Keybind Hints", "Show keybind tips in UI.", 1, true, function(state)
+Toggles.AddToggleCard(pageSettings, "settings_keybinds", "Keybind Hints", "Show keybind tips in UI.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("Keybind Hints:", state)
 end)
-addToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI click sounds.", 2, false, function(state)
+Toggles.AddToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI click sounds.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("UI Sounds:", state)
 end)
 addPlaceholders(pageSettings, "Settings", 3)
@@ -1031,4 +864,4 @@ setTabVisuals("Main")
 setOpen(false)
 
 -- If you ever need to read a toggle anywhere in this file:
--- print("ESP Boxes currently:", toggleStates["visuals_boxes"])
+-- print("ESP Boxes currently:", Toggles.GetState("visuals_boxes", false))
