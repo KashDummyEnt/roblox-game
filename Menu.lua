@@ -23,7 +23,7 @@ local CONFIG = {
 	Margin = 16,
 
 	ToggleSize = 56,
-	PopupSize = Vector2.new(520, 290),
+	PopupSize = Vector2.new(520, 330),
 
 	OpenTweenTime = 0.18,
 	CloseTweenTime = 0.14,
@@ -191,6 +191,7 @@ local popup = make("Frame", {
 	ZIndex = 40,
 	Parent = screenGui,
 })
+popup.ClipsDescendants = true
 addCorner(popup, 14)
 addStroke(popup, 1, CONFIG.Stroke, 0.15)
 
@@ -221,21 +222,7 @@ make("TextLabel", {
 	Font = Enum.Font.GothamSemibold,
 	TextXAlignment = Enum.TextXAlignment.Left,
 	Size = UDim2.new(1, -88, 1, 0),
-	Position = UDim2.new(0, 14, 0, 0),
-	ZIndex = 42,
-	Parent = header,
-})
-
-make("TextLabel", {
-	Name = "Subtitle",
-	BackgroundTransparency = 1,
-	Text = "tabs • client UI",
-	TextColor3 = CONFIG.SubText,
-	TextSize = 13,
-	Font = Enum.Font.Gotham,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	Size = UDim2.new(1, -88, 0, 18),
-	Position = UDim2.new(0, 14, 0, 22),
+	Position = UDim2.new(0, 20, 0, 0),
 	ZIndex = 42,
 	Parent = header,
 })
@@ -281,8 +268,8 @@ local body = make("Frame", {
 local sidebar = make("Frame", {
 	Name = "Sidebar",
 	BackgroundColor3 = CONFIG.Bg2,
-	Size = UDim2.new(0, SIDEBAR_WIDTH, 1, 0),
-	Position = UDim2.new(0, 0, 0, 0),
+	Size = UDim2.new(0, SIDEBAR_WIDTH, 1, -16),
+	Position = UDim2.new(0, 0, 0, 8),
 	ZIndex = 42,
 	Parent = body,
 })
@@ -316,8 +303,8 @@ make("UIPadding", {
 local pages = make("Frame", {
 	Name = "Pages",
 	BackgroundTransparency = 1,
-	Size = UDim2.new(1, -(SIDEBAR_WIDTH + 10), 1, 0),
-	Position = UDim2.new(0, SIDEBAR_WIDTH + 10, 0, 0),
+	Size = UDim2.new(1, -(SIDEBAR_WIDTH + 10), 1, -20),
+	Position = UDim2.new(0, SIDEBAR_WIDTH + 10, 0, 10),
 	ZIndex = 42,
 	Parent = body,
 })
@@ -461,34 +448,37 @@ local pageSettings = makePage("Settings")
 local pageAbout = makePage("About")
 
 -- Fill pages (examples)
-addHeader(pageMain, "Quick Actions", 1)
-addCard(pageMain, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 2, function()
+
+-- Main
+addCard(pageMain, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
 end)
-addCard(pageMain, "Close Menu", "Hides the panel.", 3, function()
+
+addCard(pageMain, "Close Menu", "Hides the panel.", 2, function()
 	-- will be wired after setOpen exists
 end)
 
-addHeader(pageVisuals, "Visuals", 1)
-addCard(pageVisuals, "Apply Skybox", "Same action, different tab.", 2, function()
+-- Visuals
+addCard(pageVisuals, "Apply Skybox", "Same action, different tab.", 1, function()
 	runRemote(SKY_URL)
 end)
-addCard(pageVisuals, "Placeholder", "Add visuals toggles here.", 3, function()
+
+addCard(pageVisuals, "Placeholder", "Add visuals toggles here.", 2, function()
 	print("Visuals placeholder")
 end)
 
-addHeader(pageWorld, "World", 1)
-addCard(pageWorld, "Placeholder", "World options go here.", 2, function()
+-- World
+addCard(pageWorld, "Placeholder", "World options go here.", 1, function()
 	print("World placeholder")
 end)
 
-addHeader(pageSettings, "Settings", 1)
-addCard(pageSettings, "Placeholder", "UI settings, keybinds, etc.", 2, function()
+-- Settings
+addCard(pageSettings, "Placeholder", "UI settings, keybinds, etc.", 1, function()
 	print("Settings placeholder")
 end)
 
-addHeader(pageAbout, "About", 1)
-addCard(pageAbout, "Info", "Higgi's Menu • GitHub-driven actions.", 2, nil)
+-- About
+addCard(pageAbout, "Info", "Higgi's Menu • GitHub-driven actions.", 1, nil)
 
 -- Tab system
 type TabDef = {
@@ -526,7 +516,7 @@ local function setTabVisuals(activeName: string)
 			btn.BackgroundColor3 = isActive and CONFIG.Bg or CONFIG.Bg2
 			local stroke = btn:FindFirstChildOfClass("UIStroke")
 			if stroke then
-				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke
+				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke;
 				(stroke :: UIStroke).Transparency = isActive and 0.05 or 0.25
 			end
 			local accent = btn:FindFirstChild("AccentBar")
@@ -621,6 +611,7 @@ local isOpen = false
 popup.Position = popupClosedPos
 popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
 popup.Visible = false
+body.Visible = false
 
 local openTween: Tween? = nil
 local closeTween: Tween? = nil
@@ -634,12 +625,21 @@ local function tweenPopup(open: boolean)
 		popup.Position = popupOpenPos
 		popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
 
+		body.Visible = false
+
 		local tInfo = TweenInfo.new(CONFIG.OpenTweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		openTween = TweenService:Create(popup, tInfo, {
 			Size = UDim2.fromOffset(CONFIG.PopupSize.X, CONFIG.PopupSize.Y),
 		})
+		openTween.Completed:Once(function()
+			if isOpen then
+				body.Visible = true
+			end
+		end)
 		openTween:Play()
 	else
+		body.Visible = false
+
 		local tInfo = TweenInfo.new(CONFIG.CloseTweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 		closeTween = TweenService:Create(popup, tInfo, {
 			Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0),
@@ -668,8 +668,7 @@ end
 do
 	for _, child in ipairs(pageMain:GetChildren()) do
 		if child:IsA("TextButton") then
-			local labels = child:GetChildren()
-			for _, l in ipairs(labels) do
+			for _, l in ipairs(child:GetChildren()) do
 				if l:IsA("TextLabel") and l.Text == "Close Menu" then
 					child.MouseButton1Click:Connect(function()
 						setOpen(false)
