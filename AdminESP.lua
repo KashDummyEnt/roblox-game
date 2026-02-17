@@ -1,6 +1,7 @@
 --!strict
 -- AdminESP.lua
--- Full 3D ESP System (Name, Health, Highlight, Snaplines, Boxes)
+-- Multi-toggle ESP with proper distance scaling + snaplines from local feet (not screen center)
+-- + 3D Beam Boxes (bounding-box based)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -47,8 +48,21 @@ local KEYS = {
 	Health = "visuals_health",
 	Player = "visuals_player",
 	Snaplines = "visuals_snaplines",
-	Boxes = "visuals_boxes",
+	Box3D = "visuals_box3d",
 }
+
+------------------------------------------------------------------
+-- CONFIG
+------------------------------------------------------------------
+
+local NAME_TAG = "ESP_Name"
+local HEALTH_TAG = "ESP_Health"
+local GLOW_TAG = "ESP_Glow"
+
+local NAME_BASE_W, NAME_BASE_H = 90, 22
+local HP_BASE_W, HP_BASE_H = 70, 8
+
+local MAX_DISTANCE = 500
 
 ------------------------------------------------------------------
 -- STATE
@@ -59,14 +73,48 @@ local featureState = {
 	Health = false,
 	Player = false,
 	Snaplines = false,
-	Boxes = false,
+	Box3D = false,
 }
 
+local playerConns: {[number]: {RBXScriptConnection}} = {}
+local scalerConn: RBXScriptConnection? = nil
+local snaplineConn: RBXScriptConnection? = nil
+local boxConn: RBXScriptConnection? = nil
+
 ------------------------------------------------------------------
--- NAME ESP
+-- CLEANUP
 ------------------------------------------------------------------
 
-local NAME_TAG = "ESP_Name"
+local function cleanupPlayer(plr: Player)
+	if playerConns[plr.UserId] then
+		for _, c in ipairs(playerConns[plr.UserId]) do
+			c:Disconnect()
+		end
+		playerConns[plr.UserId] = nil
+	end
+
+	if plr.Character then
+		for _, inst in ipairs(plr.Character:GetDescendants()) do
+			if inst.Name == NAME_TAG
+			or inst.Name == HEALTH_TAG
+			or inst.Name == GLOW_TAG then
+				inst:Destroy()
+			end
+		end
+	end
+end
+
+local function cleanupAll()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			cleanupPlayer(plr)
+		end
+	end
+end
+
+------------------------------------------------------------------
+-- BUILDERS
+------------------------------------------------------------------
 
 local function buildName(plr: Player)
 	local char = plr.Character
@@ -78,14 +126,15 @@ local function buildName(plr: Player)
 	local bill = Instance.new("BillboardGui")
 	bill.Name = NAME_TAG
 	bill.AlwaysOnTop = true
-	bill.Size = UDim2.new(0, 90, 0, 22)
-	bill.StudsOffset = Vector3.new(0, 2.8, 0)
+	bill.MaxDistance = MAX_DISTANCE
+	bill.StudsOffset = Vector3.new(0, 2.9, 0)
+	bill.Size = UDim2.new(0, NAME_BASE_W, 0, NAME_BASE_H)
 	bill.Parent = head
 
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1,0,1,0)
+	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.fromRGB(255,70,70)
+	label.TextColor3 = Color3.fromRGB(255, 70, 70)
 	label.TextStrokeTransparency = 0.5
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamSemibold
@@ -93,16 +142,9 @@ local function buildName(plr: Player)
 	label.Parent = bill
 end
 
-------------------------------------------------------------------
--- HEALTH ESP
-------------------------------------------------------------------
-
-local HEALTH_TAG = "ESP_Health"
-
 local function buildHealth(plr: Player)
 	local char = plr.Character
 	if not char then return end
-
 	local root = char:FindFirstChild("HumanoidRootPart")
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	if not root or not hum then return end
@@ -111,37 +153,37 @@ local function buildHealth(plr: Player)
 	local bill = Instance.new("BillboardGui")
 	bill.Name = HEALTH_TAG
 	bill.AlwaysOnTop = true
-	bill.Size = UDim2.new(0, 70, 0, 8)
+	bill.MaxDistance = MAX_DISTANCE
 	bill.StudsOffset = Vector3.new(0, -3.2, 0)
+	bill.Size = UDim2.new(0, HP_BASE_W, 0, HP_BASE_H)
 	bill.Parent = root
 
 	local back = Instance.new("Frame")
-	back.Size = UDim2.new(1,0,1,0)
-	back.BackgroundColor3 = Color3.fromRGB(25,25,25)
+	back.Size = UDim2.new(1, 0, 1, 0)
+	back.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 	back.BorderSizePixel = 0
 	back.Parent = bill
 
 	local fill = Instance.new("Frame")
-	fill.Size = UDim2.new(1,0,1,0)
+	fill.Name = "Fill"
+	fill.Size = UDim2.new(1, 0, 1, 0)
 	fill.BorderSizePixel = 0
 	fill.Parent = back
 
 	local function update()
-		local pct = hum.Health / hum.MaxHealth
-		pct = math.clamp(pct, 0, 1)
-		fill.Size = UDim2.new(pct,0,1,0)
-		fill.BackgroundColor3 = Color3.fromRGB(255*(1-pct),255*pct,60)
+		local pct = 0
+		if hum.MaxHealth > 0 then
+			pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+		end
+		fill.Size = UDim2.new(pct, 0, 1, 0)
+		fill.BackgroundColor3 = Color3.fromRGB(255 * (1 - pct), 255 * pct, 60)
 	end
 
 	update()
-	hum.HealthChanged:Connect(update)
+
+	playerConns[plr.UserId] = playerConns[plr.UserId] or {}
+	table.insert(playerConns[plr.UserId], hum.HealthChanged:Connect(update))
 end
-
-------------------------------------------------------------------
--- HIGHLIGHT (CHAMS)
-------------------------------------------------------------------
-
-local GLOW_TAG = "ESP_Glow"
 
 local function buildGlow(plr: Player)
 	local char = plr.Character
@@ -150,7 +192,7 @@ local function buildGlow(plr: Player)
 
 	local h = Instance.new("Highlight")
 	h.Name = GLOW_TAG
-	h.FillColor = Color3.fromRGB(255,0,0)
+	h.FillColor = Color3.fromRGB(255, 0, 0)
 	h.FillTransparency = 0.6
 	h.OutlineTransparency = 0.2
 	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -158,182 +200,438 @@ local function buildGlow(plr: Player)
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (3D FEET → CHEST)
+-- DISTANCE SCALING (YOUR ORIGINAL LOGIC)
 ------------------------------------------------------------------
 
-local snapBeams: {[number]: {beam: Beam, a1: Attachment}} = {}
-local originPart: BasePart? = nil
-local originAttachment: Attachment? = nil
-local snapConn: RBXScriptConnection? = nil
+local function startScaler()
+	if scalerConn then return end
 
-local function clearSnap()
-	for _, data in pairs(snapBeams) do
-		data.beam:Destroy()
-		data.a1:Destroy()
-	end
-	table.clear(snapBeams)
-	if originPart then originPart:Destroy() end
-	originPart = nil
-	originAttachment = nil
-end
-
-local function ensureOrigin()
-	if originPart then return end
-
-	local p = Instance.new("Part")
-	p.Anchored = true
-	p.CanCollide = false
-	p.Transparency = 1
-	p.Size = Vector3.new(0.2,0.2,0.2)
-	p.Parent = workspace
-
-	local a = Instance.new("Attachment")
-	a.Parent = p
-
-	originPart = p
-	originAttachment = a
-end
-
-local function enableSnap()
-	clearSnap()
-	ensureOrigin()
-
-	snapConn = RunService.RenderStepped:Connect(function()
+	scalerConn = RunService.RenderStepped:Connect(function()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		local char = LocalPlayer.Character
-		if not char then return end
-
-		local root = char:FindFirstChild("HumanoidRootPart")
-		local hum = char:FindFirstChildOfClass("Humanoid")
-		if not root or not hum then return end
-
-		local feet = root.Position - Vector3.new(0, hum.HipHeight + root.Size.Y/2, 0)
-		originPart.CFrame = CFrame.new(feet)
-
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if plr ~= LocalPlayer then
-				local c = plr.Character
-				local h = c and c:FindFirstChildOfClass("Humanoid")
-				local chest = c and (c:FindFirstChild("UpperTorso") or c:FindFirstChild("Torso") or c:FindFirstChild("HumanoidRootPart"))
-				if not chest or not h or h.Health <= 0 then continue end
+				local char = plr.Character
+				if char then
+					local head = char:FindFirstChild("Head")
+					local root = char:FindFirstChild("HumanoidRootPart")
+					if head and root then
+						local dist = (cam.CFrame.Position - root.Position).Magnitude
+						local scale = math.clamp(70 / dist, 0.25, 1)
 
-				if not snapBeams[plr.UserId] then
-					local a1 = Instance.new("Attachment")
-					a1.Position = Vector3.new(0, chest.Size.Y/4, 0)
-					a1.Parent = chest
+						if featureState.Name then
+							local nameGui = head:FindFirstChild(NAME_TAG)
+							if nameGui then
+								nameGui.Size = UDim2.new(
+									0,
+									math.floor(NAME_BASE_W * scale),
+									0,
+									math.floor(NAME_BASE_H * scale)
+								)
+							end
+						end
 
-					local beam = Instance.new("Beam")
-					beam.Attachment0 = originAttachment
-					beam.Attachment1 = a1
-					beam.Width0 = 0.08
-					beam.Width1 = 0.06
-					beam.FaceCamera = true
-					beam.LightEmission = 1
-					beam.LightInfluence = 0
-					beam.Transparency = NumberSequence.new(0)
-					beam.Color = ColorSequence.new(Color3.fromRGB(255,0,0))
-					beam.Parent = workspace
-
-					snapBeams[plr.UserId] = {beam=beam,a1=a1}
+						if featureState.Health then
+							local hpGui = root:FindFirstChild(HEALTH_TAG)
+							if hpGui then
+								hpGui.Size = UDim2.new(
+									0,
+									math.floor(HP_BASE_W * scale),
+									0,
+									math.floor(HP_BASE_H * scale)
+								)
+							end
+						end
+					end
 				end
 			end
 		end
 	end)
 end
 
-local function disableSnap()
-	if snapConn then snapConn:Disconnect() end
-	clearSnap()
+local function stopScaler()
+	if scalerConn then
+		scalerConn:Disconnect()
+		scalerConn = nil
+	end
 end
 
 ------------------------------------------------------------------
--- BOXES (3D WIREFRAME)
+-- SNAPLINES (3D WORLD BEAMS - FEET TO CHEST, FIRST-PERSON VISIBLE, NO TEXTURES)
 ------------------------------------------------------------------
 
-local boxData: {[number]: {attachments:{Attachment}, beams:{Beam}}} = {}
-local boxConn: RBXScriptConnection? = nil
+local snapBeams: {[number]: {a1: Attachment, beam: Beam}} = {}
+local snapOriginPart: BasePart? = nil
+local snapOriginAttachment: Attachment? = nil
+
+local FP_FORWARD_PUSH = 0.75
+local FP_MIN_CAM_DIST = 1.35
+
+local BEAM_W0 = 0.08
+local BEAM_W1 = 0.06
+
+local function clearSnaplines()
+	for _, data in pairs(snapBeams) do
+		if data.beam then data.beam:Destroy() end
+		if data.a1 then data.a1:Destroy() end
+	end
+	table.clear(snapBeams)
+
+	if snapOriginAttachment then
+		snapOriginAttachment:Destroy()
+		snapOriginAttachment = nil
+	end
+
+	if snapOriginPart then
+		snapOriginPart:Destroy()
+		snapOriginPart = nil
+	end
+end
+
+local function getLocalRootAndHum(): (BasePart?, Humanoid?)
+	local char = LocalPlayer.Character
+	if not char then return nil, nil end
+	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	return root, hum
+end
+
+local function getChestPart(char: Model): BasePart?
+	return (char:FindFirstChild("UpperTorso") :: BasePart?)
+		or (char:FindFirstChild("Torso") :: BasePart?)
+		or (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
+end
+
+local function ensureOrigin()
+	if snapOriginPart and snapOriginAttachment then
+		return
+	end
+
+	local p = Instance.new("Part")
+	p.Name = "SnapOrigin"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Transparency = 1
+	p.Size = Vector3.new(0.2, 0.2, 0.2)
+	p.Parent = workspace
+
+	local a0 = Instance.new("Attachment")
+	a0.Name = "SnapFeet"
+	a0.Position = Vector3.new(0, 0, 0)
+	a0.Parent = p
+
+	snapOriginPart = p
+	snapOriginAttachment = a0
+end
+
+local function enableSnaplines()
+	clearSnaplines()
+
+	if snaplineConn then
+		snaplineConn:Disconnect()
+		snaplineConn = nil
+	end
+
+	task.defer(function()
+		if not featureState.Snaplines then
+			return
+		end
+
+		ensureOrigin()
+
+		snaplineConn = RunService.RenderStepped:Connect(function()
+			local cam = workspace.CurrentCamera
+			if not cam then
+				return
+			end
+
+			if not snapOriginPart or not snapOriginAttachment then
+				return
+			end
+
+			local localRoot, localHum = getLocalRootAndHum()
+			if not localRoot or not localHum then
+				for _, data in pairs(snapBeams) do
+					data.beam.Enabled = false
+				end
+				return
+			end
+
+			local feetWorld = localRoot.Position - Vector3.new(0, localHum.HipHeight + (localRoot.Size.Y / 2), 0)
+
+			local camPos = cam.CFrame.Position
+			local distToFeet = (feetWorld - camPos).Magnitude
+
+			local originWorld = feetWorld
+			if distToFeet < FP_MIN_CAM_DIST then
+				originWorld = feetWorld + (cam.CFrame.LookVector * FP_FORWARD_PUSH)
+			end
+
+			snapOriginPart.CFrame = CFrame.new(originWorld)
+
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= LocalPlayer then
+					local char = plr.Character
+					local hum = char and char:FindFirstChildOfClass("Humanoid")
+					local chest = char and getChestPart(char)
+
+					if not chest or not hum or hum.Health <= 0 then
+						local existing = snapBeams[plr.UserId]
+						if existing then
+							existing.beam.Enabled = false
+						end
+						continue
+					end
+
+					local data = snapBeams[plr.UserId]
+
+					if not data then
+						local a1 = Instance.new("Attachment")
+						a1.Name = "SnapChest"
+						a1.Position = Vector3.new(0, chest.Size.Y / 4, 0)
+						a1.Parent = chest
+
+						local beam = Instance.new("Beam")
+						beam.Attachment0 = snapOriginAttachment
+						beam.Attachment1 = a1
+
+						beam.Width0 = BEAM_W0
+						beam.Width1 = BEAM_W1
+						beam.FaceCamera = true
+						beam.LightEmission = 1
+						beam.LightInfluence = 0
+						beam.Transparency = NumberSequence.new(0)
+						beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+						beam.Enabled = true
+						beam.Parent = workspace
+
+						snapBeams[plr.UserId] = {
+							a1 = a1,
+							beam = beam,
+						}
+					else
+						if data.a1.Parent ~= chest then
+							data.a1.Parent = chest
+						end
+
+						data.a1.Position = Vector3.new(0, chest.Size.Y / 4, 0)
+						data.beam.Attachment0 = snapOriginAttachment
+						data.beam.Enabled = true
+					end
+				end
+			end
+		end)
+	end)
+end
+
+local function disableSnaplines()
+	if snaplineConn then
+		snaplineConn:Disconnect()
+		snaplineConn = nil
+	end
+
+	clearSnaplines()
+end
+
+------------------------------------------------------------------
+-- 3D BOXES (BEAMS AROUND MODEL:GetBoundingBox())
+------------------------------------------------------------------
+
+type BoxData = {
+	part: BasePart,
+	atts: {[string]: Attachment},
+	beams: {Beam},
+}
+
+local boxDataByUserId: {[number]: BoxData} = {}
+
+local BOX_W0 = 0.06
+local BOX_W1 = 0.06
 
 local function clearBoxes()
-	for _, data in pairs(boxData) do
-		for _, b in ipairs(data.beams) do b:Destroy() end
-		for _, a in ipairs(data.attachments) do a:Destroy() end
+	for _, data in pairs(boxDataByUserId) do
+		for _, b in ipairs(data.beams) do
+			if b then b:Destroy() end
+		end
+		for _, a in pairs(data.atts) do
+			if a then a:Destroy() end
+		end
+		if data.part then data.part:Destroy() end
 	end
-	table.clear(boxData)
+	table.clear(boxDataByUserId)
 end
 
-local function createBox(plr: Player)
-	local char = plr.Character
-	if not char then return end
-	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root then return end
+local function makeCornerAttachments(parent: BasePart): {[string]: Attachment}
+	local atts: {[string]: Attachment} = {}
 
-	local w,h,d = 4,6,2
-	local hw,hd = w/2,d/2
+	local function mk(name: string): Attachment
+		local a = Instance.new("Attachment")
+		a.Name = name
+		a.Parent = parent
+		atts[name] = a
+		return a
+	end
 
-	local offsets = {
-		Vector3.new(-hw,0,-hd), Vector3.new(hw,0,-hd),
-		Vector3.new(hw,0,hd), Vector3.new(-hw,0,hd),
-		Vector3.new(-hw,h,-hd), Vector3.new(hw,h,-hd),
-		Vector3.new(hw,h,hd), Vector3.new(-hw,h,hd),
+	-- Naming: Axyz where x=0/1 for -/+ X, y=0/1 for -/+ Y, z=0/1 for -/+ Z
+	mk("A000")
+	mk("A001")
+	mk("A010")
+	mk("A011")
+	mk("A100")
+	mk("A101")
+	mk("A110")
+	mk("A111")
+
+	return atts
+end
+
+local function mkBeam(a0: Attachment, a1: Attachment): Beam
+	local beam = Instance.new("Beam")
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	beam.Width0 = BOX_W0
+	beam.Width1 = BOX_W1
+	beam.FaceCamera = true
+	beam.LightEmission = 1
+	beam.LightInfluence = 0
+	beam.Transparency = NumberSequence.new(0)
+	beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+	beam.Enabled = true
+	beam.Parent = workspace
+	return beam
+end
+
+local function ensureBoxFor(plr: Player): BoxData
+	local existing = boxDataByUserId[plr.UserId]
+	if existing then
+		return existing
+	end
+
+	local p = Instance.new("Part")
+	p.Name = ("ESP_Box3D_%d"):format(plr.UserId)
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Transparency = 1
+	p.Size = Vector3.new(0.2, 0.2, 0.2)
+	p.Parent = workspace
+
+	local atts = makeCornerAttachments(p)
+
+	local beams: {Beam} = {}
+
+	-- 12 edges of a box:
+	-- Bottom rectangle (Y-): A0y0z
+	table.insert(beams, mkBeam(atts.A000, atts.A100))
+	table.insert(beams, mkBeam(atts.A100, atts.A101))
+	table.insert(beams, mkBeam(atts.A101, atts.A001))
+	table.insert(beams, mkBeam(atts.A001, atts.A000))
+
+	-- Top rectangle (Y+): A0y1z
+	table.insert(beams, mkBeam(atts.A010, atts.A110))
+	table.insert(beams, mkBeam(atts.A110, atts.A111))
+	table.insert(beams, mkBeam(atts.A111, atts.A011))
+	table.insert(beams, mkBeam(atts.A011, atts.A010))
+
+	-- Vertical edges
+	table.insert(beams, mkBeam(atts.A000, atts.A010))
+	table.insert(beams, mkBeam(atts.A100, atts.A110))
+	table.insert(beams, mkBeam(atts.A101, atts.A111))
+	table.insert(beams, mkBeam(atts.A001, atts.A011))
+
+	local data: BoxData = {
+		part = p,
+		atts = atts,
+		beams = beams,
 	}
 
-	local atts = {}
-	for i=1,8 do
-		local a=Instance.new("Attachment")
-		a.Position=offsets[i]
-		a.Parent=root
-		table.insert(atts,a)
+	boxDataByUserId[plr.UserId] = data
+	return data
+end
+
+local function setBoxEnabled(data: BoxData, enabled: boolean)
+	for _, b in ipairs(data.beams) do
+		b.Enabled = enabled
+	end
+end
+
+local function updateBoxFor(plr: Player, data: BoxData)
+	local char = plr.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not char or not hum or hum.Health <= 0 then
+		setBoxEnabled(data, false)
+		return
 	end
 
-	local edges={{1,2},{2,3},{3,4},{4,1},{5,6},{6,7},{7,8},{8,5},{1,5},{2,6},{3,7},{4,8}}
-	local beams={}
+	local cf, size = char:GetBoundingBox()
+	data.part.CFrame = cf
 
-	for _,e in ipairs(edges) do
-		local beam=Instance.new("Beam")
-		beam.Attachment0=atts[e[1]]
-		beam.Attachment1=atts[e[2]]
-		beam.Width0=0.05
-		beam.Width1=0.05
-		beam.FaceCamera=true
-		beam.LightEmission=1
-		beam.LightInfluence=0
-		beam.Color=ColorSequence.new(Color3.fromRGB(255,0,0))
-		beam.Transparency=NumberSequence.new(0)
-		beam.Parent=workspace
-		table.insert(beams,beam)
-	end
+	local hx = size.X * 0.5
+	local hy = size.Y * 0.5
+	local hz = size.Z * 0.5
 
-	boxData[plr.UserId]={attachments=atts,beams=beams}
+	-- corners in the part’s local space (since part.CFrame = bounding CF)
+	-- x: -hx (0) / +hx (1)
+	-- y: -hy (0) / +hy (1)
+	-- z: -hz (0) / +hz (1)
+	data.atts.A000.Position = Vector3.new(-hx, -hy, -hz)
+	data.atts.A001.Position = Vector3.new(-hx, -hy,  hz)
+	data.atts.A010.Position = Vector3.new(-hx,  hy, -hz)
+	data.atts.A011.Position = Vector3.new(-hx,  hy,  hz)
+
+	data.atts.A100.Position = Vector3.new( hx, -hy, -hz)
+	data.atts.A101.Position = Vector3.new( hx, -hy,  hz)
+	data.atts.A110.Position = Vector3.new( hx,  hy, -hz)
+	data.atts.A111.Position = Vector3.new( hx,  hy,  hz)
+
+	setBoxEnabled(data, true)
 end
 
 local function enableBoxes()
 	clearBoxes()
-	boxConn=RunService.RenderStepped:Connect(function()
-		for _,plr in ipairs(Players:GetPlayers()) do
-			if plr~=LocalPlayer then
-				local c=plr.Character
-				local h=c and c:FindFirstChildOfClass("Humanoid")
-				if not c or not h or h.Health<=0 then continue end
-				if not boxData[plr.UserId] then
-					createBox(plr)
+
+	if boxConn then
+		boxConn:Disconnect()
+		boxConn = nil
+	end
+
+	task.defer(function()
+		if not featureState.Box3D then
+			return
+		end
+
+		boxConn = RunService.RenderStepped:Connect(function()
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= LocalPlayer then
+					local data = ensureBoxFor(plr)
+					updateBoxFor(plr, data)
 				end
 			end
-		end
+		end)
 	end)
 end
 
 local function disableBoxes()
-	if boxConn then boxConn:Disconnect() end
+	if boxConn then
+		boxConn:Disconnect()
+		boxConn = nil
+	end
 	clearBoxes()
 end
 
 ------------------------------------------------------------------
--- REFRESH
+-- APPLY LOGIC
 ------------------------------------------------------------------
 
 local function refresh()
+	cleanupAll()
+
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer then
 			if featureState.Name then buildName(plr) end
@@ -341,34 +639,60 @@ local function refresh()
 			if featureState.Player then buildGlow(plr) end
 		end
 	end
+
+	if featureState.Name or featureState.Health then
+		startScaler()
+	else
+		stopScaler()
+	end
 end
 
 ------------------------------------------------------------------
 -- BIND TOGGLES
 ------------------------------------------------------------------
 
-local function bind(feature:string,key:string)
-	Toggles.Subscribe(key,function(state:boolean)
-		featureState[feature]=state
+local function bind(feature: string, key: string)
+	Toggles.Subscribe(key, function(state: boolean)
+		featureState[feature] = state
 
-		if feature=="Snaplines" then
-			if state then enableSnap() else disableSnap() end
+		if feature == "Snaplines" then
+			if state then
+				enableSnaplines()
+			else
+				disableSnaplines()
+			end
 			return
 		end
 
-		if feature=="Boxes" then
-			if state then enableBoxes() else disableBoxes() end
+		if feature == "Box3D" then
+			if state then
+				enableBoxes()
+			else
+				disableBoxes()
+			end
 			return
 		end
 
 		refresh()
 	end)
+
+	if Toggles.GetState(key, false) then
+		featureState[feature] = true
+
+		if feature == "Snaplines" then
+			enableSnaplines()
+		elseif feature == "Box3D" then
+			enableBoxes()
+		else
+			refresh()
+		end
+	end
 end
 
-bind("Name",KEYS.Name)
-bind("Health",KEYS.Health)
-bind("Player",KEYS.Player)
-bind("Snaplines",KEYS.Snaplines)
-bind("Boxes",KEYS.Boxes)
+bind("Name", KEYS.Name)
+bind("Health", KEYS.Health)
+bind("Player", KEYS.Player)
+bind("Snaplines", KEYS.Snaplines)
+bind("Box3D", KEYS.Box3D)
 
 refresh()
