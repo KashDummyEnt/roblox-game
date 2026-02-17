@@ -254,14 +254,16 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (PERSISTENT DRAWING POOL)
+-- SNAPLINES (360 EDGE-CLAMP)
 ------------------------------------------------------------------
 
 local snapLines: {[number]: any} = {} -- userid -> Drawing Line
 
 local function canUseDrawing(): boolean
 	local ok = pcall(function()
-		local _ = Drawing.new("Line")
+		local l = Drawing.new("Line")
+		l.Visible = false
+		l:Remove()
 	end)
 	return ok
 end
@@ -300,6 +302,20 @@ local function getLineFor(plr: Player): any?
 	return line
 end
 
+local function clampToScreenEdge(x: number, y: number, vpX: number, vpY: number, pad: number): (number, number)
+	local minX = pad
+	local minY = pad
+	local maxX = vpX - pad
+	local maxY = vpY - pad
+
+	if x < minX then x = minX end
+	if x > maxX then x = maxX end
+	if y < minY then y = minY end
+	if y > maxY then y = maxY end
+
+	return x, y
+end
+
 local function enableSnaplines()
 	if snaplineConn then return end
 
@@ -313,9 +329,12 @@ local function enableSnaplines()
 		if not cam then return end
 
 		local vp = cam.ViewportSize
-		local from = Vector2.new(vp.X * 0.5, vp.Y)
+		local vpX, vpY = vp.X, vp.Y
 
-		-- update/create lines
+		local from = Vector2.new(vpX * 0.5, vpY) -- bottom-center
+		local EDGE_PAD = 12
+
+		-- Update/create lines
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if plr ~= LocalPlayer then
 				local line = getLineFor(plr)
@@ -332,19 +351,30 @@ local function enableSnaplines()
 					continue
 				end
 
-				local screenPos, onScreen = cam:WorldToViewportPoint(root.Position)
-				if not onScreen then
-					line.Visible = false
-					continue
+				-- We ALWAYS compute a screen point
+				local screenPos = cam:WorldToViewportPoint(root.Position)
+
+				local x = screenPos.X
+				local y = screenPos.Y
+
+				-- If target is behind camera, flip direction so it still points correctly
+				-- (ViewportPoint.Z < 0 means behind)
+				if screenPos.Z < 0 then
+					-- Mirror around screen center to keep direction stable
+					x = vpX - x
+					y = vpY - y
 				end
 
+				-- Clamp to screen edge so it "tracks 360"
+				x, y = clampToScreenEdge(x, y, vpX, vpY, EDGE_PAD)
+
 				line.From = from
-				line.To = Vector2.new(screenPos.X, screenPos.Y)
+				line.To = Vector2.new(x, y)
 				line.Visible = true
 			end
 		end
 
-		-- clean up lines for players who left
+		-- Cleanup lines for players who left
 		for userId, line in pairs(snapLines) do
 			local plr = Players:GetPlayerByUserId(userId)
 			if not plr or plr == LocalPlayer then
@@ -366,7 +396,6 @@ local function disableSnaplines()
 	end
 	clearSnaplines()
 end
-
 
 
 ------------------------------------------------------------------
