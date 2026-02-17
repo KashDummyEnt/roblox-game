@@ -348,42 +348,55 @@ local function startScaler()
 
 						local nameHeightPixels = NAME_MIN_H
 
-						------------------------------------------------------------------
-						-- NAME SCALING
-						------------------------------------------------------------------
-						if featureState.Name then
-							local nameGui = head:FindFirstChild(NAME_TAG)
-							if nameGui then
-								local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
-								local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
+------------------------------------------------------------------
+-- NAME (SELF-HEALING)
+------------------------------------------------------------------
+if featureState.Name then
+	local nameGui = head:FindFirstChild(NAME_TAG)
 
-								nameGui.Size = UDim2.new(0, w, 0, h)
-								nameHeightPixels = h
-							end
-						end
+	-- Auto-build if missing
+	if not nameGui then
+		buildName(plr)
+		nameGui = head:FindFirstChild(NAME_TAG)
+	end
 
-						------------------------------------------------------------------
-						-- HEALTH SCALING + DYNAMIC OFFSET
-						------------------------------------------------------------------
-						if featureState.Health then
-							local hpGui = root:FindFirstChild(HEALTH_TAG)
-							if hpGui then
-								local w = math.max(math.floor(HP_BASE_W * scale), HP_MIN_W)
-								local h = math.max(math.floor(HP_BASE_H * scale), HP_MIN_H)
+	if nameGui then
+		local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
+		local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
 
-								hpGui.Size = UDim2.new(0, w, 0, h)
+		nameGui.Size = UDim2.new(0, w, 0, h)
+		nameHeightPixels = h
+	end
+end
 
-								-- Dynamic vertical spacing based on scaled name height
-								-- Converts pixel height roughly into stud spacing
-								local studOffsetFromName = (nameHeightPixels / 50) + 0.5
+------------------------------------------------------------------
+-- HEALTH (SELF-HEALING)
+------------------------------------------------------------------
+if featureState.Health then
+	local hpGui = root:FindFirstChild(HEALTH_TAG)
 
-								hpGui.StudsOffset = Vector3.new(
-									0,
-									2.9 - studOffsetFromName,
-									0
-								)
-							end
-						end
+	-- Auto-build if missing
+	if not hpGui then
+		buildHealth(plr)
+		hpGui = root:FindFirstChild(HEALTH_TAG)
+	end
+
+	if hpGui then
+		local w = math.max(math.floor(HP_BASE_W * scale), HP_MIN_W)
+		local h = math.max(math.floor(HP_BASE_H * scale), HP_MIN_H)
+
+		hpGui.Size = UDim2.new(0, w, 0, h)
+
+		local studOffsetFromName = (nameHeightPixels / 50) + 0.5
+
+		hpGui.StudsOffset = Vector3.new(
+			0,
+			2.9 - studOffsetFromName,
+			0
+		)
+	end
+end
+
 					end
 				end
 			end
