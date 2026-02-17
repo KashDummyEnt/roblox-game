@@ -1,0 +1,205 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- kill old scaler if you re-run ON
+if _G.AdminESP_Scaler then
+	_G.AdminESP_Scaler:Disconnect()
+	_G.AdminESP_Scaler = nil
+end
+
+-- kill old character listeners if you re-run ON
+if _G.AdminESP_CharConns then
+	for _, conn in pairs(_G.AdminESP_CharConns) do
+		if conn then
+			conn:Disconnect()
+		end
+	end
+	_G.AdminESP_CharConns = nil
+end
+
+local NAME_TAG = "AdminTag"
+local HEALTH_TAG = "AdminHealthBar"
+local GLOW_TAG = "AdminGlow"
+
+local MAX_DISTANCE = 500
+
+-- base sizes (pixels)
+local NAME_BASE_W, NAME_BASE_H = 90, 22
+local HP_BASE_W, HP_BASE_H = 70, 8
+
+_G.AdminESP_CharConns = {}
+
+local function ensure(plr)
+	if plr == LocalPlayer then return end
+	local char = plr.Character
+	if not char then return end
+
+	local head = char:FindFirstChild("Head")
+	local root = char:FindFirstChild("HumanoidRootPart")
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not head or not root or not hum then return end
+
+	-- ===== NAME ABOVE =====
+	if not head:FindFirstChild(NAME_TAG) then
+		local bill = Instance.new("BillboardGui")
+		bill.Name = NAME_TAG
+		bill.AlwaysOnTop = true
+		bill.MaxDistance = MAX_DISTANCE
+		bill.StudsOffset = Vector3.new(0, 2.9, 0)
+		bill.Size = UDim2.new(0, NAME_BASE_W, 0, NAME_BASE_H)
+		bill.Parent = head
+
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.new(1,0,1,0)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Color3.fromRGB(255,70,70)
+		label.TextStrokeTransparency = 0.5
+		label.TextScaled = true
+		label.Font = Enum.Font.GothamSemibold
+		label.Text = plr.DisplayName
+		label.Parent = bill
+	end
+
+	-- ===== HEALTH BELOW =====
+	if not root:FindFirstChild(HEALTH_TAG) then
+		local bill = Instance.new("BillboardGui")
+		bill.Name = HEALTH_TAG
+		bill.AlwaysOnTop = true
+		bill.MaxDistance = MAX_DISTANCE
+		bill.StudsOffset = Vector3.new(0, -3.2, 0)
+		bill.Size = UDim2.new(0, HP_BASE_W, 0, HP_BASE_H)
+		bill.Parent = root
+
+		local back = Instance.new("Frame")
+		back.Size = UDim2.new(1,0,1,0)
+		back.BackgroundColor3 = Color3.fromRGB(25,25,25)
+		back.BorderSizePixel = 0
+		back.Parent = bill
+
+		local fill = Instance.new("Frame")
+		fill.Name = "HealthFill"
+		fill.Size = UDim2.new(1,0,1,0)
+		fill.BackgroundColor3 = Color3.fromRGB(80,255,120)
+		fill.BorderSizePixel = 0
+		fill.Parent = back
+
+		-- store connection so it can be cleaned up automatically
+		local function update()
+			local maxH = hum.MaxHealth
+			local pct = 0
+			if maxH > 0 then
+				pct = math.clamp(hum.Health / maxH, 0, 1)
+			end
+			fill.Size = UDim2.new(pct,0,1,0)
+			fill.BackgroundColor3 = Color3.fromRGB(255 * (1 - pct), 255 * pct, 60)
+		end
+
+		update()
+
+		-- avoid stacking: disconnect any prior health conn we stored for this player
+		local key = plr.UserId .. "_Health"
+		if _G.AdminESP_CharConns[key] then
+			_G.AdminESP_CharConns[key]:Disconnect()
+			_G.AdminESP_CharConns[key] = nil
+		end
+		_G.AdminESP_CharConns[key] = hum.HealthChanged:Connect(update)
+
+		-- when this character dies/gets removed, clean the conn
+		char.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				if _G.AdminESP_CharConns[key] then
+					_G.AdminESP_CharConns[key]:Disconnect()
+					_G.AdminESP_CharConns[key] = nil
+				end
+			end
+		end)
+	end
+
+	-- ===== GLOW =====
+	if not char:FindFirstChild(GLOW_TAG) then
+		local h = Instance.new("Highlight")
+		h.Name = GLOW_TAG
+		h.FillColor = Color3.fromRGB(255,0,0)
+		h.FillTransparency = 0.6
+		h.OutlineTransparency = 0.2
+		h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		h.Parent = char
+	end
+end
+
+local function hookPlayer(plr)
+	if plr == LocalPlayer then return end
+
+	-- ensure on current character
+	if plr.Character then
+		ensure(plr)
+	end
+
+	-- re-ensure on respawn
+	local key = plr.UserId .. "_CharAdded"
+	if _G.AdminESP_CharConns[key] then
+		_G.AdminESP_CharConns[key]:Disconnect()
+		_G.AdminESP_CharConns[key] = nil
+	end
+
+	_G.AdminESP_CharConns[key] = plr.CharacterAdded:Connect(function()
+		-- wait a beat for parts to exist
+		local char = plr.Character
+		if not char then return end
+		char:WaitForChild("HumanoidRootPart", 5)
+		char:WaitForChild("Head", 5)
+		ensure(plr)
+	end)
+end
+
+-- initial + future players
+for _, plr in ipairs(Players:GetPlayers()) do
+	hookPlayer(plr)
+end
+
+Players.PlayerAdded:Connect(hookPlayer)
+
+Players.PlayerRemoving:Connect(function(plr)
+	local key1 = plr.UserId .. "_CharAdded"
+	local key2 = plr.UserId .. "_Health"
+
+	if _G.AdminESP_CharConns[key1] then
+		_G.AdminESP_CharConns[key1]:Disconnect()
+		_G.AdminESP_CharConns[key1] = nil
+	end
+	if _G.AdminESP_CharConns[key2] then
+		_G.AdminESP_CharConns[key2]:Disconnect()
+		_G.AdminESP_CharConns[key2] = nil
+	end
+end)
+
+-- distance scaling loop (fixes “huge at distance” issue)
+_G.AdminESP_Scaler = RunService.RenderStepped:Connect(function()
+	local cam = workspace.CurrentCamera
+	if not cam then return end
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			local char = plr.Character
+			if char then
+				local head = char:FindFirstChild("Head")
+				local root = char:FindFirstChild("HumanoidRootPart")
+				if head and root then
+					local dist = (cam.CFrame.Position - root.Position).Magnitude
+					local scale = math.clamp(70 / dist, 0.25, 1)
+
+					local nameGui = head:FindFirstChild(NAME_TAG)
+					if nameGui then
+						nameGui.Size = UDim2.new(0, math.floor(NAME_BASE_W * scale), 0, math.floor(NAME_BASE_H * scale))
+					end
+
+					local hpGui = root:FindFirstChild(HEALTH_TAG)
+					if hpGui then
+						hpGui.Size = UDim2.new(0, math.floor(HP_BASE_W * scale), 0, math.floor(HP_BASE_H * scale))
+					end
+				end
+			end
+		end
+	end
+end)
