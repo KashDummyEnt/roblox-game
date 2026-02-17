@@ -14,6 +14,7 @@ local TOGGLES_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/
 local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Fullbright.lua"
 local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NoFog.lua"
 local ADMINESP_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/AdminESP.lua"
+local FLIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Flight.lua"
 
 
 
@@ -664,8 +665,11 @@ Toggles.AddToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for cleare
 	end
 end)
 
-
-addPlaceholders(pageWorld, "World", 4)
+Toggles.AddToggleCard(pageWorld, "world_flight", "Flight (Noclip)", "Free flight with noclip enabled.", 4, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
+	if state then
+		ensureFeatureLoaded("world_flight", FLIGHT_URL)
+	end
+end)
 
 -- Settings tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageSettings, "settings_keybinds", "Keybind Hints", "Show keybind tips in UI.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
