@@ -377,7 +377,7 @@ local function updateSnapLine(plr: Player, data: SnapLineData)
 	if cam then
 		local dist = (cam.CFrame.Position - mid).Magnitude
 
-		local minDist = 10
+		local minDist = 11
 		local maxDist = 150
 
 		local alpha = math.clamp((dist - minDist) / (maxDist - minDist), 0, 1)
