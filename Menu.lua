@@ -425,10 +425,15 @@ local function makePage(name: string): ScrollingFrame
 		Name = name,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
+
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
 		ScrollBarThickness = 4,
 		ScrollBarImageTransparency = 0.25,
+
 		CanvasSize = UDim2.new(0, 0, 0, 0),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+
 		Size = UDim2.new(1, 0, 1, 0),
 		Position = UDim2.new(0, 0, 0, 0),
 		ZIndex = 42,
@@ -436,11 +441,11 @@ local function makePage(name: string): ScrollingFrame
 		Parent = pages,
 	}) :: ScrollingFrame
 
-	make("UIListLayout", {
+	local layout = make("UIListLayout", {
 		Padding = UDim.new(0, 10),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = page,
-	})
+	}) :: UIListLayout
 
 	make("UIPadding", {
 		PaddingTop = UDim.new(0, 4),
@@ -450,8 +455,19 @@ local function makePage(name: string): ScrollingFrame
 		Parent = page,
 	})
 
+	-- Ensure canvas matches bottom-most content (no extra scroll)
+	local function refreshCanvas()
+		-- AutomaticCanvasSize usually handles this, but this guarantees it behaves
+		local contentY = layout.AbsoluteContentSize.Y
+		page.CanvasSize = UDim2.new(0, 0, 0, contentY + 12)
+	end
+
+	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refreshCanvas)
+	task.defer(refreshCanvas)
+
 	return page
 end
+
 
 local function addCard(parent: Instance, textTop: string, textBottom: string, order: number, onClick: (() -> ())?)
 	local card = make("TextButton", {
@@ -514,32 +530,37 @@ local pageWorld = makePage("World")
 local pageSettings = makePage("Settings")
 local pageAbout = makePage("About")
 
--- Fill pages (examples)
-addCard(pageMain, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
+local function addPlaceholders(page: ScrollingFrame, tabName: string, startOrder: number)
+	for i = 1, 5 do
+		addCard(page,
+			tabName .. " Placeholder " .. tostring(i),
+			"Add an action/toggle here later.",
+			startOrder + i - 1,
+			function()
+				print(tabName .. " placeholder " .. tostring(i))
+			end
+		)
+	end
+end
+
+-- Main tab: 5 placeholders
+addPlaceholders(pageMain, "Main", 1)
+
+-- Visuals tab: 5 placeholders
+addPlaceholders(pageVisuals, "Visuals", 1)
+
+-- World tab: Skybox + 5 placeholders
+addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
 end)
+addPlaceholders(pageWorld, "World", 2)
 
-addCard(pageMain, "Close Menu", "Hides the panel.", 2, function()
-	-- wired later after setOpen exists
-end)
+-- Settings tab: 5 placeholders
+addPlaceholders(pageSettings, "Settings", 1)
 
-addCard(pageVisuals, "Apply Skybox", "Same action, different tab.", 1, function()
-	runRemote(SKY_URL)
-end)
+-- About tab: 5 placeholders (or keep info card if you want)
+addPlaceholders(pageAbout, "About", 1)
 
-addCard(pageVisuals, "Placeholder", "Add visuals toggles here.", 2, function()
-	print("Visuals placeholder")
-end)
-
-addCard(pageWorld, "Placeholder", "World options go here.", 1, function()
-	print("World placeholder")
-end)
-
-addCard(pageSettings, "Placeholder", "UI settings, keybinds, etc.", 1, function()
-	print("Settings placeholder")
-end)
-
-addCard(pageAbout, "Info", "Higgi's Menu • GitHub-driven actions.", 1, nil)
 
 -- Tab system
 type TabDef = {
