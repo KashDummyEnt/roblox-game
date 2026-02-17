@@ -265,40 +265,30 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (BOXHANDLEADORNMENT "RODS" - FEET TO FEET, THROUGH WALLS)
+-- SNAPLINES (3D WORLD BEAMS - FEET TO CHEST, FIRST-PERSON VISIBLE, NO TEXTURES)
 ------------------------------------------------------------------
 
-type SnapData = {
-	part: BasePart,
-	ad: BoxHandleAdornment,
-}
-
-local snapDataByUserId: {[number]: SnapData} = {}
+local snapBeams: {[number]: {a1: Attachment, beam: Beam}} = {}
 local snapOriginPart: BasePart? = nil
+local snapOriginAttachment: Attachment? = nil
 
 local FP_FORWARD_PUSH = 0.75
 local FP_MIN_CAM_DIST = 1.35
 
-local SNAP_THICKNESS = 0.10
-local SNAP_TRANSPARENCY = 0.15
-
-local snapRemoveConn: RBXScriptConnection? = nil
-
-local function destroySnapForUserId(userId: number)
-	local data = snapDataByUserId[userId]
-	if not data then return end
-
-	if data.ad then data.ad:Destroy() end
-	if data.part then data.part:Destroy() end
-
-	snapDataByUserId[userId] = nil
-end
+local BEAM_W0 = 0.08
+local BEAM_W1 = 0.06
 
 local function clearSnaplines()
-	for userId, _ in pairs(snapDataByUserId) do
-		destroySnapForUserId(userId)
+	for _, data in pairs(snapBeams) do
+		if data.beam then data.beam:Destroy() end
+		if data.a1 then data.a1:Destroy() end
 	end
-	table.clear(snapDataByUserId)
+	table.clear(snapBeams)
+
+	if snapOriginAttachment then
+		snapOriginAttachment:Destroy()
+		snapOriginAttachment = nil
+	end
 
 	if snapOriginPart then
 		snapOriginPart:Destroy()
@@ -314,12 +304,14 @@ local function getLocalRootAndHum(): (BasePart?, Humanoid?)
 	return root, hum
 end
 
-local function getFeetWorld(root: BasePart, hum: Humanoid): Vector3
-	return root.Position - Vector3.new(0, hum.HipHeight + (root.Size.Y / 2), 0)
+local function getChestPart(char: Model): BasePart?
+	return (char:FindFirstChild("UpperTorso") :: BasePart?)
+		or (char:FindFirstChild("Torso") :: BasePart?)
+		or (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
 end
 
 local function ensureOrigin()
-	if snapOriginPart then
+	if snapOriginPart and snapOriginAttachment then
 		return
 	end
 
@@ -334,81 +326,13 @@ local function ensureOrigin()
 	p.Size = Vector3.new(0.2, 0.2, 0.2)
 	p.Parent = workspace
 
+	local a0 = Instance.new("Attachment")
+	a0.Name = "SnapFeet"
+	a0.Position = Vector3.new(0, 0, 0)
+	a0.Parent = p
+
 	snapOriginPart = p
-end
-
-local function ensureSnapFor(plr: Player): SnapData
-	local existing = snapDataByUserId[plr.UserId]
-	if existing then
-		return existing
-	end
-
-	local p = Instance.new("Part")
-	p.Name = ("ESP_SnapRod_%d"):format(plr.UserId)
-	p.Anchored = true
-	p.CanCollide = false
-	p.CanQuery = false
-	p.CanTouch = false
-	p.CastShadow = false
-	p.Transparency = 1
-	p.Size = Vector3.new(0.2, 0.2, 0.2)
-	p.Parent = workspace
-
-	local ad = Instance.new("BoxHandleAdornment")
-	ad.Name = "ESP_SnapAdornment"
-	ad.Adornee = p
-	ad.AlwaysOnTop = true
-	ad.ZIndex = 10
-
-	ad.Color3 = Color3.fromRGB(255, 0, 0)
-	ad.Transparency = SNAP_TRANSPARENCY
-	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
-	ad.Visible = true
-
-	ad.Parent = workspace
-
-	local data: SnapData = {
-		part = p,
-		ad = ad,
-	}
-
-	snapDataByUserId[plr.UserId] = data
-	return data
-end
-
-local function setSnapEnabled(data: SnapData, enabled: boolean)
-	data.ad.Visible = enabled
-end
-
-local function updateSnapFor(plr: Player, data: SnapData, originWorld: Vector3)
-	local char = plr.Character
-	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	local root = char and (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
-
-	if not root or not hum or hum.Health <= 0 then
-		setSnapEnabled(data, false)
-		return
-	end
-
-	-- feet-to-feet target
-	local targetFeet = getFeetWorld(root, hum)
-
-	-- build a "rod" from origin to target
-	local dir = targetFeet - originWorld
-	local len = dir.Magnitude
-	if len < 0.05 then
-		setSnapEnabled(data, false)
-		return
-	end
-
-	local mid = originWorld + (dir * 0.5)
-
-	-- orient so Z axis points toward target
-	data.part.CFrame = CFrame.lookAt(mid, targetFeet)
-
-	-- thin box stretched along Z
-	data.ad.Size = Vector3.new(SNAP_THICKNESS, SNAP_THICKNESS, len)
-	setSnapEnabled(data, true)
+	snapOriginAttachment = a0
 end
 
 local function enableSnaplines()
@@ -418,15 +342,6 @@ local function enableSnaplines()
 		snaplineConn:Disconnect()
 		snaplineConn = nil
 	end
-
-	if snapRemoveConn then
-		snapRemoveConn:Disconnect()
-		snapRemoveConn = nil
-	end
-
-	snapRemoveConn = Players.PlayerRemoving:Connect(function(plr: Player)
-		destroySnapForUserId(plr.UserId)
-	end)
 
 	task.defer(function()
 		if not featureState.Snaplines then
@@ -441,22 +356,20 @@ local function enableSnaplines()
 				return
 			end
 
-			if not snapOriginPart then
+			if not snapOriginPart or not snapOriginAttachment then
 				return
 			end
 
 			local localRoot, localHum = getLocalRootAndHum()
 			if not localRoot or not localHum then
-				for _, data in pairs(snapDataByUserId) do
-					setSnapEnabled(data, false)
+				for _, data in pairs(snapBeams) do
+					data.beam.Enabled = false
 				end
 				return
 			end
 
-			-- local feet origin
-			local feetWorld = getFeetWorld(localRoot, localHum)
+			local feetWorld = localRoot.Position - Vector3.new(0, localHum.HipHeight + (localRoot.Size.Y / 2), 0)
 
-			-- anti-clip in true first-person
 			local camPos = cam.CFrame.Position
 			local distToFeet = (feetWorld - camPos).Magnitude
 
@@ -469,8 +382,53 @@ local function enableSnaplines()
 
 			for _, plr in ipairs(Players:GetPlayers()) do
 				if plr ~= LocalPlayer then
-					local data = ensureSnapFor(plr)
-					updateSnapFor(plr, data, originWorld)
+					local char = plr.Character
+					local hum = char and char:FindFirstChildOfClass("Humanoid")
+					local chest = char and getChestPart(char)
+
+					if not chest or not hum or hum.Health <= 0 then
+						local existing = snapBeams[plr.UserId]
+						if existing then
+							existing.beam.Enabled = false
+						end
+						continue
+					end
+
+					local data = snapBeams[plr.UserId]
+
+					if not data then
+						local a1 = Instance.new("Attachment")
+						a1.Name = "SnapChest"
+						a1.Position = Vector3.new(0, chest.Size.Y / 4, 0)
+						a1.Parent = chest
+
+						local beam = Instance.new("Beam")
+						beam.Attachment0 = snapOriginAttachment
+						beam.Attachment1 = a1
+
+						beam.Width0 = BEAM_W0
+						beam.Width1 = BEAM_W1
+						beam.FaceCamera = true
+						beam.LightEmission = 1
+						beam.LightInfluence = 0
+						beam.Transparency = NumberSequence.new(0)
+						beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+						beam.Enabled = true
+						beam.Parent = workspace
+
+						snapBeams[plr.UserId] = {
+							a1 = a1,
+							beam = beam,
+						}
+					else
+						if data.a1.Parent ~= chest then
+							data.a1.Parent = chest
+						end
+
+						data.a1.Position = Vector3.new(0, chest.Size.Y / 4, 0)
+						data.beam.Attachment0 = snapOriginAttachment
+						data.beam.Enabled = true
+					end
 				end
 			end
 		end)
@@ -483,14 +441,8 @@ local function disableSnaplines()
 		snaplineConn = nil
 	end
 
-	if snapRemoveConn then
-		snapRemoveConn:Disconnect()
-		snapRemoveConn = nil
-	end
-
 	clearSnaplines()
 end
-
 
 ------------------------------------------------------------------
 -- 3D BOXES (BOXHANDLEADORNMENT AROUND MODEL:GetBoundingBox())
