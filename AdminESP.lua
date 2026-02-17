@@ -265,18 +265,19 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (BOXHANDLEADORNMENT LINE - FEET TO FEET)
+-- SNAPLINES (LINEHANDLEADORNMENT - FEET TO FEET, THROUGH WALLS)
 ------------------------------------------------------------------
 
 type SnapLineData = {
 	part: BasePart,
-	ad: BoxHandleAdornment,
+	ad: LineHandleAdornment,
 }
 
 local snapLines: {[number]: SnapLineData} = {}
 local snaplineRemoveConn: RBXScriptConnection? = nil
 
-local LINE_THICKNESS = 0.15
+local LINE_THICKNESS = 2 -- pixels-ish (LineHandleAdornment thickness)
+local LINE_COLOR = Color3.fromRGB(255, 0, 255)
 
 local function getFeetPosition(char: Model): Vector3?
 	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -319,17 +320,26 @@ local function ensureSnapLineFor(plr: Player): SnapLineData
 	p.CanTouch = false
 	p.CastShadow = false
 	p.Transparency = 1
-	p.Size = Vector3.new(1, 1, 1)
+	p.Size = Vector3.new(0.2, 0.2, 0.2)
 	p.Parent = workspace
 
-	local ad = Instance.new("BoxHandleAdornment")
+	local ad = Instance.new("LineHandleAdornment")
+	ad.Name = "ESP_SnapLineAdornment"
 	ad.Adornee = p
+
 	ad.AlwaysOnTop = true
-	ad.ZIndex = 20
-	ad.Transparency = 0.4
-	ad.Color3 = Color3.fromRGB(255, 0, 255)
-	ad.AdornCullingMode = Enum.AdornCullingMode.Never
-	ad.Parent = workspace
+	ad.ZIndex = 50
+
+	ad.Color3 = LINE_COLOR
+	ad.Thickness = LINE_THICKNESS
+	ad.Transparency = 0.35
+
+	ad.Length = 1
+	ad.Visible = true
+
+	-- Parenting to CurrentCamera tends to be most consistent for “overlay” stuff
+	local cam = workspace.CurrentCamera
+	ad.Parent = cam or workspace
 
 	local data: SnapLineData = {
 		part = p,
@@ -358,32 +368,31 @@ local function updateSnapLine(plr: Player, data: SnapLineData)
 		return
 	end
 
-	local direction = enemyFeet - localFeet
-	local distance = direction.Magnitude
-
+	local dir = enemyFeet - localFeet
+	local distance = dir.Magnitude
 	if distance <= 0.1 then
 		data.ad.Visible = false
 		return
 	end
 
-	local mid = localFeet + (direction * 0.5)
+	local mid = localFeet + (dir * 0.5)
 
+	-- Move holder to midpoint, orient down the line, and set length
 	data.part.CFrame = CFrame.lookAt(mid, enemyFeet)
-	data.ad.Size = Vector3.new(LINE_THICKNESS, LINE_THICKNESS, distance)
+	data.ad.Length = distance
 	data.ad.Visible = true
 
-	-- distance-based transparency
+	-- far away = more solid, close = more transparent
 	local cam = workspace.CurrentCamera
 	if cam then
 		local dist = (cam.CFrame.Position - mid).Magnitude
 
 		local minDist = 10
 		local maxDist = 150
-
 		local alpha = math.clamp((dist - minDist) / (maxDist - minDist), 0, 1)
 
 		local closeTransparency = 0.85
-		local farTransparency = 0.25
+		local farTransparency = 0.20
 
 		data.ad.Transparency =
 			closeTransparency - (alpha * (closeTransparency - farTransparency))
@@ -436,7 +445,6 @@ local function disableSnaplines()
 
 	clearSnaplines()
 end
-
 
 ------------------------------------------------------------------
 -- 3D BOXES (BOXHANDLEADORNMENT AROUND MODEL:GetBoundingBox())
