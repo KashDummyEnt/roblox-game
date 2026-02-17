@@ -7,6 +7,7 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 local SKY_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ClientSky.lua"
 
@@ -29,10 +30,10 @@ local CONFIG = {
 	CloseTweenTime = 0.14,
 
 	-- Dark grey + bright red scheme
-	Accent = Color3.fromRGB(235, 45, 65),	-- bright red
-	Bg = Color3.fromRGB(14, 14, 16),		-- deepest
-	Bg2 = Color3.fromRGB(20, 20, 24),		-- panels
-	Bg3 = Color3.fromRGB(26, 26, 32),		-- hover/alt
+	Accent = Color3.fromRGB(235, 45, 65), -- bright red
+	Bg = Color3.fromRGB(14, 14, 16), -- deepest
+	Bg2 = Color3.fromRGB(20, 20, 24), -- panels
+	Bg3 = Color3.fromRGB(26, 26, 32), -- hover/alt
 	Text = Color3.fromRGB(240, 240, 244),
 	SubText = Color3.fromRGB(170, 170, 180),
 	Stroke = Color3.fromRGB(55, 55, 65),
@@ -78,29 +79,38 @@ local function getCornerPositions(toggleSize: number, popupSize: Vector2, margin
 
 	if CONFIG.AnchorCorner == "BottomLeft" then
 		local togglePos = u2(0, margin, 1, -(margin + ts))
-		local popupOpen = u2(0, margin, 1, -(margin + ts + 12 + psY))
-		local popupClosed = u2(0, margin, 1, -(margin + ts + 12))
-		return togglePos, popupClosed, popupOpen
+		local popupPos = u2(0, margin, 1, -(margin + ts + 12))
+		return togglePos, popupPos, popupPos
 	end
 
 	if CONFIG.AnchorCorner == "BottomRight" then
 		local togglePos = u2(1, -(margin + ts), 1, -(margin + ts))
-		local popupOpen = u2(1, -(margin + psX), 1, -(margin + ts + 12 + psY))
-		local popupClosed = u2(1, -(margin + psX), 1, -(margin + ts + 12))
-		return togglePos, popupClosed, popupOpen
+		local popupPos = u2(1, -(margin + psX), 1, -(margin + ts + 12))
+		return togglePos, popupPos, popupPos
 	end
 
 	if CONFIG.AnchorCorner == "TopLeft" then
 		local togglePos = u2(0, margin, 0, margin)
-		local popupOpen = u2(0, margin, 0, margin + ts + 12)
-		local popupClosed = u2(0, margin, 0, margin + ts + 12 - psY)
-		return togglePos, popupClosed, popupOpen
+		local popupPos = u2(0, margin, 0, margin + ts + 12)
+		return togglePos, popupPos, popupPos
 	end
 
 	local togglePos = u2(1, -(margin + ts), 0, margin)
-	local popupOpen = u2(1, -(margin + psX), 0, margin + ts + 12)
-	local popupClosed = u2(1, -(margin + psX), 0, margin + ts + 12 - psY)
-	return togglePos, popupClosed, popupOpen
+	local popupPos = u2(1, -(margin + psX), 0, margin + ts + 12)
+	return togglePos, popupPos, popupPos
+end
+
+local function getAnchorPointForCorner(corner: string): Vector2
+	if corner == "BottomLeft" then
+		return Vector2.new(0, 1)
+	end
+	if corner == "BottomRight" then
+		return Vector2.new(1, 1)
+	end
+	if corner == "TopLeft" then
+		return Vector2.new(0, 0)
+	end
+	return Vector2.new(1, 0)
 end
 
 local function isTouchDevice(): boolean
@@ -128,65 +138,114 @@ local function runRemote(url: string)
 	end
 end
 
--- Drag helper:
--- dragHandle = what you click/hold
--- dragTarget = what actually moves
--- onDelta = optional callback for syncing another object by the same delta
-local function enableDrag(dragHandle: GuiObject, dragTarget: GuiObject, onDelta: ((Vector2) -> ())?)
+-- Drag helper (RenderStepped, sync-safe)
+type DragSync = {
+	Target: GuiObject,
+	StartPos: UDim2,
+}
+
+local function enableDrag(dragHandle: GuiObject, mainTarget: GuiObject, onDragStart: (() -> ())?, getSyncTargets: (() -> {DragSync})?)
 	dragHandle.Active = true
 
 	local dragging = false
 	local dragStart: Vector2? = nil
-	local startPos: UDim2? = nil
-	local activeInput: InputObject? = nil
+	local mainStartPos: UDim2? = nil
+	local sync: {DragSync} = {}
+	local dragConn: RBXScriptConnection? = nil
 
-	local function update(input: InputObject)
-		if not dragging then return end
-		if input ~= activeInput then return end
-		if not dragStart or not startPos then return end
-
-		local delta = input.Position - dragStart
-		dragTarget.Position = UDim2.new(
-			startPos.X.Scale,
-			startPos.X.Offset + delta.X,
-			startPos.Y.Scale,
-			startPos.Y.Offset + delta.Y
-		)
-
-		if onDelta then
-			onDelta(delta)
+	local function stopDrag()
+		dragging = false
+		dragStart = nil
+		mainStartPos = nil
+		sync = {}
+		if dragConn then
+			dragConn:Disconnect()
+			dragConn = nil
 		end
 	end
 
 	dragHandle.InputBegan:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			activeInput = input
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		if onDragStart then
+			onDragStart()
+		end
+
+		dragging = true
+		mainStartPos = mainTarget.Position
+
+		if getSyncTargets then
+			sync = getSyncTargets()
+		else
+			sync = {}
+		end
+
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragStart = UserInputService:GetMouseLocation()
+		else
 			dragStart = input.Position
-			startPos = dragTarget.Position
-
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-					activeInput = nil
-					dragStart = nil
-					startPos = nil
-				end
-			end)
 		end
+
+		dragConn = RunService.RenderStepped:Connect(function()
+			if not dragging or not dragStart or not mainStartPos then return end
+
+			local currentPos = (input.UserInputType == Enum.UserInputType.MouseButton1) and UserInputService:GetMouseLocation() or input.Position
+			local delta = currentPos - dragStart
+
+			mainTarget.Position = UDim2.new(
+				mainStartPos.X.Scale,
+				mainStartPos.X.Offset + delta.X,
+				mainStartPos.Y.Scale,
+				mainStartPos.Y.Offset + delta.Y
+			)
+
+			for _, s in ipairs(sync) do
+				s.Target.Position = UDim2.new(
+					s.StartPos.X.Scale,
+					s.StartPos.X.Offset + delta.X,
+					s.StartPos.Y.Scale,
+					s.StartPos.Y.Offset + delta.Y
+				)
+			end
+		end)
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				stopDrag()
+			end
+		end)
 	end)
 
-	dragHandle.InputChanged:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			update(input)
+	dragHandle.InputEnded:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			stopDrag()
 		end
 	end)
+end
 
-	UserInputService.InputChanged:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			update(input)
-		end
-	end)
+local function getViewportSize(): Vector2
+	local cam = workspace.CurrentCamera
+	if cam then
+		return cam.ViewportSize
+	end
+	return Vector2.new(1920, 1080)
+end
+
+local function clampPopupPos(pos: Vector2, popupSize: Vector2, anchor: Vector2, viewport: Vector2): Vector2
+	local w, h = popupSize.X, popupSize.Y
+
+	local topLeftX = pos.X - (anchor.X * w)
+	local topLeftY = pos.Y - (anchor.Y * h)
+
+	topLeftX = math.clamp(topLeftX, 0, viewport.X - w)
+	topLeftY = math.clamp(topLeftY, 0, viewport.Y - h)
+
+	return Vector2.new(
+		topLeftX + (anchor.X * w),
+		topLeftY + (anchor.Y * h)
+	)
 end
 
 --// Build GUI
@@ -253,6 +312,7 @@ local popup = make("Frame", {
 	Parent = screenGui,
 })
 popup.ClipsDescendants = true
+popup.AnchorPoint = getAnchorPointForCorner(CONFIG.AnchorCorner)popup.AnchorPoint = Vector2.new(-1, 1)
 addCorner(popup, 14)
 addStroke(popup, 1, CONFIG.Stroke, 0.15)
 
@@ -265,7 +325,7 @@ popupGradient.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(1, CONFIG.Bg),
 })
 
--- Header (THIS is the only drag handle for the menu)
+-- Header (ONLY drag handle for menu)
 local header = make("Frame", {
 	Name = "Header",
 	BackgroundTransparency = 1,
@@ -465,36 +525,28 @@ local pageSettings = makePage("Settings")
 local pageAbout = makePage("About")
 
 -- Fill pages (examples)
-
--- Main
 addCard(pageMain, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
 end)
-
 addCard(pageMain, "Close Menu", "Hides the panel.", 2, function()
 	-- wired after setOpen exists
 end)
 
--- Visuals
 addCard(pageVisuals, "Apply Skybox", "Same action, different tab.", 1, function()
 	runRemote(SKY_URL)
 end)
-
 addCard(pageVisuals, "Placeholder", "Add visuals toggles here.", 2, function()
 	print("Visuals placeholder")
 end)
 
--- World
 addCard(pageWorld, "Placeholder", "World options go here.", 1, function()
 	print("World placeholder")
 end)
 
--- Settings
 addCard(pageSettings, "Placeholder", "UI settings, keybinds, etc.", 1, function()
 	print("Settings placeholder")
 end)
 
--- About
 addCard(pageAbout, "Info", "Higgi's Menu • GitHub-driven actions.", 1, nil)
 
 -- Tab system
@@ -509,7 +561,7 @@ local tabs: {TabDef} = {
 	{Name = "Visuals", Page = pageVisuals, Icon = "◈"},
 	{Name = "World", Page = pageWorld, Icon = "◉"},
 	{Name = "Settings", Page = pageSettings, Icon = "⚙"},
-	{Name = "About", Page = pageAbout, Icon = "?"}
+	{Name = "About", Page = pageAbout, Icon = "?"},
 }
 
 local currentTabName = ""
@@ -533,7 +585,7 @@ local function setTabVisuals(activeName: string)
 			btn.BackgroundColor3 = isActive and CONFIG.Bg or CONFIG.Bg2
 			local stroke = btn:FindFirstChildOfClass("UIStroke")
 			if stroke then
-				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke;
+				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke ;
 				(stroke :: UIStroke).Transparency = isActive and 0.05 or 0.25
 			end
 			local accent = btn:FindFirstChild("AccentBar")
@@ -621,41 +673,43 @@ for i, t in ipairs(tabs) do
 end
 
 -- Positions / animation states
-local togglePos, popupClosedPos, popupOpenPos = getCornerPositions(CONFIG.ToggleSize, CONFIG.PopupSize, CONFIG.Margin)
+local togglePos = select(1, getCornerPositions(CONFIG.ToggleSize, CONFIG.PopupSize, CONFIG.Margin))
 toggleButton.Position = togglePos
 
 local isOpen = false
-popup.Position = popupClosedPos
 popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
 popup.Visible = false
 body.Visible = false
 
--- Draggable toggle (draggable from itself)
--- If menu is open, it will move with the toggle so they stay together.
-enableDrag(toggleButton, toggleButton, function(delta)
-	if isOpen and popup.Visible then
-		popup.Position = UDim2.new(
-			popup.Position.X.Scale,
-			popup.Position.X.Offset + delta.X,
-			popup.Position.Y.Scale,
-			popup.Position.Y.Offset + delta.Y
-		)
-	end
-end)
-
--- Draggable menu (ONLY from header)
--- When dragging the menu, the toggle moves with it.
-enableDrag(header, popup, function(delta)
-	toggleButton.Position = UDim2.new(
-		toggleButton.Position.X.Scale,
-		toggleButton.Position.X.Offset + delta.X,
-		toggleButton.Position.Y.Scale,
-		toggleButton.Position.Y.Offset + delta.Y
-	)
-end)
-
 local openTween: Tween? = nil
 local closeTween: Tween? = nil
+
+-- Separate positioning flags
+local freeTogglePositioning = false
+local freeMenuPositioning = false
+
+local function placePopupNearToggle()
+	local toggleAbs = toggleButton.AbsolutePosition
+	local toggleSize = toggleButton.AbsoluteSize
+	local gap = 12
+
+	local anchor = popup.AnchorPoint
+	local desired: Vector2
+
+	if CONFIG.AnchorCorner == "BottomLeft" then
+		desired = Vector2.new(toggleAbs.X, toggleAbs.Y - gap)
+	elseif CONFIG.AnchorCorner == "BottomRight" then
+		desired = Vector2.new(toggleAbs.X + toggleSize.X, toggleAbs.Y - gap)
+	elseif CONFIG.AnchorCorner == "TopLeft" then
+		desired = Vector2.new(toggleAbs.X, toggleAbs.Y + toggleSize.Y + gap)
+	else
+		desired = Vector2.new(toggleAbs.X + toggleSize.X, toggleAbs.Y + toggleSize.Y + gap)
+	end
+
+	local viewport = getViewportSize()
+	local clamped = clampPopupPos(desired, CONFIG.PopupSize, anchor, viewport)
+	popup.Position = UDim2.fromOffset(clamped.X, clamped.Y)
+end
 
 local function tweenPopup(open: boolean)
 	if openTween then openTween:Cancel() end
@@ -663,9 +717,13 @@ local function tweenPopup(open: boolean)
 
 	if open then
 		popup.Visible = true
-		-- IMPORTANT: do NOT force popup.Position here, so dragging sticks.
-		popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
 
+		-- If user hasn't dragged menu, spawn it near toggle on open
+		if not freeMenuPositioning then
+			placePopupNearToggle()
+		end
+
+		popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
 		body.Visible = false
 
 		local tInfo = TweenInfo.new(CONFIG.OpenTweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -704,6 +762,18 @@ local function setOpen(nextOpen: boolean)
 
 	tweenPopup(isOpen)
 end
+
+-- DRAGGING (SEPARATE)
+
+-- Drag toggle only (does NOT move popup)
+enableDrag(toggleButton, toggleButton, function()
+	freeTogglePositioning = true
+end, nil)
+
+-- Drag menu only from header (does NOT move toggle)
+enableDrag(header, popup, function()
+	freeMenuPositioning = true
+end, nil)
 
 -- Wire the "Close Menu" card now that setOpen exists
 do
