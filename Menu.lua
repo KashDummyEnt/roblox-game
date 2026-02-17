@@ -128,6 +128,67 @@ local function runRemote(url: string)
 	end
 end
 
+-- Drag helper:
+-- dragHandle = what you click/hold
+-- dragTarget = what actually moves
+-- onDelta = optional callback for syncing another object by the same delta
+local function enableDrag(dragHandle: GuiObject, dragTarget: GuiObject, onDelta: ((Vector2) -> ())?)
+	dragHandle.Active = true
+
+	local dragging = false
+	local dragStart: Vector2? = nil
+	local startPos: UDim2? = nil
+	local activeInput: InputObject? = nil
+
+	local function update(input: InputObject)
+		if not dragging then return end
+		if input ~= activeInput then return end
+		if not dragStart or not startPos then return end
+
+		local delta = input.Position - dragStart
+		dragTarget.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+
+		if onDelta then
+			onDelta(delta)
+		end
+	end
+
+	dragHandle.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			activeInput = input
+			dragStart = input.Position
+			startPos = dragTarget.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+					activeInput = nil
+					dragStart = nil
+					startPos = nil
+				end
+			end)
+		end
+	end)
+
+	dragHandle.InputChanged:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			update(input)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			update(input)
+		end
+	end)
+end
+
 --// Build GUI
 local existing = playerGui:FindFirstChild(CONFIG.GuiName)
 if existing then
@@ -204,7 +265,7 @@ popupGradient.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(1, CONFIG.Bg),
 })
 
--- Header
+-- Header (THIS is the only drag handle for the menu)
 local header = make("Frame", {
 	Name = "Header",
 	BackgroundTransparency = 1,
@@ -285,7 +346,7 @@ make("UIGradient", {
 	Parent = sidebar,
 })
 
-local sidebarList = make("UIListLayout", {
+make("UIListLayout", {
 	Padding = UDim.new(0, 8),
 	SortOrder = Enum.SortOrder.LayoutOrder,
 	Parent = sidebar,
@@ -396,50 +457,6 @@ local function addCard(parent: Instance, textTop: string, textBottom: string, or
 	end
 end
 
-local function addHeader(parent: Instance, text: string, order: number)
-	local h = make("Frame", {
-		Name = "SectionHeader",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 26),
-		ZIndex = 43,
-		LayoutOrder = order,
-		Parent = parent,
-	})
-
-	local pill = make("Frame", {
-		Name = "Pill",
-		BackgroundColor3 = CONFIG.Bg2,
-		Size = UDim2.new(1, 0, 1, 0),
-		ZIndex = 43,
-		Parent = h,
-	})
-	addCorner(pill, 10)
-	addStroke(pill, 1, CONFIG.Stroke, 0.35)
-
-	make("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = text,
-		TextColor3 = CONFIG.Text,
-		TextSize = 13,
-		Font = Enum.Font.GothamSemibold,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -16, 1, 0),
-		Position = UDim2.new(0, 10, 0, 0),
-		ZIndex = 44,
-		Parent = pill,
-	})
-
-	local accent = make("Frame", {
-		Name = "Accent",
-		BackgroundColor3 = CONFIG.Accent,
-		Size = UDim2.new(0, 3, 1, -10),
-		Position = UDim2.new(0, 8, 0, 5),
-		ZIndex = 45,
-		Parent = pill,
-	})
-	addCorner(accent, 2)
-end
-
 -- Create pages
 local pageMain = makePage("Main")
 local pageVisuals = makePage("Visuals")
@@ -455,7 +472,7 @@ addCard(pageMain, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function
 end)
 
 addCard(pageMain, "Close Menu", "Hides the panel.", 2, function()
-	-- will be wired after setOpen exists
+	-- wired after setOpen exists
 end)
 
 -- Visuals
@@ -613,6 +630,30 @@ popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
 popup.Visible = false
 body.Visible = false
 
+-- Draggable toggle (draggable from itself)
+-- If menu is open, it will move with the toggle so they stay together.
+enableDrag(toggleButton, toggleButton, function(delta)
+	if isOpen and popup.Visible then
+		popup.Position = UDim2.new(
+			popup.Position.X.Scale,
+			popup.Position.X.Offset + delta.X,
+			popup.Position.Y.Scale,
+			popup.Position.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- Draggable menu (ONLY from header)
+-- When dragging the menu, the toggle moves with it.
+enableDrag(header, popup, function(delta)
+	toggleButton.Position = UDim2.new(
+		toggleButton.Position.X.Scale,
+		toggleButton.Position.X.Offset + delta.X,
+		toggleButton.Position.Y.Scale,
+		toggleButton.Position.Y.Offset + delta.Y
+	)
+end)
+
 local openTween: Tween? = nil
 local closeTween: Tween? = nil
 
@@ -622,7 +663,7 @@ local function tweenPopup(open: boolean)
 
 	if open then
 		popup.Visible = true
-		popup.Position = popupOpenPos
+		-- IMPORTANT: do NOT force popup.Position here, so dragging sticks.
 		popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
 
 		body.Visible = false
