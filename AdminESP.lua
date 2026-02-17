@@ -192,12 +192,19 @@ local function buildGlow(plr: Player)
 
 	local h = Instance.new("Highlight")
 	h.Name = GLOW_TAG
+
+	-- center / fill
 	h.FillColor = Color3.fromRGB(255, 0, 0)
 	h.FillTransparency = 0.6
+
+	-- outline
+	h.OutlineColor = Color3.fromRGB(255, 255, 255)
 	h.OutlineTransparency = 0.2
+
 	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	h.Parent = char
 end
+
 
 ------------------------------------------------------------------
 -- DISTANCE SCALING (YOUR ORIGINAL LOGIC)
