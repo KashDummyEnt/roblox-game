@@ -254,52 +254,57 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES
-------------------------------------------------------------------
-
-------------------------------------------------------------------
 -- SNAPLINES (PERSISTENT DRAWING POOL)
 ------------------------------------------------------------------
 
 local snapLines: {[number]: any} = {} -- userid -> Drawing Line
 
-local function destroySnapLine(userId: number)
-	local ln = snapLines[userId]
-	if ln then
-		pcall(function()
-			ln.Visible = false
-			ln:Remove()
-		end)
+local function canUseDrawing(): boolean
+	local ok = pcall(function()
+		local _ = Drawing.new("Line")
+	end)
+	return ok
+end
+
+local function clearSnaplines()
+	for userId, line in pairs(snapLines) do
+		if line then
+			pcall(function()
+				line:Remove()
+			end)
+		end
 		snapLines[userId] = nil
 	end
 end
 
-local function getSnapLine(userId: number): any
-	local ln = snapLines[userId]
-	if ln then
-		return ln
+local function getLineFor(plr: Player): any?
+	local userId = plr.UserId
+	if snapLines[userId] then
+		return snapLines[userId]
 	end
 
-	local newLine = Drawing.new("Line")
-	newLine.Visible = false
-	newLine.Thickness = 1
-	newLine.Transparency = 1
-	newLine.Color = Color3.fromRGB(255, 0, 0)
+	local ok, line = pcall(function()
+		local l = Drawing.new("Line")
+		l.Visible = false
+		l.Thickness = 1
+		l.Color = Color3.fromRGB(255, 0, 0)
+		l.Transparency = 1
+		return l
+	end)
 
-	snapLines[userId] = newLine
-	return newLine
+	if not ok then
+		return nil
+	end
+
+	snapLines[userId] = line
+	return line
 end
 
 local function enableSnaplines()
 	if snaplineConn then return end
 
-	-- sanity check: some executors don’t support Drawing
-	local ok = pcall(function()
-		local t = Drawing.new("Line")
-		t:Remove()
-	end)
-	if not ok then
-		warn("[AdminESP] Drawing API not supported in this executor (snaplines won't work).")
+	if not canUseDrawing() then
+		warn("[AdminESP] Drawing API not available, snaplines disabled")
 		return
 	end
 
@@ -307,46 +312,47 @@ local function enableSnaplines()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		local origin = Vector2.new(cam.ViewportSize.X * 0.5, cam.ViewportSize.Y)
+		local vp = cam.ViewportSize
+		local from = Vector2.new(vp.X * 0.5, vp.Y)
 
+		-- update/create lines
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if plr ~= LocalPlayer then
-				local userId = plr.UserId
-				local char = plr.Character
-				local ln = getSnapLine(userId)
+				local line = getLineFor(plr)
+				if not line then
+					continue
+				end
 
+				local char = plr.Character
 				local root = char and char:FindFirstChild("HumanoidRootPart")
 				local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-				if root and hum and hum.Health > 0 then
-					local v3, onScreen = cam:WorldToViewportPoint(root.Position)
-					if onScreen and v3.Z > 0 then
-						ln.From = origin
-						ln.To = Vector2.new(v3.X, v3.Y)
-						ln.Visible = true
-					else
-						ln.Visible = false
-					end
-				else
-					ln.Visible = false
+				if not root or not hum or hum.Health <= 0 then
+					line.Visible = false
+					continue
 				end
+
+				local screenPos, onScreen = cam:WorldToViewportPoint(root.Position)
+				if not onScreen then
+					line.Visible = false
+					continue
+				end
+
+				line.From = from
+				line.To = Vector2.new(screenPos.X, screenPos.Y)
+				line.Visible = true
 			end
 		end
 
-		-- cleanup lines for players that left
-		for userId, ln in pairs(snapLines) do
-			local stillHere = false
-			for _, plr in ipairs(Players:GetPlayers()) do
-				if plr.UserId == userId then
-					stillHere = true
-					break
+		-- clean up lines for players who left
+		for userId, line in pairs(snapLines) do
+			local plr = Players:GetPlayerByUserId(userId)
+			if not plr or plr == LocalPlayer then
+				if line then
+					pcall(function()
+						line:Remove()
+					end)
 				end
-			end
-			if not stillHere then
-				pcall(function()
-					ln.Visible = false
-					ln:Remove()
-				end)
 				snapLines[userId] = nil
 			end
 		end
@@ -358,11 +364,9 @@ local function disableSnaplines()
 		snaplineConn:Disconnect()
 		snaplineConn = nil
 	end
-
-	for userId, _ in pairs(snapLines) do
-		destroySnapLine(userId)
-	end
+	clearSnaplines()
 end
+
 
 
 ------------------------------------------------------------------
