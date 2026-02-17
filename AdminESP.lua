@@ -360,7 +360,7 @@ local function ensureSnapFor(plr: Player): SnapData
 	ad.AlwaysOnTop = true
 	ad.ZIndex = 10
 
-	ad.Color3 = Color3.fromRGB(255, 0, 0)
+	ad.Color3 = Color3.fromRGB(255, 0, 255)
 	ad.Transparency = SNAP_TRANSPARENCY
 	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
 	ad.Visible = true
