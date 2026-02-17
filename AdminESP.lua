@@ -1,6 +1,6 @@
 --!strict
 -- AdminESP.lua
--- Multi-toggle ESP with proper distance scaling
+-- Multi-toggle ESP with proper distance scaling + snaplines from local feet (not screen center)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -128,9 +128,9 @@ local function buildName(plr: Player)
 	bill.Parent = head
 
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1,0,1,0)
+	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.fromRGB(255,70,70)
+	label.TextColor3 = Color3.fromRGB(255, 70, 70)
 	label.TextStrokeTransparency = 0.5
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamSemibold
@@ -155,14 +155,14 @@ local function buildHealth(plr: Player)
 	bill.Parent = root
 
 	local back = Instance.new("Frame")
-	back.Size = UDim2.new(1,0,1,0)
-	back.BackgroundColor3 = Color3.fromRGB(25,25,25)
+	back.Size = UDim2.new(1, 0, 1, 0)
+	back.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 	back.BorderSizePixel = 0
 	back.Parent = bill
 
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
-	fill.Size = UDim2.new(1,0,1,0)
+	fill.Size = UDim2.new(1, 0, 1, 0)
 	fill.BorderSizePixel = 0
 	fill.Parent = back
 
@@ -171,8 +171,8 @@ local function buildHealth(plr: Player)
 		if hum.MaxHealth > 0 then
 			pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
 		end
-		fill.Size = UDim2.new(pct,0,1,0)
-		fill.BackgroundColor3 = Color3.fromRGB(255*(1-pct),255*pct,60)
+		fill.Size = UDim2.new(pct, 0, 1, 0)
+		fill.BackgroundColor3 = Color3.fromRGB(255 * (1 - pct), 255 * pct, 60)
 	end
 
 	update()
@@ -188,7 +188,7 @@ local function buildGlow(plr: Player)
 
 	local h = Instance.new("Highlight")
 	h.Name = GLOW_TAG
-	h.FillColor = Color3.fromRGB(255,0,0)
+	h.FillColor = Color3.fromRGB(255, 0, 0)
 	h.FillTransparency = 0.6
 	h.OutlineTransparency = 0.2
 	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -254,91 +254,138 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (STABLE 360 VERSION)
+-- SNAPLINES (FROM LOCAL FEET)
 ------------------------------------------------------------------
 
 local snapLines: {[number]: any} = {}
 
 local function clearSnaplines()
-	for userId, line in pairs(snapLines) do
+	for _, line in pairs(snapLines) do
 		if line then
 			pcall(function()
 				line:Remove()
 			end)
 		end
-		snapLines[userId] = nil
 	end
+	table.clear(snapLines)
 end
 
-local function getLine(plr: Player)
-	if snapLines[plr.UserId] then
-		return snapLines[plr.UserId]
+local function getLocalFeetWorldPos(): Vector3?
+	local char = LocalPlayer.Character
+	if not char then
+		return nil
 	end
 
-	local line = Drawing.new("Line")
-	line.Visible = false
-	line.Thickness = 1
-	line.Color = Color3.fromRGB(255, 0, 0)
-	line.Transparency = 1
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local root = char:FindFirstChild("HumanoidRootPart")
 
-	snapLines[plr.UserId] = line
-	return line
+	-- Preferred: root + hip height offset (works across rigs reasonably)
+	if hum and root then
+		return root.Position - Vector3.new(0, hum.HipHeight + (root.Size.Y * 0.5), 0)
+	end
+
+	-- Fallback: R15 foot parts
+	local lf = char:FindFirstChild("LeftFoot")
+	if lf and lf:IsA("BasePart") then
+		return lf.Position
+	end
+
+	if root then
+		return root.Position
+	end
+
+	return nil
 end
 
 local function enableSnaplines()
-	if snaplineConn then return end
+	clearSnaplines()
 
-	snaplineConn = RunService.RenderStepped:Connect(function()
-		local cam = workspace.CurrentCamera
-		if not cam then return end
+	if snaplineConn then
+		snaplineConn:Disconnect()
+		snaplineConn = nil
+	end
 
-		local vp = cam.ViewportSize
-		local centerBottom = Vector2.new(vp.X / 2, vp.Y)
-
-		for _, plr in ipairs(Players:GetPlayers()) do
-			if plr ~= LocalPlayer then
-				local char = plr.Character
-				local root = char and char:FindFirstChild("HumanoidRootPart")
-				local hum = char and char:FindFirstChildOfClass("Humanoid")
-
-				local line = getLine(plr)
-
-				if not root or not hum or hum.Health <= 0 then
-					line.Visible = false
-					continue
-				end
-
-				local screenPos, onScreen = cam:WorldToViewportPoint(root.Position)
-
-				-- Flip if behind camera
-				if screenPos.Z < 0 then
-					screenPos = Vector3.new(
-						vp.X - screenPos.X,
-						vp.Y - screenPos.Y,
-						screenPos.Z
-					)
-				end
-
-				-- Clamp to screen edge (360 tracking)
-				local pad = 8
-				local x = math.clamp(screenPos.X, pad, vp.X - pad)
-				local y = math.clamp(screenPos.Y, pad, vp.Y - pad)
-
-				line.From = centerBottom
-				line.To = Vector2.new(x, y)
-				line.Visible = true
-			end
+	-- Defer one tick so camera/viewport/character are ready
+	task.defer(function()
+		if not featureState.Snaplines then
+			return
 		end
 
-		-- Clean up players who left
-		for userId, line in pairs(snapLines) do
-			if not Players:GetPlayerByUserId(userId) then
-				pcall(function()
-					line:Remove()
-				end)
-				snapLines[userId] = nil
+		snaplineConn = RunService.RenderStepped:Connect(function()
+			local cam = workspace.CurrentCamera
+			if not cam then
+				return
 			end
-		end
+
+			local vp = cam.ViewportSize
+			if vp.X <= 1 or vp.Y <= 1 then
+				return
+			end
+
+			local feetWorld = getLocalFeetWorldPos()
+			if not feetWorld then
+				return
+			end
+
+			local from3 = cam:WorldToViewportPoint(feetWorld)
+			if from3.Z <= 0 then
+				-- If your feet are behind the camera, lines will look weird; just hide them this frame.
+				for _, line in pairs(snapLines) do
+					if line then
+						line.Visible = false
+					end
+				end
+				return
+			end
+
+			local pad = 8
+			local fromX = math.clamp(from3.X, pad, vp.X - pad)
+			local fromY = math.clamp(from3.Y, pad, vp.Y - pad)
+			local from2 = Vector2.new(fromX, fromY)
+
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= LocalPlayer then
+					local char = plr.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+					local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+					if not root or not hum or hum.Health <= 0 then
+						local deadLine = snapLines[plr.UserId]
+						if deadLine then
+							deadLine.Visible = false
+						end
+						continue
+					end
+
+					local line = snapLines[plr.UserId]
+					if not line then
+						line = Drawing.new("Line")
+						line.Thickness = 1
+						line.Color = Color3.fromRGB(255, 0, 0)
+						line.Transparency = 1
+						snapLines[plr.UserId] = line
+					end
+
+					local to3 = cam:WorldToViewportPoint(root.Position)
+
+					-- Behind camera mirror like your old logic
+					if to3.Z < 0 then
+						to3 = Vector3.new(
+							vp.X - to3.X,
+							vp.Y - to3.Y,
+							to3.Z
+						)
+					end
+
+					local toX = math.clamp(to3.X, pad, vp.X - pad)
+					local toY = math.clamp(to3.Y, pad, vp.Y - pad)
+
+					line.From = from2
+					line.To = Vector2.new(toX, toY)
+					line.Visible = true
+				end
+			end
+		end)
 	end)
 end
 
@@ -347,9 +394,9 @@ local function disableSnaplines()
 		snaplineConn:Disconnect()
 		snaplineConn = nil
 	end
+
 	clearSnaplines()
 end
-
 
 ------------------------------------------------------------------
 -- APPLY LOGIC
@@ -382,15 +429,26 @@ local function bind(feature: string, key: string)
 		featureState[feature] = state
 
 		if feature == "Snaplines" then
-			if state then enableSnaplines() else disableSnaplines() end
+			if state then
+				enableSnaplines()
+			else
+				disableSnaplines()
+			end
 			return
 		end
 
 		refresh()
 	end)
 
+	-- Apply initial state immediately (not just saving it)
 	if Toggles.GetState(key, false) then
 		featureState[feature] = true
+
+		if feature == "Snaplines" then
+			enableSnaplines()
+		else
+			refresh()
+		end
 	end
 end
 
