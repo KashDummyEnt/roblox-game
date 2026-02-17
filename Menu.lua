@@ -621,31 +621,24 @@ local function ensureFeatureLoaded(key: string, url: string)
 end
 
 -- Visuals tab (EXAMPLE TOGGLES)
-Toggles.AddToggleCard(pageVisuals,
-	"visuals_adminesp",
-	"Player ESP",
-	"Name, health bar, and highlight.",
-	4,
-	false,
-	CONFIG,
-	TOGGLE_SERVICES,
-	function(state: boolean)
-		if state then
-			ensureFeatureLoaded("visuals_adminesp", ADMINESP_URL)
-		end
-	end
-)
-
-
-Toggles.AddToggleCard(pageVisuals, "visuals_names", "Name Tags", "Show player names above them.", 2, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	print("Name Tags:", state)
+Toggles.AddToggleCard(pageVisuals, "visuals_name", "Name ESP", "Show player names.", 1, false, CONFIG, TOGGLE_SERVICES, function(state)
+	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
 
-Toggles.AddToggleCard(pageVisuals, "visuals_tracers", "Tracers", "Lines from you to targets.", 3, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	print("Tracers:", state)
+Toggles.AddToggleCard(pageVisuals, "visuals_health", "Health ESP", "Show player health bars.", 2, false, CONFIG, TOGGLE_SERVICES, function(state)
+	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
 
-addPlaceholders(pageVisuals, "Visuals", 4)
+Toggles.AddToggleCard(pageVisuals, "visuals_player", "Player Glow", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
+	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
+end)
+
+Toggles.AddToggleCard(pageVisuals, "visuals_snaplines", "Snaplines", "Lines to players.", 4, false, CONFIG, TOGGLE_SERVICES, function(state)
+	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
+end)
+
+
+addPlaceholders(pageVisuals, "Visuals", 1)
 
 -- World tab: action + toggles + placeholders
 addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
