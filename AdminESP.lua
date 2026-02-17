@@ -1,8 +1,7 @@
 --!strict
 -- AdminESP.lua
--- Multi-toggle ESP with proper distance scaling + snaplines from local feet (not screen center)
--- + 3D Beam Boxes (bounding-box based)
--- FIXED: names/health/glow now handle player join + death/respawn properly (no toggle-twice, no duplicates)
+-- Multi-toggle ESP with proper distance scaling + snaplines from local feet
+-- + 3D Beam Boxes
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -14,9 +13,7 @@ local LocalPlayer = Players.LocalPlayer
 
 local function getGlobal(): any
 	local gg = (typeof(getgenv) == "function") and getgenv() or nil
-	if gg then
-		return gg
-	end
+	if gg then return gg end
 	return _G
 end
 
@@ -80,14 +77,35 @@ local featureState = {
 }
 
 local playerConns: {[number]: {RBXScriptConnection}} = {}
+local charWatchConns: {[number]: RBXScriptConnection} = {}
+
 local scalerConn: RBXScriptConnection? = nil
 local snaplineConn: RBXScriptConnection? = nil
 local boxConn: RBXScriptConnection? = nil
 
--- NEW: lifecycle watchers so join/death/respawn works cleanly
-local charWatchConns: {[number]: RBXScriptConnection} = {}
-local playerAddedConn: RBXScriptConnection? = nil
-local playerRemovingConn: RBXScriptConnection? = nil
+------------------------------------------------------------------
+-- STREAMING SAFE HELPERS (NEW)
+------------------------------------------------------------------
+
+local function waitForNamedChild(parent: Instance, name: string, timeout: number): Instance?
+	local start = os.clock()
+	while os.clock() - start < timeout do
+		local f = parent:FindFirstChild(name)
+		if f then return f end
+		task.wait(0.03)
+	end
+	return nil
+end
+
+local function waitForChildOfClass(parent: Instance, className: string, timeout: number): Instance?
+	local start = os.clock()
+	while os.clock() - start < timeout do
+		local f = parent:FindFirstChildOfClass(className)
+		if f then return f end
+		task.wait(0.03)
+	end
+	return nil
+end
 
 ------------------------------------------------------------------
 -- CLEANUP
@@ -114,17 +132,14 @@ local function cleanupCharacter(char: Model)
 end
 
 local function cleanupPlayer(plr: Player)
-	-- kill per-player builder connections (health changed, died, etc)
 	disconnectUser(plr.UserId)
 
-	-- kill character watcher
 	local cw = charWatchConns[plr.UserId]
 	if cw then
 		cw:Disconnect()
 		charWatchConns[plr.UserId] = nil
 	end
 
-	-- remove current character esp instances
 	if plr.Character then
 		cleanupCharacter(plr.Character)
 	end
@@ -139,13 +154,14 @@ local function cleanupAll()
 end
 
 ------------------------------------------------------------------
--- BUILDERS
+-- BUILDERS (FIXED)
 ------------------------------------------------------------------
 
 local function buildName(plr: Player)
 	local char = plr.Character
 	if not char then return end
-	local head = char:FindFirstChild("Head")
+
+	local head = waitForNamedChild(char, "Head", 2.5)
 	if not head then return end
 	if head:FindFirstChild(NAME_TAG) then return end
 
@@ -171,8 +187,9 @@ end
 local function buildHealth(plr: Player)
 	local char = plr.Character
 	if not char then return end
-	local root = char:FindFirstChild("HumanoidRootPart")
-	local hum = char:FindFirstChildOfClass("Humanoid")
+
+	local root = waitForNamedChild(char, "HumanoidRootPart", 2.5)
+	local hum = waitForChildOfClass(char, "Humanoid", 2.5)
 	if not root or not hum then return end
 	if root:FindFirstChild(HEALTH_TAG) then return end
 
@@ -209,16 +226,6 @@ local function buildHealth(plr: Player)
 
 	playerConns[plr.UserId] = playerConns[plr.UserId] or {}
 	table.insert(playerConns[plr.UserId], hum.HealthChanged:Connect(update))
-
-	-- NEW: on death, clean the old instances so respawn is clean (CharacterAdded rebuilds)
-	table.insert(playerConns[plr.UserId], hum.Died:Connect(function()
-		task.defer(function()
-			if plr.Character then
-				cleanupCharacter(plr.Character)
-			end
-			disconnectUser(plr.UserId)
-		end)
-	end))
 end
 
 local function buildGlow(plr: Player)
@@ -228,84 +235,60 @@ local function buildGlow(plr: Player)
 
 	local h = Instance.new("Highlight")
 	h.Name = GLOW_TAG
-
-	-- center / fill
 	h.FillColor = Color3.fromRGB(255, 40, 40)
 	h.FillTransparency = 0.7
-
-	-- outline
 	h.OutlineColor = Color3.fromRGB(255, 255, 255)
 	h.OutlineTransparency = 0.1
-
 	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	h.Parent = char
 end
 
 ------------------------------------------------------------------
--- LIFECYCLE FIX (JOIN / RESPAWN / DEATH)
+-- LIFECYCLE FIX
 ------------------------------------------------------------------
 
 local function applyForPlayer(plr: Player)
 	if plr == LocalPlayer then return end
 
-	-- wipe old per-player builder conns before applying fresh (prevents duplicates)
 	disconnectUser(plr.UserId)
+	if not plr.Character then return end
 
-	-- if no character yet, CharacterAdded watcher will handle it
-	if not plr.Character then
-		return
-	end
-
-	-- remove any leftovers from previous runs / weird states
 	cleanupCharacter(plr.Character)
 
 	if featureState.Name then buildName(plr) end
 	if featureState.Health then buildHealth(plr) end
 	if featureState.Player then buildGlow(plr) end
+
+	-- retry safety
+	task.delay(0.4, function()
+		if plr.Character then
+			if featureState.Name then buildName(plr) end
+			if featureState.Health then buildHealth(plr) end
+		end
+	end)
+
+	task.delay(1, function()
+		if plr.Character then
+			if featureState.Name then buildName(plr) end
+			if featureState.Health then buildHealth(plr) end
+		end
+	end)
 end
 
 local function ensureCharWatcher(plr: Player)
 	if plr == LocalPlayer then return end
 	if charWatchConns[plr.UserId] then return end
 
-	charWatchConns[plr.UserId] = plr.CharacterAdded:Connect(function(char: Model)
-		-- ensure clean slate on respawn
-		cleanupCharacter(char)
-		disconnectUser(plr.UserId)
-
-		-- apply active features
-		if featureState.Name then buildName(plr) end
-		if featureState.Health then buildHealth(plr) end
-		if featureState.Player then buildGlow(plr) end
+	charWatchConns[plr.UserId] = plr.CharacterAdded:Connect(function()
+		applyForPlayer(plr)
 	end)
 
-	-- if already spawned, apply immediately
 	if plr.Character then
 		applyForPlayer(plr)
 	end
 end
 
 local function ensureGlobalWatchers()
-	if not playerAddedConn then
-		playerAddedConn = Players.PlayerAdded:Connect(function(plr: Player)
-			if plr ~= LocalPlayer then
-				ensureCharWatcher(plr)
-				-- if toggles already on, build as soon as the player exists
-				task.defer(function()
-					applyForPlayer(plr)
-				end)
-			end
-		end)
-	end
-
-	if not playerRemovingConn then
-		playerRemovingConn = Players.PlayerRemoving:Connect(function(plr: Player)
-			if plr ~= LocalPlayer then
-				cleanupPlayer(plr)
-			end
-		end)
-	end
-
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer then
 			ensureCharWatcher(plr)
@@ -314,7 +297,7 @@ local function ensureGlobalWatchers()
 end
 
 ------------------------------------------------------------------
--- DISTANCE SCALING (YOUR ORIGINAL LOGIC)
+-- DISTANCE SCALING
 ------------------------------------------------------------------
 
 local function startScaler()
@@ -333,38 +316,22 @@ local function startScaler()
 
 					if head and root then
 						local dist = (cam.CFrame.Position - root.Position).Magnitude
-
-						-- smoother scaling (no forced 0.25 floor anymore)
 						local scale = math.clamp(70 / dist, 0, 1)
 
-						------------------------------------------------------------------
-						-- NAME SCALING (WITH MIN SIZE)
-						------------------------------------------------------------------
 						if featureState.Name then
 							local nameGui = head:FindFirstChild(NAME_TAG)
 							if nameGui then
-								local w = math.floor(NAME_BASE_W * scale)
-								local h = math.floor(NAME_BASE_H * scale)
-
-								w = math.max(w, NAME_MIN_W)
-								h = math.max(h, NAME_MIN_H)
-
+								local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
+								local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
 								nameGui.Size = UDim2.new(0, w, 0, h)
 							end
 						end
 
-						------------------------------------------------------------------
-						-- HEALTHBAR SCALING (WITH MIN SIZE)
-						------------------------------------------------------------------
 						if featureState.Health then
 							local hpGui = root:FindFirstChild(HEALTH_TAG)
 							if hpGui then
-								local w = math.floor(HP_BASE_W * scale)
-								local h = math.floor(HP_BASE_H * scale)
-
-								w = math.max(w, HP_MIN_W)
-								h = math.max(h, HP_MIN_H)
-
+								local w = math.max(math.floor(HP_BASE_W * scale), HP_MIN_W)
+								local h = math.max(math.floor(HP_BASE_H * scale), HP_MIN_H)
 								hpGui.Size = UDim2.new(0, w, 0, h)
 							end
 						end
@@ -381,6 +348,7 @@ local function stopScaler()
 		scalerConn = nil
 	end
 end
+
 
 ------------------------------------------------------------------
 -- SNAPLINES (BOXHANDLEADORNMENT "RODS" - FEET TO FEET, THROUGH WALLS)
