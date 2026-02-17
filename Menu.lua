@@ -839,14 +839,17 @@ addPlaceholders(pageVisuals, "Visuals", 4)
 addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
 end)
+
 addToggleCard(pageWorld, "world_fullbright", "Fullbright", "Brighten the world lighting.", 2, false, function(state)
 	print("Fullbright:", state)
 end)
+
 addToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, false, function(state)
 	setFeature("NoFog", state)
-end
+end)
 
 addPlaceholders(pageWorld, "World", 4)
+
 
 -- Settings tab (EXAMPLE TOGGLES)
 addToggleCard(pageSettings, "settings_keybinds", "Keybind Hints", "Show keybind tips in UI.", 1, true, function(state)
