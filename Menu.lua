@@ -29,7 +29,7 @@ local CONFIG = {
 	OpenTweenTime = 0.18,
 	CloseTweenTime = 0.14,
 
-	Accent = Color3.fromRGB(0, 45, 235),
+	Accent = Color3.fromRGB(255, 0, 0),
 	Bg = Color3.fromRGB(14, 14, 16),
 	Bg2 = Color3.fromRGB(20, 20, 24),
 	Bg3 = Color3.fromRGB(26, 26, 32),
@@ -146,6 +146,84 @@ local function runRemote(url: string)
 		warn("remote runtime error:", runErr)
 	end
 end
+
+type FeatureController = {
+	Enable: (() -> ())?,
+	Disable: (() -> ())?,
+	Destroy: (() -> ())?,
+	IsEnabled: boolean?,
+}
+
+local FEATURES_BASE = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/"
+local featureControllers: {[string]: FeatureController} = {}
+
+local function loadFeature(featureName: string): FeatureController?
+	if featureControllers[featureName] then
+		return featureControllers[featureName]
+	end
+
+	local url = FEATURES_BASE .. featureName .. ".lua"
+	local ok, code = pcall(function()
+		return game:HttpGet(url)
+	end)
+	if not ok then
+		warn("Feature HttpGet failed:", featureName, code)
+		return nil
+	end
+
+	local fn, compileErr = loadstring(code)
+	if not fn then
+		warn("Feature loadstring failed:", featureName, compileErr)
+		return nil
+	end
+
+	local ok2, result = pcall(fn)
+	if not ok2 then
+		warn("Feature runtime error:", featureName, result)
+		return nil
+	end
+
+	if type(result) ~= "table" then
+		warn("Feature did not return a controller table:", featureName)
+		return nil
+	end
+
+	local ctrl = result :: FeatureController
+	ctrl.IsEnabled = ctrl.IsEnabled or false
+	featureControllers[featureName] = ctrl
+	return ctrl
+end
+
+local function setFeature(featureName: string, on: boolean)
+	local ctrl = loadFeature(featureName)
+	if not ctrl then
+		return
+	end
+
+	if (ctrl.IsEnabled == true) == on then
+		return
+	end
+
+	ctrl.IsEnabled = on
+
+	if on then
+		if ctrl.Enable then
+			local ok, err = pcall(ctrl.Enable)
+			if not ok then
+				warn("Feature Enable failed:", featureName, err)
+			end
+		end
+	else
+		if ctrl.Disable then
+			local ok, err = pcall(ctrl.Disable)
+			if not ok then
+				warn("Feature Disable failed:", featureName, err)
+			end
+		end
+	end
+end
+
+
 
 -- Drag helper (RenderStepped, sync-safe)
 type DragSync = {
@@ -765,8 +843,9 @@ addToggleCard(pageWorld, "world_fullbright", "Fullbright", "Brighten the world l
 	print("Fullbright:", state)
 end)
 addToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, true, function(state)
-	print("No Fog:", state)
+	setFeature("NoFog", state)
 end)
+
 addPlaceholders(pageWorld, "World", 4)
 
 -- Settings tab (EXAMPLE TOGGLES)
