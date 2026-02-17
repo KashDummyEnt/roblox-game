@@ -35,7 +35,7 @@ local CONFIG = {
 	OpenTweenTime = 0.18,
 	CloseTweenTime = 0.14,
 
-	Accent = Color3.fromRGB(235, 45, 0),
+	Accent = Color3.fromRGB(235, 45, 255),
 	Bg = Color3.fromRGB(14, 14, 16),
 	Bg2 = Color3.fromRGB(20, 20, 24),
 	Bg3 = Color3.fromRGB(26, 26, 32),
@@ -621,15 +621,16 @@ local function ensureFeatureLoaded(key: string, url: string)
 end
 
 -- Visuals tab (EXAMPLE TOGGLES)
+
+Toggles.AddToggleCard(pageVisuals, "visuals_player", "Chams", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
+	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
+end)
+
 Toggles.AddToggleCard(pageVisuals, "visuals_name", "Name ESP", "Show player names.", 1, false, CONFIG, TOGGLE_SERVICES, function(state)
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
 
 Toggles.AddToggleCard(pageVisuals, "visuals_health", "Health ESP", "Show player health bars.", 2, false, CONFIG, TOGGLE_SERVICES, function(state)
-	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
-end)
-
-Toggles.AddToggleCard(pageVisuals, "visuals_player", "Player Glow", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
 
