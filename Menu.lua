@@ -665,7 +665,7 @@ Toggles.AddToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for cleare
 	end
 end)
 
-Toggles.AddToggleCard(pageWorld, "world_flight", "Flight (Noclip)", "Free flight with noclip enabled.", 4, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
+Toggles.AddToggleCard(pageWorld, "world_flight", "Flight / Noclip", "Free flight with noclip enabled.", 4, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	if state then
 		ensureFeatureLoaded("world_flight", FLIGHT_URL)
 	end
