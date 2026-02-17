@@ -277,7 +277,7 @@ local snapLines: {[number]: SnapLineData} = {}
 local snaplineRemoveConn: RBXScriptConnection? = nil
 
 local LINE_THICKNESS = 2 -- pixels-ish (LineHandleAdornment thickness)
-local LINE_COLOR = Color3.fromRGB(255, 0, 255)
+local LINE_COLOR = Color3.fromRGB(255, 0, 0)
 
 local function getFeetPosition(char: Model): Vector3?
 	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
