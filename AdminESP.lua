@@ -254,12 +254,18 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (3D WORLD BEAMS - FEET TO CHEST, FIRST-PERSON SAFE)
+-- SNAPLINES (3D WORLD BEAMS - FEET TO CHEST, FIRST-PERSON VISIBLE, NO TEXTURES)
 ------------------------------------------------------------------
 
-local snapBeams: {[number]: {a0: Attachment, a1: Attachment, beam: Beam}} = {}
+local snapBeams: {[number]: {a1: Attachment, beam: Beam}} = {}
 local snapOriginPart: BasePart? = nil
 local snapOriginAttachment: Attachment? = nil
+
+local FP_FORWARD_PUSH = 0.75
+local FP_MIN_CAM_DIST = 1.35
+
+local BEAM_W0 = 0.16
+local BEAM_W1 = 0.12
 
 local function clearSnaplines()
 	for _, data in pairs(snapBeams) do
@@ -334,22 +340,36 @@ local function enableSnaplines()
 		ensureOrigin()
 
 		snaplineConn = RunService.RenderStepped:Connect(function()
+			local cam = workspace.CurrentCamera
+			if not cam then
+				return
+			end
+
 			if not snapOriginPart or not snapOriginAttachment then
 				return
 			end
 
 			local localRoot, localHum = getLocalRootAndHum()
 			if not localRoot or not localHum then
-				-- Hide everything if we don't have our char yet
 				for _, data in pairs(snapBeams) do
 					data.beam.Enabled = false
 				end
 				return
 			end
 
-			-- Move origin part to your FEET (world-space), every frame (first-person safe)
+			-- Feet position (world space)
 			local feetWorld = localRoot.Position - Vector3.new(0, localHum.HipHeight + (localRoot.Size.Y / 2), 0)
-			snapOriginPart.CFrame = CFrame.new(feetWorld)
+
+			-- If camera is too close (true first-person), push origin forward a bit to avoid near-plane clipping
+			local camPos = cam.CFrame.Position
+			local distToFeet = (feetWorld - camPos).Magnitude
+
+			local originWorld = feetWorld
+			if distToFeet < FP_MIN_CAM_DIST then
+				originWorld = feetWorld + (cam.CFrame.LookVector * FP_FORWARD_PUSH)
+			end
+
+			snapOriginPart.CFrame = CFrame.new(originWorld)
 
 			for _, plr in ipairs(Players:GetPlayers()) do
 				if plr ~= LocalPlayer then
@@ -377,22 +397,25 @@ local function enableSnaplines()
 						local beam = Instance.new("Beam")
 						beam.Attachment0 = snapOriginAttachment
 						beam.Attachment1 = a1
-						beam.Width0 = 0.08
-						beam.Width1 = 0.08
 
-						-- FaceCamera can cause weirdness close-up; keep it off for first-person stability
-						beam.FaceCamera = false
+						beam.Width0 = BEAM_W0
+						beam.Width1 = BEAM_W1
 
+						-- Face camera so it reads in first-person
+						beam.FaceCamera = true
+
+						-- Make it bright and unaffected by lighting
 						beam.LightEmission = 1
+						beam.LightInfluence = 0
+
 						beam.Transparency = NumberSequence.new(0)
 						beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
 						beam.Enabled = true
 
-						-- Parent beam to workspace so it never inherits local-char hiding behavior
+						-- Parent to workspace to avoid local character hiding/culling quirks
 						beam.Parent = workspace
 
 						snapBeams[plr.UserId] = {
-							a0 = snapOriginAttachment,
 							a1 = a1,
 							beam = beam,
 						}
@@ -400,9 +423,9 @@ local function enableSnaplines()
 						-- Enemy respawn/reparent fix
 						if data.a1.Parent ~= chest then
 							data.a1.Parent = chest
-							data.a1.Position = Vector3.new(0, chest.Size.Y / 4, 0)
 						end
 
+						data.a1.Position = Vector3.new(0, chest.Size.Y / 4, 0)
 						data.beam.Attachment0 = snapOriginAttachment
 						data.beam.Enabled = true
 					end
