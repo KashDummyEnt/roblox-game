@@ -842,9 +842,9 @@ end)
 addToggleCard(pageWorld, "world_fullbright", "Fullbright", "Brighten the world lighting.", 2, false, function(state)
 	print("Fullbright:", state)
 end)
-addToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, true, function(state)
+addToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, false, function(state)
 	setFeature("NoFog", state)
-end)
+end
 
 addPlaceholders(pageWorld, "World", 4)
 
