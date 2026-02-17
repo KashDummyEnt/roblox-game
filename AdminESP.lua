@@ -254,30 +254,68 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (3D WORLD BEAMS - FEET TO CHEST)
+-- SNAPLINES (3D WORLD BEAMS - FEET TO CHEST, FIRST-PERSON SAFE)
 ------------------------------------------------------------------
 
 local snapBeams: {[number]: {a0: Attachment, a1: Attachment, beam: Beam}} = {}
+local snapOriginPart: BasePart? = nil
+local snapOriginAttachment: Attachment? = nil
 
 local function clearSnaplines()
 	for _, data in pairs(snapBeams) do
 		if data.beam then data.beam:Destroy() end
-		if data.a0 then data.a0:Destroy() end
 		if data.a1 then data.a1:Destroy() end
 	end
 	table.clear(snapBeams)
+
+	if snapOriginAttachment then
+		snapOriginAttachment:Destroy()
+		snapOriginAttachment = nil
+	end
+
+	if snapOriginPart then
+		snapOriginPart:Destroy()
+		snapOriginPart = nil
+	end
 end
 
-local function getLocalRoot(): BasePart?
+local function getLocalRootAndHum(): (BasePart?, Humanoid?)
 	local char = LocalPlayer.Character
-	if not char then return nil end
-	return char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not char then return nil, nil end
+	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	return root, hum
 end
 
 local function getChestPart(char: Model): BasePart?
-	return char:FindFirstChild("UpperTorso")
-		or char:FindFirstChild("Torso")
-		or char:FindFirstChild("HumanoidRootPart")
+	return (char:FindFirstChild("UpperTorso") :: BasePart?)
+		or (char:FindFirstChild("Torso") :: BasePart?)
+		or (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
+end
+
+local function ensureOrigin()
+	if snapOriginPart and snapOriginAttachment then
+		return
+	end
+
+	local p = Instance.new("Part")
+	p.Name = "SnapOrigin"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Transparency = 1
+	p.Size = Vector3.new(0.2, 0.2, 0.2)
+	p.Parent = workspace
+
+	local a0 = Instance.new("Attachment")
+	a0.Name = "SnapFeet"
+	a0.Position = Vector3.new(0, 0, 0)
+	a0.Parent = p
+
+	snapOriginPart = p
+	snapOriginAttachment = a0
 end
 
 local function enableSnaplines()
@@ -293,12 +331,25 @@ local function enableSnaplines()
 			return
 		end
 
-		snaplineConn = RunService.RenderStepped:Connect(function()
-			local localRoot = getLocalRoot()
-			if not localRoot then return end
+		ensureOrigin()
 
-			local localHum = localRoot.Parent and localRoot.Parent:FindFirstChildOfClass("Humanoid")
-			if not localHum then return end
+		snaplineConn = RunService.RenderStepped:Connect(function()
+			if not snapOriginPart or not snapOriginAttachment then
+				return
+			end
+
+			local localRoot, localHum = getLocalRootAndHum()
+			if not localRoot or not localHum then
+				-- Hide everything if we don't have our char yet
+				for _, data in pairs(snapBeams) do
+					data.beam.Enabled = false
+				end
+				return
+			end
+
+			-- Move origin part to your FEET (world-space), every frame (first-person safe)
+			local feetWorld = localRoot.Position - Vector3.new(0, localHum.HipHeight + (localRoot.Size.Y / 2), 0)
+			snapOriginPart.CFrame = CFrame.new(feetWorld)
 
 			for _, plr in ipairs(Players:GetPlayers()) do
 				if plr ~= LocalPlayer then
@@ -317,49 +368,42 @@ local function enableSnaplines()
 					local data = snapBeams[plr.UserId]
 
 					if not data then
-						-- Attachment at your FEET
-						local a0 = Instance.new("Attachment")
-						a0.Name = "SnapFeet"
-						a0.Position = Vector3.new(
-							0,
-							-(localHum.HipHeight + (localRoot.Size.Y / 2)),
-							0
-						)
-						a0.Parent = localRoot
-
-						-- Attachment at enemy CHEST (slight upward offset for center mass)
+						-- Attachment at enemy CHEST
 						local a1 = Instance.new("Attachment")
 						a1.Name = "SnapChest"
 						a1.Position = Vector3.new(0, chest.Size.Y / 4, 0)
 						a1.Parent = chest
 
 						local beam = Instance.new("Beam")
-						beam.Attachment0 = a0
+						beam.Attachment0 = snapOriginAttachment
 						beam.Attachment1 = a1
 						beam.Width0 = 0.08
 						beam.Width1 = 0.08
-						beam.FaceCamera = true
+
+						-- FaceCamera can cause weirdness close-up; keep it off for first-person stability
+						beam.FaceCamera = false
+
 						beam.LightEmission = 1
 						beam.Transparency = NumberSequence.new(0)
 						beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
 						beam.Enabled = true
-						beam.Parent = a0
+
+						-- Parent beam to workspace so it never inherits local-char hiding behavior
+						beam.Parent = workspace
 
 						snapBeams[plr.UserId] = {
-							a0 = a0,
+							a0 = snapOriginAttachment,
 							a1 = a1,
 							beam = beam,
 						}
 					else
-						-- Reparent safely if character respawns
-						if data.a0.Parent ~= localRoot then
-							data.a0.Parent = localRoot
-						end
-
+						-- Enemy respawn/reparent fix
 						if data.a1.Parent ~= chest then
 							data.a1.Parent = chest
+							data.a1.Position = Vector3.new(0, chest.Size.Y / 4, 0)
 						end
 
+						data.beam.Attachment0 = snapOriginAttachment
 						data.beam.Enabled = true
 					end
 				end
@@ -376,6 +420,7 @@ local function disableSnaplines()
 
 	clearSnaplines()
 end
+
 
 ------------------------------------------------------------------
 -- APPLY LOGIC
