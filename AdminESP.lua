@@ -254,47 +254,24 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (FROM LOCAL FEET)
+-- SNAPLINES (3D WORLD BEAMS - LOCAL ONLY)
 ------------------------------------------------------------------
 
-local snapLines: {[number]: any} = {}
+local snapBeams: {[number]: {a0: Attachment, a1: Attachment, beam: Beam}} = {}
 
 local function clearSnaplines()
-	for _, line in pairs(snapLines) do
-		if line then
-			pcall(function()
-				line:Remove()
-			end)
-		end
+	for _, data in pairs(snapBeams) do
+		if data.beam then data.beam:Destroy() end
+		if data.a0 then data.a0:Destroy() end
+		if data.a1 then data.a1:Destroy() end
 	end
-	table.clear(snapLines)
+	table.clear(snapBeams)
 end
 
-local function getLocalFeetWorldPos(): Vector3?
+local function getLocalRoot(): BasePart?
 	local char = LocalPlayer.Character
-	if not char then
-		return nil
-	end
-
-	local hum = char:FindFirstChildOfClass("Humanoid")
-	local root = char:FindFirstChild("HumanoidRootPart")
-
-	-- Preferred: root + hip height offset (works across rigs reasonably)
-	if hum and root then
-		return root.Position - Vector3.new(0, hum.HipHeight + (root.Size.Y * 0.5), 0)
-	end
-
-	-- Fallback: R15 foot parts
-	local lf = char:FindFirstChild("LeftFoot")
-	if lf and lf:IsA("BasePart") then
-		return lf.Position
-	end
-
-	if root then
-		return root.Position
-	end
-
-	return nil
+	if not char then return nil end
+	return char:FindFirstChild("HumanoidRootPart") :: BasePart?
 end
 
 local function enableSnaplines()
@@ -305,84 +282,73 @@ local function enableSnaplines()
 		snaplineConn = nil
 	end
 
-	-- Defer one tick so camera/viewport/character are ready
 	task.defer(function()
 		if not featureState.Snaplines then
 			return
 		end
 
 		snaplineConn = RunService.RenderStepped:Connect(function()
-			local cam = workspace.CurrentCamera
-			if not cam then
+			local localRoot = getLocalRoot()
+			if not localRoot then
 				return
 			end
-
-			local vp = cam.ViewportSize
-			if vp.X <= 1 or vp.Y <= 1 then
-				return
-			end
-
-			local feetWorld = getLocalFeetWorldPos()
-			if not feetWorld then
-				return
-			end
-
-			local from3 = cam:WorldToViewportPoint(feetWorld)
-			if from3.Z <= 0 then
-				-- If your feet are behind the camera, lines will look weird; just hide them this frame.
-				for _, line in pairs(snapLines) do
-					if line then
-						line.Visible = false
-					end
-				end
-				return
-			end
-
-			local pad = 8
-			local fromX = math.clamp(from3.X, pad, vp.X - pad)
-			local fromY = math.clamp(from3.Y, pad, vp.Y - pad)
-			local from2 = Vector2.new(fromX, fromY)
 
 			for _, plr in ipairs(Players:GetPlayers()) do
 				if plr ~= LocalPlayer then
 					local char = plr.Character
-					local root = char and char:FindFirstChild("HumanoidRootPart")
+					local targetRoot = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 					local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-					if not root or not hum or hum.Health <= 0 then
-						local deadLine = snapLines[plr.UserId]
-						if deadLine then
-							deadLine.Visible = false
+					if not targetRoot or not hum or hum.Health <= 0 then
+						local existing = snapBeams[plr.UserId]
+						if existing then
+							existing.beam.Enabled = false
 						end
 						continue
 					end
 
-					local line = snapLines[plr.UserId]
-					if not line then
-						line = Drawing.new("Line")
-						line.Thickness = 1
-						line.Color = Color3.fromRGB(255, 0, 0)
-						line.Transparency = 1
-						snapLines[plr.UserId] = line
+					local data = snapBeams[plr.UserId]
+
+					if not data then
+						-- Attachment on local player
+						local a0 = Instance.new("Attachment")
+						a0.Name = "SnapA0"
+						a0.Parent = localRoot
+
+						-- Attachment on enemy
+						local a1 = Instance.new("Attachment")
+						a1.Name = "SnapA1"
+						a1.Parent = targetRoot
+
+						local beam = Instance.new("Beam")
+						beam.Attachment0 = a0
+						beam.Attachment1 = a1
+						beam.Width0 = 0.08
+						beam.Width1 = 0.08
+						beam.FaceCamera = true
+						beam.LightEmission = 1
+						beam.Transparency = NumberSequence.new(0)
+						beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+						beam.Enabled = true
+						beam.Parent = a0
+
+						snapBeams[plr.UserId] = {
+							a0 = a0,
+							a1 = a1,
+							beam = beam,
+						}
+					else
+						-- Ensure attachments are still parented correctly
+						if data.a0.Parent ~= localRoot then
+							data.a0.Parent = localRoot
+						end
+
+						if data.a1.Parent ~= targetRoot then
+							data.a1.Parent = targetRoot
+						end
+
+						data.beam.Enabled = true
 					end
-
-					local to3 = cam:WorldToViewportPoint(root.Position)
-
-					-- Behind camera mirror like your old logic
-					if to3.Z < 0 then
-						to3 = Vector3.new(
-							vp.X - to3.X,
-							vp.Y - to3.Y,
-							to3.Z
-						)
-					end
-
-					local toX = math.clamp(to3.X, pad, vp.X - pad)
-					local toY = math.clamp(to3.Y, pad, vp.Y - pad)
-
-					line.From = from2
-					line.To = Vector2.new(toX, toY)
-					line.Visible = true
 				end
 			end
 		end)
@@ -397,6 +363,7 @@ local function disableSnaplines()
 
 	clearSnaplines()
 end
+
 
 ------------------------------------------------------------------
 -- APPLY LOGIC
