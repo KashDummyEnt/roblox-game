@@ -1,0 +1,62 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local NAME_TAG = "AdminTag"
+local HEALTH_TAG = "AdminHealthBar"
+local GLOW_TAG = "AdminGlow"
+
+-- stop scaler loop
+if _G.AdminESP_Scaler then
+	_G.AdminESP_Scaler:Disconnect()
+	_G.AdminESP_Scaler = nil
+end
+
+-- disconnect any stored conns (only helps if you start storing them)
+if _G.AdminESP_CharConns then
+	for _, conn in pairs(_G.AdminESP_CharConns) do
+		if conn then
+			conn:Disconnect()
+		end
+	end
+	_G.AdminESP_CharConns = nil
+end
+
+local function getAdorneeForPlayer(plr)
+	local disguise = plr:FindFirstChild("DisguiseObject")
+	if disguise and disguise:IsA("ObjectValue") and disguise.Value then
+		return disguise.Value
+	end
+	return plr.Character
+end
+
+local function destroyFirstDescendant(root, name)
+	if not root then return end
+	local inst = root:FindFirstChild(name, true)
+	while inst do
+		inst:Destroy()
+		inst = root:FindFirstChild(name, true)
+	end
+end
+
+for _, plr in ipairs(Players:GetPlayers()) do
+	if plr ~= LocalPlayer then
+		-- clean both character and disguise target (if different)
+		local targets = {}
+
+		local char = plr.Character
+		if char then
+			table.insert(targets, char)
+		end
+
+		local adornee = getAdorneeForPlayer(plr)
+		if adornee and adornee ~= char then
+			table.insert(targets, adornee)
+		end
+
+		for _, t in ipairs(targets) do
+			destroyFirstDescendant(t, GLOW_TAG)
+			destroyFirstDescendant(t, NAME_TAG)
+			destroyFirstDescendant(t, HEALTH_TAG)
+		end
+	end
+end
