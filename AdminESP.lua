@@ -327,7 +327,7 @@ local function ensureSnapLineFor(plr: Player): SnapLineData
 	ad.AlwaysOnTop = true
 	ad.ZIndex = 20
 	ad.Transparency = 0.4
-	ad.Color3 = Color3.fromRGB(255, 0, 0)
+	ad.Color3 = Color3.fromRGB(255, 0, 255)
 	ad.AdornCullingMode = Enum.AdornCullingMode.Never
 	ad.Parent = workspace
 
@@ -377,7 +377,7 @@ local function updateSnapLine(plr: Player, data: SnapLineData)
 	if cam then
 		local dist = (cam.CFrame.Position - mid).Magnitude
 
-		local minDist = 11
+		local minDist = 10
 		local maxDist = 150
 
 		local alpha = math.clamp((dist - minDist) / (maxDist - minDist), 0, 1)
