@@ -264,8 +264,8 @@ local snapOriginAttachment: Attachment? = nil
 local FP_FORWARD_PUSH = 0.75
 local FP_MIN_CAM_DIST = 1.35
 
-local BEAM_W0 = 0.16
-local BEAM_W1 = 0.12
+local BEAM_W0 = 0.08
+local BEAM_W1 = 0.06
 
 local function clearSnaplines()
 	for _, data in pairs(snapBeams) do
