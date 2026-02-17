@@ -2,6 +2,7 @@
 -- AdminESP.lua
 -- Multi-toggle ESP with proper distance scaling + snaplines from local feet (not screen center)
 -- + 3D Beam Boxes (bounding-box based)
+-- FIXED: names/health/glow now handle player join + death/respawn properly (no toggle-twice, no duplicates)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -64,7 +65,6 @@ local HP_BASE_W, HP_BASE_H = 70, 8
 local NAME_MIN_W, NAME_MIN_H = 50, 14
 local HP_MIN_W, HP_MIN_H = 40, 6
 
-
 local MAX_DISTANCE = 9999
 
 ------------------------------------------------------------------
@@ -84,26 +84,49 @@ local scalerConn: RBXScriptConnection? = nil
 local snaplineConn: RBXScriptConnection? = nil
 local boxConn: RBXScriptConnection? = nil
 
+-- NEW: lifecycle watchers so join/death/respawn works cleanly
+local charWatchConns: {[number]: RBXScriptConnection} = {}
+local playerAddedConn: RBXScriptConnection? = nil
+local playerRemovingConn: RBXScriptConnection? = nil
+
 ------------------------------------------------------------------
 -- CLEANUP
 ------------------------------------------------------------------
 
-local function cleanupPlayer(plr: Player)
-	if playerConns[plr.UserId] then
-		for _, c in ipairs(playerConns[plr.UserId]) do
+local function disconnectUser(userId: number)
+	local bucket = playerConns[userId]
+	if bucket then
+		for _, c in ipairs(bucket) do
 			c:Disconnect()
 		end
-		playerConns[plr.UserId] = nil
+		playerConns[userId] = nil
+	end
+end
+
+local function cleanupCharacter(char: Model)
+	for _, inst in ipairs(char:GetDescendants()) do
+		if inst.Name == NAME_TAG
+		or inst.Name == HEALTH_TAG
+		or inst.Name == GLOW_TAG then
+			inst:Destroy()
+		end
+	end
+end
+
+local function cleanupPlayer(plr: Player)
+	-- kill per-player builder connections (health changed, died, etc)
+	disconnectUser(plr.UserId)
+
+	-- kill character watcher
+	local cw = charWatchConns[plr.UserId]
+	if cw then
+		cw:Disconnect()
+		charWatchConns[plr.UserId] = nil
 	end
 
+	-- remove current character esp instances
 	if plr.Character then
-		for _, inst in ipairs(plr.Character:GetDescendants()) do
-			if inst.Name == NAME_TAG
-			or inst.Name == HEALTH_TAG
-			or inst.Name == GLOW_TAG then
-				inst:Destroy()
-			end
-		end
+		cleanupCharacter(plr.Character)
 	end
 end
 
@@ -186,6 +209,16 @@ local function buildHealth(plr: Player)
 
 	playerConns[plr.UserId] = playerConns[plr.UserId] or {}
 	table.insert(playerConns[plr.UserId], hum.HealthChanged:Connect(update))
+
+	-- NEW: on death, clean the old instances so respawn is clean (CharacterAdded rebuilds)
+	table.insert(playerConns[plr.UserId], hum.Died:Connect(function()
+		task.defer(function()
+			if plr.Character then
+				cleanupCharacter(plr.Character)
+			end
+			disconnectUser(plr.UserId)
+		end)
+	end))
 end
 
 local function buildGlow(plr: Player)
@@ -208,6 +241,77 @@ local function buildGlow(plr: Player)
 	h.Parent = char
 end
 
+------------------------------------------------------------------
+-- LIFECYCLE FIX (JOIN / RESPAWN / DEATH)
+------------------------------------------------------------------
+
+local function applyForPlayer(plr: Player)
+	if plr == LocalPlayer then return end
+
+	-- wipe old per-player builder conns before applying fresh (prevents duplicates)
+	disconnectUser(plr.UserId)
+
+	-- if no character yet, CharacterAdded watcher will handle it
+	if not plr.Character then
+		return
+	end
+
+	-- remove any leftovers from previous runs / weird states
+	cleanupCharacter(plr.Character)
+
+	if featureState.Name then buildName(plr) end
+	if featureState.Health then buildHealth(plr) end
+	if featureState.Player then buildGlow(plr) end
+end
+
+local function ensureCharWatcher(plr: Player)
+	if plr == LocalPlayer then return end
+	if charWatchConns[plr.UserId] then return end
+
+	charWatchConns[plr.UserId] = plr.CharacterAdded:Connect(function(char: Model)
+		-- ensure clean slate on respawn
+		cleanupCharacter(char)
+		disconnectUser(plr.UserId)
+
+		-- apply active features
+		if featureState.Name then buildName(plr) end
+		if featureState.Health then buildHealth(plr) end
+		if featureState.Player then buildGlow(plr) end
+	end)
+
+	-- if already spawned, apply immediately
+	if plr.Character then
+		applyForPlayer(plr)
+	end
+end
+
+local function ensureGlobalWatchers()
+	if not playerAddedConn then
+		playerAddedConn = Players.PlayerAdded:Connect(function(plr: Player)
+			if plr ~= LocalPlayer then
+				ensureCharWatcher(plr)
+				-- if toggles already on, build as soon as the player exists
+				task.defer(function()
+					applyForPlayer(plr)
+				end)
+			end
+		end)
+	end
+
+	if not playerRemovingConn then
+		playerRemovingConn = Players.PlayerRemoving:Connect(function(plr: Player)
+			if plr ~= LocalPlayer then
+				cleanupPlayer(plr)
+			end
+		end)
+	end
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			ensureCharWatcher(plr)
+		end
+	end
+end
 
 ------------------------------------------------------------------
 -- DISTANCE SCALING (YOUR ORIGINAL LOGIC)
@@ -277,7 +381,6 @@ local function stopScaler()
 		scalerConn = nil
 	end
 end
-
 
 ------------------------------------------------------------------
 -- SNAPLINES (BOXHANDLEADORNMENT "RODS" - FEET TO FEET, THROUGH WALLS)
@@ -681,7 +784,6 @@ local function updateBoxFor(plr: Player, data: BoxData)
 	setBoxEnabled(data, true)
 end
 
-
 local function enableBoxes()
 	clearBoxes()
 
@@ -729,19 +831,20 @@ local function disableBoxes()
 	clearBoxes()
 end
 
-
 ------------------------------------------------------------------
 -- APPLY LOGIC
 ------------------------------------------------------------------
 
 local function refresh()
+	-- Make sure lifecycle watchers exist so join/respawn works even after toggles change
+	ensureGlobalWatchers()
+
+	-- remove current ESP instances + old health conns, then re-apply to active chars
 	cleanupAll()
 
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer then
-			if featureState.Name then buildName(plr) end
-			if featureState.Health then buildHealth(plr) end
-			if featureState.Player then buildGlow(plr) end
+			applyForPlayer(plr)
 		end
 	end
 
