@@ -153,24 +153,31 @@ local function loadRemoteModule(url: string): any
 		return game:HttpGet(url)
 	end)
 	if not ok then
-		warn("HttpGet failed:", code)
+		warn("Remote module HttpGet failed:", code)
 		return nil
 	end
 
 	local chunk, compileErr = loadstring(code)
 	if not chunk then
-		warn("loadstring failed:", compileErr)
+		warn("Remote module compile failed:", compileErr)
+		warn("Remote module first 200 chars:\n" .. string.sub(code, 1, 200))
 		return nil
 	end
 
 	local ok2, result = pcall(chunk)
 	if not ok2 then
-		warn("remote module runtime error:", result)
+		warn("Remote module runtime failed:", result)
+		return nil
+	end
+
+	if type(result) ~= "table" then
+		warn("Remote module did not return a table. Got:", typeof(result))
 		return nil
 	end
 
 	return result
 end
+
 
 local Toggles = loadRemoteModule(TOGGLES_URL)
 if not Toggles then
