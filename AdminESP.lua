@@ -265,55 +265,66 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (LINEHANDLEADORNMENT - FEET TO FEET, THROUGH WALLS)
+-- SNAPLINES (BOXHANDLEADORNMENT "RODS" - FEET TO FEET, THROUGH WALLS)
 ------------------------------------------------------------------
 
-type SnapLineData = {
+type SnapData = {
 	part: BasePart,
-	ad: LineHandleAdornment,
+	ad: BoxHandleAdornment,
 }
 
-local snapLines: {[number]: SnapLineData} = {}
-local snaplineRemoveConn: RBXScriptConnection? = nil
+local snapDataByUserId: {[number]: SnapData} = {}
+local snapOriginPart: BasePart? = nil
 
-local LINE_THICKNESS = 2 -- pixels-ish (LineHandleAdornment thickness)
-local LINE_COLOR = Color3.fromRGB(255, 0, 0)
+local FP_FORWARD_PUSH = 0.75
+local FP_MIN_CAM_DIST = 1.35
 
-local function getFeetPosition(char: Model): Vector3?
-	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	local hum = char:FindFirstChildOfClass("Humanoid")
-	if not root or not hum then
-		return nil
-	end
+local SNAP_THICKNESS = 0.10
+local SNAP_TRANSPARENCY = 0.15
 
-	return root.Position - Vector3.new(0, hum.HipHeight + (root.Size.Y / 2), 0)
-end
+local snapRemoveConn: RBXScriptConnection? = nil
 
-local function destroySnapLine(userId: number)
-	local data = snapLines[userId]
+local function destroySnapForUserId(userId: number)
+	local data = snapDataByUserId[userId]
 	if not data then return end
 
 	if data.ad then data.ad:Destroy() end
 	if data.part then data.part:Destroy() end
 
-	snapLines[userId] = nil
+	snapDataByUserId[userId] = nil
 end
 
 local function clearSnaplines()
-	for userId, _ in pairs(snapLines) do
-		destroySnapLine(userId)
+	for userId, _ in pairs(snapDataByUserId) do
+		destroySnapForUserId(userId)
 	end
-	table.clear(snapLines)
+	table.clear(snapDataByUserId)
+
+	if snapOriginPart then
+		snapOriginPart:Destroy()
+		snapOriginPart = nil
+	end
 end
 
-local function ensureSnapLineFor(plr: Player): SnapLineData
-	local existing = snapLines[plr.UserId]
-	if existing then
-		return existing
+local function getLocalRootAndHum(): (BasePart?, Humanoid?)
+	local char = LocalPlayer.Character
+	if not char then return nil, nil end
+	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	return root, hum
+end
+
+local function getFeetWorld(root: BasePart, hum: Humanoid): Vector3
+	return root.Position - Vector3.new(0, hum.HipHeight + (root.Size.Y / 2), 0)
+end
+
+local function ensureOrigin()
+	if snapOriginPart then
+		return
 	end
 
 	local p = Instance.new("Part")
-	p.Name = ("ESP_SnapLine_%d"):format(plr.UserId)
+	p.Name = "SnapOrigin"
 	p.Anchored = true
 	p.CanCollide = false
 	p.CanQuery = false
@@ -323,80 +334,81 @@ local function ensureSnapLineFor(plr: Player): SnapLineData
 	p.Size = Vector3.new(0.2, 0.2, 0.2)
 	p.Parent = workspace
 
-	local ad = Instance.new("LineHandleAdornment")
-	ad.Name = "ESP_SnapLineAdornment"
+	snapOriginPart = p
+end
+
+local function ensureSnapFor(plr: Player): SnapData
+	local existing = snapDataByUserId[plr.UserId]
+	if existing then
+		return existing
+	end
+
+	local p = Instance.new("Part")
+	p.Name = ("ESP_SnapRod_%d"):format(plr.UserId)
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Transparency = 1
+	p.Size = Vector3.new(0.2, 0.2, 0.2)
+	p.Parent = workspace
+
+	local ad = Instance.new("BoxHandleAdornment")
+	ad.Name = "ESP_SnapAdornment"
 	ad.Adornee = p
-
 	ad.AlwaysOnTop = true
-	ad.ZIndex = 50
+	ad.ZIndex = 10
 
-	ad.Color3 = LINE_COLOR
-	ad.Thickness = LINE_THICKNESS
-	ad.Transparency = 0.35
-
-	ad.Length = 1
+	ad.Color3 = Color3.fromRGB(255, 0, 0)
+	ad.Transparency = SNAP_TRANSPARENCY
+	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
 	ad.Visible = true
 
-	-- Parenting to CurrentCamera tends to be most consistent for “overlay” stuff
-	local cam = workspace.CurrentCamera
-	ad.Parent = cam or workspace
+	ad.Parent = workspace
 
-	local data: SnapLineData = {
+	local data: SnapData = {
 		part = p,
 		ad = ad,
 	}
 
-	snapLines[plr.UserId] = data
+	snapDataByUserId[plr.UserId] = data
 	return data
 end
 
-local function updateSnapLine(plr: Player, data: SnapLineData)
-	local localChar = LocalPlayer.Character
-	local enemyChar = plr.Character
+local function setSnapEnabled(data: SnapData, enabled: boolean)
+	data.ad.Visible = enabled
+end
 
-	if not localChar or not enemyChar then
-		data.ad.Visible = false
+local function updateSnapFor(plr: Player, data: SnapData, originWorld: Vector3)
+	local char = plr.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
+
+	if not root or not hum or hum.Health <= 0 then
+		setSnapEnabled(data, false)
 		return
 	end
 
-	local localFeet = getFeetPosition(localChar)
-	local enemyFeet = getFeetPosition(enemyChar)
-	local enemyHum = enemyChar:FindFirstChildOfClass("Humanoid")
+	-- feet-to-feet target
+	local targetFeet = getFeetWorld(root, hum)
 
-	if not localFeet or not enemyFeet or not enemyHum or enemyHum.Health <= 0 then
-		data.ad.Visible = false
+	-- build a "rod" from origin to target
+	local dir = targetFeet - originWorld
+	local len = dir.Magnitude
+	if len < 0.05 then
+		setSnapEnabled(data, false)
 		return
 	end
 
-	local dir = enemyFeet - localFeet
-	local distance = dir.Magnitude
-	if distance <= 0.1 then
-		data.ad.Visible = false
-		return
-	end
+	local mid = originWorld + (dir * 0.5)
 
-	local mid = localFeet + (dir * 0.5)
+	-- orient so Z axis points toward target
+	data.part.CFrame = CFrame.lookAt(mid, targetFeet)
 
-	-- Move holder to midpoint, orient down the line, and set length
-	data.part.CFrame = CFrame.lookAt(mid, enemyFeet)
-	data.ad.Length = distance
-	data.ad.Visible = true
-
-	-- far away = more solid, close = more transparent
-	local cam = workspace.CurrentCamera
-	if cam then
-		local dist = (cam.CFrame.Position - mid).Magnitude
-
-		local minDist = 10
-		local maxDist = 150
-		local alpha = math.clamp((dist - minDist) / (maxDist - minDist), 0, 1)
-
-		local closeTransparency = 0.85
-		local farTransparency = 0.20
-
-		data.ad.Transparency =
-			closeTransparency - (alpha * (closeTransparency - farTransparency))
-	end
+	-- thin box stretched along Z
+	data.ad.Size = Vector3.new(SNAP_THICKNESS, SNAP_THICKNESS, len)
+	setSnapEnabled(data, true)
 end
 
 local function enableSnaplines()
@@ -407,13 +419,13 @@ local function enableSnaplines()
 		snaplineConn = nil
 	end
 
-	if snaplineRemoveConn then
-		snaplineRemoveConn:Disconnect()
-		snaplineRemoveConn = nil
+	if snapRemoveConn then
+		snapRemoveConn:Disconnect()
+		snapRemoveConn = nil
 	end
 
-	snaplineRemoveConn = Players.PlayerRemoving:Connect(function(plr: Player)
-		destroySnapLine(plr.UserId)
+	snapRemoveConn = Players.PlayerRemoving:Connect(function(plr: Player)
+		destroySnapForUserId(plr.UserId)
 	end)
 
 	task.defer(function()
@@ -421,11 +433,44 @@ local function enableSnaplines()
 			return
 		end
 
+		ensureOrigin()
+
 		snaplineConn = RunService.RenderStepped:Connect(function()
+			local cam = workspace.CurrentCamera
+			if not cam then
+				return
+			end
+
+			if not snapOriginPart then
+				return
+			end
+
+			local localRoot, localHum = getLocalRootAndHum()
+			if not localRoot or not localHum then
+				for _, data in pairs(snapDataByUserId) do
+					setSnapEnabled(data, false)
+				end
+				return
+			end
+
+			-- local feet origin
+			local feetWorld = getFeetWorld(localRoot, localHum)
+
+			-- anti-clip in true first-person
+			local camPos = cam.CFrame.Position
+			local distToFeet = (feetWorld - camPos).Magnitude
+
+			local originWorld = feetWorld
+			if distToFeet < FP_MIN_CAM_DIST then
+				originWorld = feetWorld + (cam.CFrame.LookVector * FP_FORWARD_PUSH)
+			end
+
+			snapOriginPart.CFrame = CFrame.new(originWorld)
+
 			for _, plr in ipairs(Players:GetPlayers()) do
 				if plr ~= LocalPlayer then
-					local data = ensureSnapLineFor(plr)
-					updateSnapLine(plr, data)
+					local data = ensureSnapFor(plr)
+					updateSnapFor(plr, data, originWorld)
 				end
 			end
 		end)
@@ -438,9 +483,9 @@ local function disableSnaplines()
 		snaplineConn = nil
 	end
 
-	if snaplineRemoveConn then
-		snaplineRemoveConn:Disconnect()
-		snaplineRemoveConn = nil
+	if snapRemoveConn then
+		snapRemoveConn:Disconnect()
+		snapRemoveConn = nil
 	end
 
 	clearSnaplines()
