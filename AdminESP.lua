@@ -1,10 +1,14 @@
 --!strict
 -- AdminESP.lua
--- Controlled by multiple toggle keys
+-- Multi-toggle ESP with proper distance scaling
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
+
+------------------------------------------------------------------
+-- GLOBAL TOGGLE API ACCESS
+------------------------------------------------------------------
 
 local function getGlobal(): any
 	local gg = (typeof(getgenv) == "function") and getgenv() or nil
@@ -15,13 +19,6 @@ local function getGlobal(): any
 end
 
 local G = getGlobal()
-
-local TOGGLE_KEYS = {
-	Name = "visuals_name",
-	Health = "visuals_health",
-	Player = "visuals_player",
-	Snaplines = "visuals_snaplines",
-}
 
 local function waitForTogglesApi(timeout: number): any?
 	local start = os.clock()
@@ -42,6 +39,17 @@ if not Toggles then
 end
 
 ------------------------------------------------------------------
+-- TOGGLE KEYS
+------------------------------------------------------------------
+
+local KEYS = {
+	Name = "visuals_name",
+	Health = "visuals_health",
+	Player = "visuals_player",
+	Snaplines = "visuals_snaplines",
+}
+
+------------------------------------------------------------------
 -- CONFIG
 ------------------------------------------------------------------
 
@@ -51,6 +59,7 @@ local GLOW_TAG = "ESP_Glow"
 
 local NAME_BASE_W, NAME_BASE_H = 90, 22
 local HP_BASE_W, HP_BASE_H = 70, 8
+
 local MAX_DISTANCE = 500
 
 ------------------------------------------------------------------
@@ -187,6 +196,64 @@ local function buildGlow(plr: Player)
 end
 
 ------------------------------------------------------------------
+-- DISTANCE SCALING (YOUR ORIGINAL LOGIC)
+------------------------------------------------------------------
+
+local function startScaler()
+	if scalerConn then return end
+
+	scalerConn = RunService.RenderStepped:Connect(function()
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= LocalPlayer then
+				local char = plr.Character
+				if char then
+					local head = char:FindFirstChild("Head")
+					local root = char:FindFirstChild("HumanoidRootPart")
+					if head and root then
+						local dist = (cam.CFrame.Position - root.Position).Magnitude
+						local scale = math.clamp(70 / dist, 0.25, 1)
+
+						if featureState.Name then
+							local nameGui = head:FindFirstChild(NAME_TAG)
+							if nameGui then
+								nameGui.Size = UDim2.new(
+									0,
+									math.floor(NAME_BASE_W * scale),
+									0,
+									math.floor(NAME_BASE_H * scale)
+								)
+							end
+						end
+
+						if featureState.Health then
+							local hpGui = root:FindFirstChild(HEALTH_TAG)
+							if hpGui then
+								hpGui.Size = UDim2.new(
+									0,
+									math.floor(HP_BASE_W * scale),
+									0,
+									math.floor(HP_BASE_H * scale)
+								)
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
+end
+
+local function stopScaler()
+	if scalerConn then
+		scalerConn:Disconnect()
+		scalerConn = nil
+	end
+end
+
+------------------------------------------------------------------
 -- SNAPLINES
 ------------------------------------------------------------------
 
@@ -227,25 +294,29 @@ local function disableSnaplines()
 end
 
 ------------------------------------------------------------------
--- APPLY STATE
+-- APPLY LOGIC
 ------------------------------------------------------------------
 
-local function applyToPlayer(plr: Player)
-	if plr == LocalPlayer then return end
-	if featureState.Name then buildName(plr) end
-	if featureState.Health then buildHealth(plr) end
-	if featureState.Player then buildGlow(plr) end
-end
-
-local function refreshAll()
+local function refresh()
 	cleanupAll()
+
 	for _, plr in ipairs(Players:GetPlayers()) do
-		applyToPlayer(plr)
+		if plr ~= LocalPlayer then
+			if featureState.Name then buildName(plr) end
+			if featureState.Health then buildHealth(plr) end
+			if featureState.Player then buildGlow(plr) end
+		end
+	end
+
+	if featureState.Name or featureState.Health then
+		startScaler()
+	else
+		stopScaler()
 	end
 end
 
 ------------------------------------------------------------------
--- TOGGLE BINDINGS
+-- BIND TOGGLES
 ------------------------------------------------------------------
 
 local function bind(feature: string, key: string)
@@ -257,7 +328,7 @@ local function bind(feature: string, key: string)
 			return
 		end
 
-		refreshAll()
+		refresh()
 	end)
 
 	if Toggles.GetState(key, false) then
@@ -265,9 +336,9 @@ local function bind(feature: string, key: string)
 	end
 end
 
-bind("Name", TOGGLE_KEYS.Name)
-bind("Health", TOGGLE_KEYS.Health)
-bind("Player", TOGGLE_KEYS.Player)
-bind("Snaplines", TOGGLE_KEYS.Snaplines)
+bind("Name", KEYS.Name)
+bind("Health", KEYS.Health)
+bind("Player", KEYS.Player)
+bind("Snaplines", KEYS.Snaplines)
 
-refreshAll()
+refresh()
