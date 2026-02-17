@@ -254,7 +254,7 @@ local function stopScaler()
 end
 
 ------------------------------------------------------------------
--- SNAPLINES (3D WORLD BEAMS - LOCAL ONLY)
+-- SNAPLINES (3D WORLD BEAMS - FEET TO CHEST)
 ------------------------------------------------------------------
 
 local snapBeams: {[number]: {a0: Attachment, a1: Attachment, beam: Beam}} = {}
@@ -274,6 +274,12 @@ local function getLocalRoot(): BasePart?
 	return char:FindFirstChild("HumanoidRootPart") :: BasePart?
 end
 
+local function getChestPart(char: Model): BasePart?
+	return char:FindFirstChild("UpperTorso")
+		or char:FindFirstChild("Torso")
+		or char:FindFirstChild("HumanoidRootPart")
+end
+
 local function enableSnaplines()
 	clearSnaplines()
 
@@ -289,17 +295,18 @@ local function enableSnaplines()
 
 		snaplineConn = RunService.RenderStepped:Connect(function()
 			local localRoot = getLocalRoot()
-			if not localRoot then
-				return
-			end
+			if not localRoot then return end
+
+			local localHum = localRoot.Parent and localRoot.Parent:FindFirstChildOfClass("Humanoid")
+			if not localHum then return end
 
 			for _, plr in ipairs(Players:GetPlayers()) do
 				if plr ~= LocalPlayer then
 					local char = plr.Character
-					local targetRoot = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 					local hum = char and char:FindFirstChildOfClass("Humanoid")
+					local chest = char and getChestPart(char)
 
-					if not targetRoot or not hum or hum.Health <= 0 then
+					if not chest or not hum or hum.Health <= 0 then
 						local existing = snapBeams[plr.UserId]
 						if existing then
 							existing.beam.Enabled = false
@@ -310,15 +317,21 @@ local function enableSnaplines()
 					local data = snapBeams[plr.UserId]
 
 					if not data then
-						-- Attachment on local player
+						-- Attachment at your FEET
 						local a0 = Instance.new("Attachment")
-						a0.Name = "SnapA0"
+						a0.Name = "SnapFeet"
+						a0.Position = Vector3.new(
+							0,
+							-(localHum.HipHeight + (localRoot.Size.Y / 2)),
+							0
+						)
 						a0.Parent = localRoot
 
-						-- Attachment on enemy
+						-- Attachment at enemy CHEST (slight upward offset for center mass)
 						local a1 = Instance.new("Attachment")
-						a1.Name = "SnapA1"
-						a1.Parent = targetRoot
+						a1.Name = "SnapChest"
+						a1.Position = Vector3.new(0, chest.Size.Y / 4, 0)
+						a1.Parent = chest
 
 						local beam = Instance.new("Beam")
 						beam.Attachment0 = a0
@@ -338,13 +351,13 @@ local function enableSnaplines()
 							beam = beam,
 						}
 					else
-						-- Ensure attachments are still parented correctly
+						-- Reparent safely if character respawns
 						if data.a0.Parent ~= localRoot then
 							data.a0.Parent = localRoot
 						end
 
-						if data.a1.Parent ~= targetRoot then
-							data.a1.Parent = targetRoot
+						if data.a1.Parent ~= chest then
+							data.a1.Parent = chest
 						end
 
 						data.beam.Enabled = true
@@ -363,7 +376,6 @@ local function disableSnaplines()
 
 	clearSnaplines()
 end
-
 
 ------------------------------------------------------------------
 -- APPLY LOGIC
