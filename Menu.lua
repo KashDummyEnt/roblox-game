@@ -31,7 +31,7 @@ local CONFIG = {
 	CloseTweenTime = 0.14,
 
 	-- Dark grey + bright red scheme
-	Accent = Color3.fromRGB(235, 45, 65), -- bright red
+	Accent = Color3.fromRGB(0, 45, 235), -- bright red
 	Bg = Color3.fromRGB(14, 14, 16), -- deepest
 	Bg2 = Color3.fromRGB(20, 20, 24), -- panels
 	Bg3 = Color3.fromRGB(26, 26, 32), -- hover/alt
