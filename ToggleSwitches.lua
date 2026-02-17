@@ -1,49 +1,28 @@
---!strict
--- ToggleSwitches.lua (REMOTE MODULE)
--- This file MUST return a table.
+-- ToggleSwitches.lua (REMOTE MODULE, LUA-SAFE)
+-- Must return a table.
 
 local ToggleSwitches = {}
 
-export type ToggleHandle = {
-	Get: () -> boolean,
-	Set: (boolean) -> (),
-	Flip: () -> (),
-}
+local toggleStates = {}
 
-type Config = {
-	Accent: Color3,
-	Bg2: Color3,
-	Bg3: Color3,
-	Text: Color3,
-	SubText: Color3,
-	Stroke: Color3,
-}
-
-type Services = {
-	TweenService: TweenService,
-	UserInputService: UserInputService,
-}
-
-local toggleStates: {[string]: boolean} = {}
-
-local function make(instanceType: string, props: {[string]: any}?): Instance
+local function make(instanceType, props)
 	local inst = Instance.new(instanceType)
 	if props then
 		for k, v in pairs(props) do
-			(inst :: any)[k] = v
+			inst[k] = v
 		end
 	end
 	return inst
 end
 
-local function addCorner(parent: Instance, radius: number)
+local function addCorner(parent, radius)
 	make("UICorner", {
 		CornerRadius = UDim.new(0, radius),
 		Parent = parent,
 	})
 end
 
-local function addStroke(parent: Instance, thickness: number, color: Color3, transparency: number?)
+local function addStroke(parent, thickness, color, transparency)
 	make("UIStroke", {
 		Thickness = thickness,
 		Color = color,
@@ -53,11 +32,11 @@ local function addStroke(parent: Instance, thickness: number, color: Color3, tra
 	})
 end
 
-local function isTouchDevice(userInputService: UserInputService): boolean
+local function isTouchDevice(userInputService)
 	return userInputService.TouchEnabled and not userInputService.KeyboardEnabled
 end
 
-function ToggleSwitches.GetState(key: string, defaultState: boolean?): boolean
+function ToggleSwitches.GetState(key, defaultState)
 	local v = toggleStates[key]
 	if v == nil then
 		v = defaultState or false
@@ -66,43 +45,33 @@ function ToggleSwitches.GetState(key: string, defaultState: boolean?): boolean
 	return v
 end
 
-function ToggleSwitches.SetState(key: string, value: boolean)
-	toggleStates[key] = value
+function ToggleSwitches.SetState(key, value)
+	toggleStates[key] = value and true or false
 end
 
-function ToggleSwitches.FlipState(key: string, defaultState: boolean?): boolean
-	local current = ToggleSwitches.GetState(key, defaultState)
-	local nextState = not current
+function ToggleSwitches.FlipState(key, defaultState)
+	local cur = ToggleSwitches.GetState(key, defaultState)
+	local nextState = not cur
 	toggleStates[key] = nextState
 	return nextState
 end
 
-function ToggleSwitches.AddToggleCard(
-	parent: Instance,
-	key: string,
-	title: string,
-	desc: string,
-	order: number,
-	defaultState: boolean,
-	config: Config,
-	services: Services,
-	onChanged: ((boolean) -> ())?
-): ToggleHandle
+function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultState, config, services, onChanged)
 	if toggleStates[key] == nil then
-		toggleStates[key] = defaultState
+		toggleStates[key] = defaultState and true or false
 	end
 
 	local TweenService = services.TweenService
 	local UserInputService = services.UserInputService
 
 	local card = make("Frame", {
-		Name = "ToggleCard_" .. key,
+		Name = "ToggleCard_" .. tostring(key),
 		BackgroundColor3 = config.Bg2,
 		Size = UDim2.new(1, 0, 0, 64),
 		ZIndex = 43,
 		LayoutOrder = order,
 		Parent = parent,
-	}) :: Frame
+	})
 	addCorner(card, 12)
 	addStroke(card, 1, config.Stroke, 0.35)
 
@@ -117,7 +86,7 @@ function ToggleSwitches.AddToggleCard(
 		Position = UDim2.new(0, 10, 0, 8),
 		ZIndex = 44,
 		Parent = card,
-	}) :: TextLabel
+	})
 
 	local descLbl = make("TextLabel", {
 		BackgroundTransparency = 1,
@@ -132,7 +101,7 @@ function ToggleSwitches.AddToggleCard(
 		Position = UDim2.new(0, 10, 0, 30),
 		ZIndex = 44,
 		Parent = card,
-	}) :: TextLabel
+	})
 
 	local SWITCH_W = 64
 	local SWITCH_H = 30
@@ -147,7 +116,7 @@ function ToggleSwitches.AddToggleCard(
 		Position = UDim2.new(1, -(PADDING_R + SWITCH_W), 0.5, -(SWITCH_H / 2)),
 		ZIndex = 46,
 		Parent = card,
-	}) :: TextButton
+	})
 
 	local track = make("Frame", {
 		Name = "Track",
@@ -156,7 +125,7 @@ function ToggleSwitches.AddToggleCard(
 		Position = UDim2.new(0, 0, 0, 0),
 		ZIndex = 46,
 		Parent = switchBtn,
-	}) :: Frame
+	})
 	addCorner(track, math.floor(SWITCH_H / 2))
 	addStroke(track, 1, config.Stroke, 0.25)
 
@@ -167,11 +136,11 @@ function ToggleSwitches.AddToggleCard(
 		Position = UDim2.new(0, 3, 0, 3),
 		ZIndex = 47,
 		Parent = switchBtn,
-	}) :: Frame
+	})
 	addCorner(knob, 999)
 	addStroke(knob, 1, Color3.fromRGB(0, 0, 0), 0.75)
 
-	local function applyVisual(state: boolean, instant: boolean?)
+	local function applyVisual(state, instant)
 		local knobXOn = SWITCH_W - (SWITCH_H - 6) - 3
 		local knobXOff = 3
 
@@ -187,19 +156,20 @@ function ToggleSwitches.AddToggleCard(
 
 		if instant then
 			track.BackgroundColor3 = goalTrackColor
-			(trackStroke :: UIStroke).Color = goalStrokeColor
-			(trackStroke :: UIStroke).Transparency = goalStrokeTrans
+			trackStroke.Color = goalStrokeColor
+			trackStroke.Transparency = goalStrokeTrans
 			knob.Position = goalKnobPos
 			return
 		end
 
 		local ti = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		TweenService:Create(track, ti, {BackgroundColor3 = goalTrackColor}):Play()
-		TweenService:Create((trackStroke :: UIStroke), ti, {Color = goalStrokeColor, Transparency = goalStrokeTrans}):Play()
+		TweenService:Create(trackStroke, ti, {Color = goalStrokeColor, Transparency = goalStrokeTrans}):Play()
 		TweenService:Create(knob, ti, {Position = goalKnobPos}):Play()
 	end
 
-	local function setState(nextState: boolean)
+	local function setState(nextState)
+		nextState = nextState and true or false
 		if toggleStates[key] == nextState then
 			return
 		end
@@ -241,7 +211,7 @@ function ToggleSwitches.AddToggleCard(
 		Position = UDim2.new(0, 0, 0, 0),
 		ZIndex = 45,
 		Parent = card,
-	}) :: TextButton
+	})
 	clickCatcher.MouseButton1Click:Connect(function()
 		setState(not toggleStates[key])
 	end)
@@ -253,10 +223,10 @@ function ToggleSwitches.AddToggleCard(
 	knob.ZIndex = 49
 
 	return {
-		Get = function(): boolean
-			return toggleStates[key]
+		Get = function()
+			return toggleStates[key] and true or false
 		end,
-		Set = function(v: boolean)
+		Set = function(v)
 			setState(v)
 		end,
 		Flip = function()
