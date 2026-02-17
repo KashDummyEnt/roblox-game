@@ -452,6 +452,8 @@ local boxDataByUserId: {[number]: BoxData} = {}
 local BOX_W0 = 0.06
 local BOX_W1 = 0.06
 
+local boxRemoveConn: RBXScriptConnection? = nil
+
 local function clearBoxes()
 	for _, data in pairs(boxDataByUserId) do
 		for _, b in ipairs(data.beams) do
@@ -463,6 +465,21 @@ local function clearBoxes()
 		if data.part then data.part:Destroy() end
 	end
 	table.clear(boxDataByUserId)
+end
+
+local function destroyBoxForUserId(userId: number)
+	local data = boxDataByUserId[userId]
+	if not data then return end
+
+	for _, b in ipairs(data.beams) do
+		if b then b:Destroy() end
+	end
+	for _, a in pairs(data.atts) do
+		if a then a:Destroy() end
+	end
+	if data.part then data.part:Destroy() end
+
+	boxDataByUserId[userId] = nil
 end
 
 local function makeCornerAttachments(parent: BasePart): {[string]: Attachment}
@@ -601,6 +618,15 @@ local function enableBoxes()
 		boxConn = nil
 	end
 
+	if boxRemoveConn then
+		boxRemoveConn:Disconnect()
+		boxRemoveConn = nil
+	end
+
+	boxRemoveConn = Players.PlayerRemoving:Connect(function(plr: Player)
+		destroyBoxForUserId(plr.UserId)
+	end)
+
 	task.defer(function()
 		if not featureState.Box3D then
 			return
@@ -622,8 +648,15 @@ local function disableBoxes()
 		boxConn:Disconnect()
 		boxConn = nil
 	end
+
+	if boxRemoveConn then
+		boxRemoveConn:Disconnect()
+		boxRemoveConn = nil
+	end
+
 	clearBoxes()
 end
+
 
 ------------------------------------------------------------------
 -- APPLY LOGIC
