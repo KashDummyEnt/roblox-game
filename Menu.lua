@@ -35,7 +35,7 @@ local CONFIG = {
 	OpenTweenTime = 0.18,
 	CloseTweenTime = 0.14,
 
-	Accent = Color3.fromRGB(253, 255, 255),
+	Accent = Color3.fromRGB(253, 55, 0),
 	Bg = Color3.fromRGB(14, 14, 16),
 	Bg2 = Color3.fromRGB(20, 20, 24),
 	Bg3 = Color3.fromRGB(26, 26, 32),
@@ -655,9 +655,6 @@ end)
 Toggles.AddToggleCard(pageVisuals, "visuals_box3d", "Boxes", "3D wireframe player boxes.", 5, false, CONFIG, TOGGLE_SERVICES, function(state)
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
-
-Toggles.AddColorPickerCard(pageVisuals, "esp_primary_color", "ESP Color", "Adjust ESP highlight color.", 6, Color3.fromRGB(255,40,40), CONFIG)
-
 
 -- World tab: action + toggles + placeholders
 addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
