@@ -1,4 +1,4 @@
--!strict
+--!strict
 -- Menu.lua
 -- PopupMenu client UI + 5 left tabs + toggle switch cards (REMOTE MODULE)
 -- Load in Roblox with:
