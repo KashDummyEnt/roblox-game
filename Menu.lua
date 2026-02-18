@@ -349,17 +349,28 @@ local toggleButton = make("ImageButton", {
 addCorner(toggleButton, math.floor(CONFIG.ToggleSize / 2))
 addStroke(toggleButton, 1, CONFIG.Stroke, 0.15)
 
-local toggleIcon = make("TextLabel", {
-	Name = "Icon",
-	BackgroundTransparency = 1,
-	Text = "≡",
-	TextColor3 = CONFIG.Text,
-	TextScaled = true,
-	Font = Enum.Font.GothamBold,
-	Size = UDim2.new(1, 0, 1, 0),
-	ZIndex = 51,
-	Parent = toggleButton,
+-- Toggle button
+local toggleButton = make("ImageButton", {
+	Name = CONFIG.ToggleButtonName,
+	AutoButtonColor = false,
+	BackgroundColor3 = CONFIG.Bg2,
+	Size = UDim2.fromOffset(CONFIG.ToggleSize, CONFIG.ToggleSize),
+	ZIndex = 50,
+	Parent = screenGui,
 })
+addCorner(toggleButton, math.floor(CONFIG.ToggleSize / 2))
+addStroke(toggleButton, 1, CONFIG.Stroke, 0.15)
+
+-- put your logo here (must be rbxassetid://)
+local CLOSED_ICON = "rbxassetid://118380522067264"
+local OPEN_ICON = "rbxassetid://118380522067264" -- optional, can reuse closed
+
+toggleButton.Image = CLOSED_ICON
+toggleButton.ImageTransparency = 0
+toggleButton.ScaleType = Enum.ScaleType.Fit
+toggleButton.SliceCenter = Rect.new(0, 0, 0, 0)
+toggleButton.BackgroundTransparency = 0
+
 
 -- pin it under Roblox top-left UI
 startPinnedToggle(toggleButton)
