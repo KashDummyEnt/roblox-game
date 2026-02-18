@@ -1,4 +1,4 @@
---!strict
+-!strict
 -- Menu.lua
 -- PopupMenu client UI + 5 left tabs + toggle switch cards (REMOTE MODULE)
 -- Load in Roblox with:
@@ -349,27 +349,18 @@ local toggleButton = make("ImageButton", {
 addCorner(toggleButton, math.floor(CONFIG.ToggleSize / 2))
 addStroke(toggleButton, 1, CONFIG.Stroke, 0.15)
 
--- Toggle button
-local toggleButton = make("ImageButton", {
-	Name = CONFIG.ToggleButtonName,
-	AutoButtonColor = false,
-	BackgroundColor3 = CONFIG.Bg2,
-	Size = UDim2.fromOffset(CONFIG.ToggleSize, CONFIG.ToggleSize),
-	ZIndex = 50,
-	Parent = screenGui,
+local toggleIcon = make("ImageLabel", {
+	Name = "Icon",
+	BackgroundTransparency = 1,
+	Image = "rbxassetid://118380522067264",
+	ImageTransparency = 0,
+	ScaleType = Enum.ScaleType.Fit,
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, 0),
+	Size = UDim2.new(1, -14, 1, -14), -- padding inside the circle
+	ZIndex = 51,
+	Parent = toggleButton,
 })
-addCorner(toggleButton, math.floor(CONFIG.ToggleSize / 2))
-addStroke(toggleButton, 1, CONFIG.Stroke, 0.15)
-
--- put your logo here (must be rbxassetid://)
-local CLOSED_ICON = "rbxassetid://118380522067264"
-local OPEN_ICON = "rbxassetid://118380522067264" -- optional, can reuse closed
-
-toggleButton.Image = CLOSED_ICON
-toggleButton.ImageTransparency = 0
-toggleButton.ScaleType = Enum.ScaleType.Fit
-toggleButton.SliceCenter = Rect.new(0, 0, 0, 0)
-toggleButton.BackgroundTransparency = 0
 
 
 -- pin it under Roblox top-left UI
