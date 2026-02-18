@@ -656,6 +656,9 @@ Toggles.AddToggleCard(pageVisuals, "visuals_box3d", "Boxes", "3D wireframe playe
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
 
+Toggles.AddColorPickerCard(pageVisuals, "esp_primary_color", "ESP Color", "Adjust ESP highlight color.", 6, Color3.fromRGB(255,40,40), CONFIG)
+
+
 -- World tab: action + toggles + placeholders
 addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
