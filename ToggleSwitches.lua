@@ -328,11 +328,14 @@ end
 function ToggleSwitches.AddColorPickerCard(parent, key, title, desc, order, defaultColor, config)
 
 	local current = ToggleSwitches.GetColor(key, defaultColor)
+	local h, s, v = current:ToHSV()
+
+	local UIS = game:GetService("UserInputService")
 
 	local card = make("Frame", {
 		Name = "ColorCard_" .. key,
 		BackgroundColor3 = config.Bg2,
-		Size = UDim2.new(1, 0, 0, 110),
+		Size = UDim2.new(1, 0, 0, 70),
 		ZIndex = 43,
 		LayoutOrder = order,
 		Parent = parent,
@@ -347,66 +350,129 @@ function ToggleSwitches.AddColorPickerCard(parent, key, title, desc, order, defa
 		TextSize = 15,
 		Font = Enum.Font.GothamSemibold,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -16, 0, 22),
-		Position = UDim2.new(0, 10, 0, 8),
+		Size = UDim2.new(1, -60, 1, 0),
+		Position = UDim2.new(0, 10, 0, 0),
 		ZIndex = 44,
 		Parent = card,
 	})
 
-	local preview = make("Frame", {
+	local preview = make("TextButton", {
+		Text = "",
 		BackgroundColor3 = current,
 		Size = UDim2.new(0, 40, 0, 40),
-		Position = UDim2.new(1, -54, 0, 10),
+		Position = UDim2.new(1, -50, 0.5, -20),
 		ZIndex = 45,
 		Parent = card,
 	})
-	addCorner(preview, 8)
+	addCorner(preview, 10)
 	addStroke(preview, 1, config.Stroke, 0.3)
 
-	local slider = make("Frame", {
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		Size = UDim2.new(1, -20, 0, 16),
-		Position = UDim2.new(0, 10, 0, 74),
-		ZIndex = 44,
-		Parent = card,
+	-- POPUP
+	local popup = make("Frame", {
+		BackgroundColor3 = config.Bg,
+		Size = UDim2.fromOffset(220, 220),
+		Visible = false,
+		ZIndex = 100,
+		Parent = card.Parent.Parent, -- attach to page container
 	})
-	addCorner(slider, 8)
+	addCorner(popup, 14)
+	addStroke(popup, 1, config.Stroke, 0.3)
+
+	local square = make("Frame", {
+		Size = UDim2.fromOffset(160, 160),
+		Position = UDim2.fromOffset(15, 15),
+		ZIndex = 101,
+		Parent = popup,
+	})
+	addCorner(square, 8)
+
+	local hueBar = make("Frame", {
+		Size = UDim2.fromOffset(18, 160),
+		Position = UDim2.fromOffset(180, 15),
+		ZIndex = 101,
+		Parent = popup,
+	})
+	addCorner(hueBar, 8)
 
 	make("UIGradient", {
+		Rotation = 90,
 		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 1, 1)),
-			ColorSequenceKeypoint.new(1, Color3.fromHSV(1, 1, 1)),
+			ColorSequenceKeypoint.new(0, Color3.fromHSV(0,1,1)),
+			ColorSequenceKeypoint.new(0.17, Color3.fromHSV(0.17,1,1)),
+			ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33,1,1)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromHSV(0.5,1,1)),
+			ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67,1,1)),
+			ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83,1,1)),
+			ColorSequenceKeypoint.new(1, Color3.fromHSV(1,1,1)),
 		}),
-		Parent = slider,
+		Parent = hueBar,
 	})
 
-	local dragging = false
+	local function updateSquareColor()
+		square.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+	end
 
-	local function updateFromInput(x)
-		local pct = math.clamp((x - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, 0, 1)
-		local newColor = Color3.fromHSV(pct, 1, 1)
+	updateSquareColor()
+
+	local draggingSquare = false
+	local draggingHue = false
+
+	local function applyColor()
+		local newColor = Color3.fromHSV(h, s, v)
 		preview.BackgroundColor3 = newColor
 		ToggleSwitches.SetColor(key, newColor)
 	end
 
-	slider.InputBegan:Connect(function(input)
+	square.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			updateFromInput(input.Position.X)
+			draggingSquare = true
 		end
 	end)
 
-	slider.InputEnded:Connect(function(input)
+	hueBar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
+			draggingHue = true
 		end
 	end)
 
-	game:GetService("UserInputService").InputChanged:Connect(function(input)
-		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-			updateFromInput(input.Position.X)
+	UIS.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			draggingSquare = false
+			draggingHue = false
+		end
+	end)
+
+	UIS.InputChanged:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement then
+			return
+		end
+
+		if draggingSquare then
+			local relX = math.clamp((input.Position.X - square.AbsolutePosition.X) / square.AbsoluteSize.X, 0, 1)
+			local relY = math.clamp((input.Position.Y - square.AbsolutePosition.Y) / square.AbsoluteSize.Y, 0, 1)
+			s = relX
+			v = 1 - relY
+			applyColor()
+		elseif draggingHue then
+			local rel = math.clamp((input.Position.Y - hueBar.AbsolutePosition.Y) / hueBar.AbsoluteSize.Y, 0, 1)
+			h = rel
+			updateSquareColor()
+			applyColor()
+		end
+	end)
+
+	preview.MouseButton1Click:Connect(function()
+		popup.Visible = not popup.Visible
+	end)
+
+	UIS.InputBegan:Connect(function(input)
+		if popup.Visible and input.UserInputType == Enum.UserInputType.MouseButton1 then
+			if not popup:IsAncestorOf(input.Target) then
+				popup.Visible = false
+			end
 		end
 	end)
 end
+
 
 return ToggleSwitches
