@@ -15,8 +15,6 @@ local G = getGlobal()
 G.__HIGGI_TOGGLES = G.__HIGGI_TOGGLES or {
 	states = {},
 	listeners = {}, -- [key] = {fn, fn, ...}
-	colors = {}, -- NEW
-	colorListeners = {}, -- NEW
 }
 
 local Store = G.__HIGGI_TOGGLES
@@ -51,10 +49,6 @@ end
 local function isTouchDevice(userInputService)
 	return userInputService.TouchEnabled and not userInputService.KeyboardEnabled
 end
-
-------------------------------------------------------------------
--- TOGGLE SYSTEM (UNCHANGED)
-------------------------------------------------------------------
 
 local function notify(key, state)
 	local list = Store.listeners[key]
@@ -118,65 +112,7 @@ function ToggleSwitches.FlipState(key, defaultState)
 	return nextState
 end
 
-------------------------------------------------------------------
--- COLOR SYSTEM (NEW)
-------------------------------------------------------------------
-
-local function notifyColor(key, color)
-	local list = Store.colorListeners[key]
-	if not list then
-		return
-	end
-	for i = 1, #list do
-		local fn = list[i]
-		if type(fn) == "function" then
-			pcall(fn, color)
-		end
-	end
-end
-
-function ToggleSwitches.SetColor(key, color)
-	Store.colors[key] = color
-	notifyColor(key, color)
-end
-
-function ToggleSwitches.GetColor(key, defaultColor)
-	if not Store.colors[key] then
-		Store.colors[key] = defaultColor
-	end
-	return Store.colors[key]
-end
-
-function ToggleSwitches.SubscribeColor(key, fn)
-	if type(fn) ~= "function" then
-		return function() end
-	end
-
-	Store.colorListeners[key] = Store.colorListeners[key] or {}
-	local list = Store.colorListeners[key]
-	table.insert(list, fn)
-
-	local alive = true
-	return function()
-		if not alive then
-			return
-		end
-		alive = false
-		for i = #list, 1, -1 do
-			if list[i] == fn then
-				table.remove(list, i)
-				break
-			end
-		end
-	end
-end
-
-------------------------------------------------------------------
--- EXISTING TOGGLE CARD (UNCHANGED)
-------------------------------------------------------------------
-
 function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultState, config, services, onChanged)
-
 	if Store.states[key] == nil then
 		Store.states[key] = defaultState and true or false
 	end
@@ -242,6 +178,7 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 		Name = "Track",
 		BackgroundColor3 = config.Bg3,
 		Size = UDim2.new(1, 0, 1, 0),
+		Position = UDim2.new(0, 0, 0, 0),
 		ZIndex = 46,
 		Parent = switchBtn,
 	})
@@ -295,6 +232,7 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 
 		Store.states[key] = nextState
 		applyVisual(nextState, false)
+
 		notify(key, nextState)
 
 		if onChanged then
@@ -304,9 +242,45 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 
 	applyVisual(Store.states[key], true)
 
+	if not isTouchDevice(UserInputService) then
+		card.MouseEnter:Connect(function()
+			card.BackgroundColor3 = config.Bg3
+		end)
+		card.MouseLeave:Connect(function()
+			card.BackgroundColor3 = config.Bg2
+		end)
+
+		switchBtn.MouseEnter:Connect(function()
+			track.BackgroundColor3 = (Store.states[key] and config.Accent) or config.Bg2
+		end)
+		switchBtn.MouseLeave:Connect(function()
+			applyVisual(Store.states[key], true)
+		end)
+	end
+
 	switchBtn.MouseButton1Click:Connect(function()
 		setState(not Store.states[key])
 	end)
+
+	local clickCatcher = make("TextButton", {
+		Name = "ClickCatcher",
+		AutoButtonColor = false,
+		Text = "",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 1, 0),
+		Position = UDim2.new(0, 0, 0, 0),
+		ZIndex = 45,
+		Parent = card,
+	})
+	clickCatcher.MouseButton1Click:Connect(function()
+		setState(not Store.states[key])
+	end)
+
+	titleLbl.ZIndex = 46
+	descLbl.ZIndex = 46
+	switchBtn.ZIndex = 48
+	track.ZIndex = 48
+	knob.ZIndex = 49
 
 	return {
 		Get = function()
@@ -320,172 +294,5 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 		end,
 	}
 end
-
-------------------------------------------------------------------
--- COLOR PICKER CARD
-------------------------------------------------------------------
-
-function ToggleSwitches.AddColorPickerCard(parent, key, title, desc, order, defaultColor, config)
-
-	local current = ToggleSwitches.GetColor(key, defaultColor)
-	local h, s, v = current:ToHSV()
-
-	local UIS = game:GetService("UserInputService")
-
-	local card = make("Frame", {
-		Name = "ColorCard_" .. key,
-		BackgroundColor3 = config.Bg2,
-		Size = UDim2.new(1, 0, 0, 70),
-		ZIndex = 43,
-		LayoutOrder = order,
-		Parent = parent,
-	})
-	addCorner(card, 12)
-	addStroke(card, 1, config.Stroke, 0.35)
-
-	make("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = title,
-		TextColor3 = config.Text,
-		TextSize = 15,
-		Font = Enum.Font.GothamSemibold,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -60, 1, 0),
-		Position = UDim2.new(0, 10, 0, 0),
-		ZIndex = 44,
-		Parent = card,
-	})
-
-	local preview = make("TextButton", {
-		Text = "",
-		BackgroundColor3 = current,
-		Size = UDim2.new(0, 40, 0, 40),
-		Position = UDim2.new(1, -50, 0.5, -20),
-		ZIndex = 45,
-		Parent = card,
-	})
-	addCorner(preview, 10)
-	addStroke(preview, 1, config.Stroke, 0.3)
-
-	-- POPUP
-	local popup = make("Frame", {
-		BackgroundColor3 = config.Bg,
-		Size = UDim2.fromOffset(220, 220),
-		Visible = false,
-		ZIndex = 100,
-		Parent = card.Parent.Parent, -- attach to page container
-	})
-	addCorner(popup, 14)
-	addStroke(popup, 1, config.Stroke, 0.3)
-
-	local square = make("Frame", {
-		Size = UDim2.fromOffset(160, 160),
-		Position = UDim2.fromOffset(15, 15),
-		ZIndex = 101,
-		Parent = popup,
-	})
-	addCorner(square, 8)
-
-	local hueBar = make("Frame", {
-		Size = UDim2.fromOffset(18, 160),
-		Position = UDim2.fromOffset(180, 15),
-		ZIndex = 101,
-		Parent = popup,
-	})
-	addCorner(hueBar, 8)
-
-	make("UIGradient", {
-		Rotation = 90,
-		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromHSV(0,1,1)),
-			ColorSequenceKeypoint.new(0.17, Color3.fromHSV(0.17,1,1)),
-			ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33,1,1)),
-			ColorSequenceKeypoint.new(0.5, Color3.fromHSV(0.5,1,1)),
-			ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67,1,1)),
-			ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83,1,1)),
-			ColorSequenceKeypoint.new(1, Color3.fromHSV(1,1,1)),
-		}),
-		Parent = hueBar,
-	})
-
-	local function updateSquareColor()
-		square.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-	end
-
-	updateSquareColor()
-
-	local draggingSquare = false
-	local draggingHue = false
-
-	local function applyColor()
-		local newColor = Color3.fromHSV(h, s, v)
-		preview.BackgroundColor3 = newColor
-		ToggleSwitches.SetColor(key, newColor)
-	end
-
-	square.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			draggingSquare = true
-		end
-	end)
-
-	hueBar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			draggingHue = true
-		end
-	end)
-
-	UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			draggingSquare = false
-			draggingHue = false
-		end
-	end)
-
-	UIS.InputChanged:Connect(function(input)
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement then
-			return
-		end
-
-		if draggingSquare then
-			local relX = math.clamp((input.Position.X - square.AbsolutePosition.X) / square.AbsoluteSize.X, 0, 1)
-			local relY = math.clamp((input.Position.Y - square.AbsolutePosition.Y) / square.AbsoluteSize.Y, 0, 1)
-			s = relX
-			v = 1 - relY
-			applyColor()
-		elseif draggingHue then
-			local rel = math.clamp((input.Position.Y - hueBar.AbsolutePosition.Y) / hueBar.AbsoluteSize.Y, 0, 1)
-			h = rel
-			updateSquareColor()
-			applyColor()
-		end
-	end)
-
-	preview.MouseButton1Click:Connect(function()
-		popup.Visible = not popup.Visible
-	end)
-
-UIS.InputBegan:Connect(function(input, processed)
-	if processed then return end
-	if not popup.Visible then return end
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-
-	local mousePos = UIS:GetMouseLocation()
-	local popupPos = popup.AbsolutePosition
-	local popupSize = popup.AbsoluteSize
-
-	local inside =
-		mousePos.X >= popupPos.X and
-		mousePos.X <= popupPos.X + popupSize.X and
-		mousePos.Y >= popupPos.Y and
-		mousePos.Y <= popupPos.Y + popupSize.Y
-
-	if not inside then
-		popup.Visible = false
-	end
-end)
-
-end
-
 
 return ToggleSwitches
