@@ -38,6 +38,34 @@ if not Toggles then
 end
 
 ------------------------------------------------------------------
+-- ESP COLOR (NEW)
+------------------------------------------------------------------
+
+local DEFAULT_ESP_COLOR = Color3.fromRGB(255, 40, 40)
+
+local ESPColor: Color3 = Toggles.GetColor("esp_primary_color", DEFAULT_ESP_COLOR) or DEFAULT_ESP_COLOR
+
+Toggles.SubscribeColor("esp_primary_color", function(newColor)
+	if typeof(newColor) == "Color3" then
+		ESPColor = newColor
+
+		-- live update snaplines
+		for _, data in pairs(snapDataByUserId) do
+			if data.ad then
+				data.ad.Color3 = newColor
+			end
+		end
+
+		-- live update boxes
+		for _, data in pairs(boxDataByUserId) do
+			if data.ad then
+				data.ad.Color3 = newColor
+			end
+		end
+	end
+end)
+
+------------------------------------------------------------------
 -- TOGGLE KEYS
 ------------------------------------------------------------------
 
