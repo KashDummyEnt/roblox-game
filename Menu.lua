@@ -337,7 +337,7 @@ make("UIScale", {
 	Parent = screenGui,
 })
 
--- Toggle button
+-- Toggle button (background circle)
 local toggleButton = make("ImageButton", {
 	Name = CONFIG.ToggleButtonName,
 	AutoButtonColor = false,
@@ -349,19 +349,23 @@ local toggleButton = make("ImageButton", {
 addCorner(toggleButton, math.floor(CONFIG.ToggleSize / 2))
 addStroke(toggleButton, 1, CONFIG.Stroke, 0.15)
 
+toggleButton.Image = "" -- make sure button itself has no image
+
+local CLOSED_ICON = "rbxassetid://118380522067264"
+local OPEN_ICON = "rbxassetid://118380522067264"
+
 local toggleIcon = make("ImageLabel", {
 	Name = "Icon",
 	BackgroundTransparency = 1,
-	Image = "rbxassetid://118380522067264",
+	Image = CLOSED_ICON,
 	ImageTransparency = 0,
 	ScaleType = Enum.ScaleType.Fit,
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.new(0.5, 0, 0.5, 0),
-	Size = UDim2.new(1, -14, 1, -14), -- padding inside the circle
+	Size = UDim2.new(1, -14, 1, -14),
 	ZIndex = 51,
 	Parent = toggleButton,
 })
-
 
 -- pin it under Roblox top-left UI
 startPinnedToggle(toggleButton)
