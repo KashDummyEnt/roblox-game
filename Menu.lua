@@ -362,7 +362,7 @@ local toggleIcon = make("ImageLabel", {
 	ScaleType = Enum.ScaleType.Fit,
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.new(0.5, 0, 0.5, 0),
-	Size = UDim2.new(1, -14, 1, -14),
+	Size = UDim2.new(1, -4, 1, -4),
 	ZIndex = 51,
 	Parent = toggleButton,
 })
