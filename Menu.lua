@@ -35,7 +35,7 @@ local CONFIG = {
 	OpenTweenTime = 0.18,
 	CloseTweenTime = 0.14,
 
-	Accent = Color3.fromRGB(253, 55, 220),
+	Accent = Color3.fromRGB(253, 55, 0),
 	Bg = Color3.fromRGB(14, 14, 16),
 	Bg2 = Color3.fromRGB(20, 20, 24),
 	Bg3 = Color3.fromRGB(26, 26, 32),
@@ -362,7 +362,7 @@ local toggleIcon = make("ImageLabel", {
 	ScaleType = Enum.ScaleType.Fit,
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.new(0.5, 0, 0.5, 0),
-	Size = UDim2.new(1, -4, 1, -4),
+	Size = UDim2.new(1, 1, 1, 1),
 	ZIndex = 51,
 	Parent = toggleButton,
 })
