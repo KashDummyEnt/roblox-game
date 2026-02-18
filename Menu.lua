@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
 
 local SKY_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ClientSky.lua"
 local TOGGLES_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ToggleSwitches.lua"
@@ -15,8 +16,6 @@ local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-ga
 local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NoFog.lua"
 local ADMINESP_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/AdminESP.lua"
 local FLIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Flight.lua"
-
-
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -210,6 +209,50 @@ local TOGGLE_SERVICES = {
 }
 
 --================================================================================
+-- Pin toggle under Roblox top-left UI (Roblox button row)
+--================================================================================
+local TOPLEFT_X = 8
+local BELOW_TOPBAR_Y = 8
+local TOPBAR_ROW_HEIGHT = 36
+local GAP_UNDER_ROW = 8
+
+local lastInset: Vector2? = nil
+local lastViewport: Vector2? = nil
+local pinnedConn: RBXScriptConnection? = nil
+
+local function placeToggleUnderRobloxUI(btn: GuiObject)
+	local insetTL, _ = GuiService:GetGuiInset()
+
+	btn.AnchorPoint = Vector2.new(0, 0)
+	btn.Position = UDim2.new(
+		0,
+		TOPLEFT_X,
+		0,
+		insetTL.Y + BELOW_TOPBAR_Y + TOPBAR_ROW_HEIGHT + GAP_UNDER_ROW
+	)
+end
+
+local function startPinnedToggle(btn: GuiObject)
+	placeToggleUnderRobloxUI(btn)
+
+	if pinnedConn then
+		pinnedConn:Disconnect()
+		pinnedConn = nil
+	end
+
+	pinnedConn = RunService.RenderStepped:Connect(function()
+		local insetTL, _ = GuiService:GetGuiInset()
+		local vp = getViewportSize()
+
+		if (not lastInset) or (not lastViewport) or insetTL ~= lastInset or vp ~= lastViewport then
+			lastInset = insetTL
+			lastViewport = vp
+			placeToggleUnderRobloxUI(btn)
+		end
+	end)
+end
+
+--================================================================================
 -- Drag helper (RenderStepped, sync-safe)
 --================================================================================
 type DragSync = {
@@ -345,16 +388,8 @@ local toggleIcon = make("TextLabel", {
 	Parent = toggleButton,
 })
 
-local accentRing = make("Frame", {
-	Name = "AccentRing",
-	BackgroundTransparency = 1,
-	Size = UDim2.new(1, 6, 1, 6),
-	Position = UDim2.new(0, -3, 0, -3),
-	ZIndex = 49,
-	Parent = toggleButton,
-})
-addCorner(accentRing, math.floor(CONFIG.ToggleSize / 2) + 6)
-addStroke(accentRing, 2, CONFIG.Accent, 0.35)
+-- pin it under Roblox top-left UI
+startPinnedToggle(toggleButton)
 
 -- Popup panel
 local popup = make("Frame", {
@@ -622,7 +657,6 @@ local function ensureFeatureLoaded(key: string, url: string)
 end
 
 -- Visuals tab (EXAMPLE TOGGLES)
-
 Toggles.AddToggleCard(pageVisuals, "visuals_player", "Chams", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
@@ -643,16 +677,11 @@ Toggles.AddToggleCard(pageVisuals, "visuals_box3d", "Boxes", "3D wireframe playe
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
 
-
-
-
 -- World tab: action + toggles + placeholders
 addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
 	runRemote(SKY_URL)
 end)
 
--- Fullbright: default OFF, and only loads Fullbright.lua when user first turns it ON.
--- Fullbright.lua is responsible for applying/reverting based on toggle state.
 Toggles.AddToggleCard(pageWorld, "world_fullbright", "Fullbright", "Force maximum brightness locally.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	if state then
 		ensureFeatureLoaded("world_fullbright", FULLBRIGHT_URL)
@@ -681,8 +710,6 @@ Toggles.AddToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI clic
 end)
 
 addPlaceholders(pageSettings, "Settings", 3)
-
--- About tab (keep placeholders)
 addPlaceholders(pageAbout, "About", 1)
 
 --================================================================================
@@ -725,7 +752,7 @@ local function setTabVisuals(activeName: string)
 			btn.BackgroundColor3 = isActive and CONFIG.Bg or CONFIG.Bg2
 			local stroke = btn:FindFirstChildOfClass("UIStroke")
 			if stroke then
-				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke ;
+				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke
 				(stroke :: UIStroke).Transparency = isActive and 0.05 or 0.25
 			end
 			local accent = btn:FindFirstChild("AccentBar")
@@ -815,9 +842,6 @@ end
 --================================================================================
 -- Positions / animation states
 --================================================================================
-local togglePos = select(1, getCornerPositions(CONFIG.ToggleSize, CONFIG.PopupSize, CONFIG.Margin))
-toggleButton.Position = togglePos
-
 local isOpen = false
 popup.Visible = false
 popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
@@ -826,7 +850,6 @@ body.Visible = false
 local openTween: Tween? = nil
 local closeTween: Tween? = nil
 
-local freeTogglePositioning = false
 local freeMenuPositioning = false
 
 local function placePopupCentered()
@@ -899,19 +922,11 @@ local function setOpen(nextOpen: boolean)
 	isOpen = nextOpen
 
 	toggleIcon.Text = isOpen and "×" or "≡"
-	local ringStroke = accentRing:FindFirstChildOfClass("UIStroke")
-	if ringStroke then
-		(ringStroke :: UIStroke).Transparency = isOpen and 0.05 or 0.35
-	end
-
 	tweenPopup(isOpen)
 end
 
 -- DRAGGING (SEPARATE)
-enableDrag(toggleButton, toggleButton, function()
-	freeTogglePositioning = true
-end, nil)
-
+-- toggleButton drag removed so it stays pinned under Roblox UI
 enableDrag(header, popup, function()
 	freeMenuPositioning = true
 end, nil)
