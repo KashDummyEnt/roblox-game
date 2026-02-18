@@ -351,8 +351,8 @@ addStroke(toggleButton, 1, CONFIG.Stroke, 0.15)
 
 toggleButton.Image = "" -- make sure button itself has no image
 
-local CLOSED_ICON = "rbxassetid://118380522067264"
-local OPEN_ICON = "rbxassetid://118380522067264"
+local CLOSED_ICON = "rbxassetid://70596288325600"
+local OPEN_ICON = "rbxassetid://70596288325600"
 
 local toggleIcon = make("ImageLabel", {
 	Name = "Icon",
