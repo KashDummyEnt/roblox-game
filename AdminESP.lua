@@ -37,7 +37,6 @@ if not Toggles then
 	return
 end
 
-
 ------------------------------------------------------------------
 -- TOGGLE KEYS
 ------------------------------------------------------------------
@@ -177,7 +176,7 @@ local function buildName(plr: Player)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.TextColor3 = ESPColor
+	label.TextColor3 = Color3.fromRGB(255, 70, 70)
 	label.TextStrokeTransparency = 0.5
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamSemibold
@@ -236,7 +235,7 @@ local function buildGlow(plr: Player)
 
 	local h = Instance.new("Highlight")
 	h.Name = GLOW_TAG
-	h.FillColor = ESPColor
+	h.FillColor = Color3.fromRGB(255, 40, 40)
 	h.FillTransparency = 0.7
 	h.OutlineColor = Color3.fromRGB(255, 255, 255)
 	h.OutlineTransparency = 0.1
@@ -504,7 +503,7 @@ local function ensureSnapFor(plr: Player): SnapData
 	ad.AlwaysOnTop = true
 	ad.ZIndex = 10
 
-	ad.Color3 = ESPColor
+	ad.Color3 = Color3.fromRGB(255, 0, 0)
 	ad.Transparency = SNAP_TRANSPARENCY
 	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
 	ad.Visible = true
@@ -693,7 +692,7 @@ local function ensureBoxFor(plr: Player): BoxData
 	-- This is the line thickness
 	ad.SizeRelativeOffset = Vector3.new(0, 0, 0)
 	ad.Transparency = 0.4
-	ad.Color3 = ESPColor
+	ad.Color3 = Color3.fromRGB(170, 0, 255)
 
 	-- Wireframe look
 	ad.AlwaysOnTop = true
@@ -856,34 +855,6 @@ local function disableBoxes()
 
 	clearBoxes()
 end
-
-
-------------------------------------------------------------------
--- ESP COLOR (NEW)
-------------------------------------------------------------------
-
-local DEFAULT_ESP_COLOR = Color3.fromRGB(255, 40, 40)
-
-local ESPColor: Color3 = Toggles.GetColor("esp_primary_color", DEFAULT_ESP_COLOR) or DEFAULT_ESP_COLOR
-
-Toggles.SubscribeColor("esp_primary_color", function(newColor)
-	if typeof(newColor) == "Color3" then
-		ESPColor = newColor
-
-		for _, data in pairs(snapDataByUserId) do
-			if data.ad then
-				data.ad.Color3 = newColor
-			end
-		end
-
-		for _, data in pairs(boxDataByUserId) do
-			if data.ad then
-				data.ad.Color3 = newColor
-			end
-		end
-	end
-end)
-
 
 ------------------------------------------------------------------
 -- APPLY LOGIC
