@@ -29,7 +29,7 @@ local CONFIG = {
 	AnchorCorner = "BottomLeft",
 	Margin = 16,
 
-	ToggleSize = 44,
+	ToggleSize = 40,
 	PopupSize = Vector2.new(520, 330),
 
 	OpenTweenTime = 0.18,
@@ -180,7 +180,7 @@ local TOGGLE_SERVICES = {
 --================================================================================
 -- Pin toggle under Roblox top-left UI (Roblox button row)
 --================================================================================
-local TOPLEFT_X = 8
+local TOPLEFT_X = 14
 local GAP_UNDER_ROW = 8
 
 local lastInset: Vector2? = nil
