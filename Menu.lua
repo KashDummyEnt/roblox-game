@@ -721,7 +721,7 @@ local function setTabVisuals(activeName: string)
 			btn.BackgroundColor3 = isActive and CONFIG.Bg or CONFIG.Bg2
 			local stroke = btn:FindFirstChildOfClass("UIStroke")
 			if stroke then
-				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke
+				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke ;
 				(stroke :: UIStroke).Transparency = isActive and 0.05 or 0.25
 			end
 			local accent = btn:FindFirstChild("AccentBar")
