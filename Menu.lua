@@ -29,7 +29,7 @@ local CONFIG = {
 	AnchorCorner = "BottomLeft",
 	Margin = 16,
 
-	ToggleSize = 56,
+	ToggleSize = 44,
 	PopupSize = Vector2.new(520, 330),
 
 	OpenTweenTime = 0.18,
@@ -181,8 +181,6 @@ local TOGGLE_SERVICES = {
 -- Pin toggle under Roblox top-left UI (Roblox button row)
 --================================================================================
 local TOPLEFT_X = 8
-local BELOW_TOPBAR_Y = 8
-local TOPBAR_ROW_HEIGHT = 36
 local GAP_UNDER_ROW = 8
 
 local lastInset: Vector2? = nil
@@ -193,11 +191,16 @@ local function placeToggleUnderRobloxUI(btn: GuiObject)
 	local insetTL, _ = GuiService:GetGuiInset()
 
 	btn.AnchorPoint = Vector2.new(0, 0)
+
+	-- keep size synced to config (so changing CONFIG.ToggleSize works everywhere)
+	btn.Size = UDim2.fromOffset(CONFIG.ToggleSize, CONFIG.ToggleSize)
+
+	-- place directly under the Roblox topbar area (no guessed row height)
 	btn.Position = UDim2.new(
 		0,
 		TOPLEFT_X,
 		0,
-		insetTL.Y + BELOW_TOPBAR_Y + TOPBAR_ROW_HEIGHT + GAP_UNDER_ROW
+		insetTL.Y + GAP_UNDER_ROW
 	)
 end
 
@@ -220,6 +223,7 @@ local function startPinnedToggle(btn: GuiObject)
 		end
 	end)
 end
+
 
 --================================================================================
 -- Drag helper (RenderStepped, sync-safe)
