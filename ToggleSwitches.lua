@@ -465,13 +465,26 @@ function ToggleSwitches.AddColorPickerCard(parent, key, title, desc, order, defa
 		popup.Visible = not popup.Visible
 	end)
 
-	UIS.InputBegan:Connect(function(input)
-		if popup.Visible and input.UserInputType == Enum.UserInputType.MouseButton1 then
-			if not popup:IsAncestorOf(input.Target) then
-				popup.Visible = false
-			end
-		end
-	end)
+UIS.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	if not popup.Visible then return end
+	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+
+	local mousePos = UIS:GetMouseLocation()
+	local popupPos = popup.AbsolutePosition
+	local popupSize = popup.AbsoluteSize
+
+	local inside =
+		mousePos.X >= popupPos.X and
+		mousePos.X <= popupPos.X + popupSize.X and
+		mousePos.Y >= popupPos.Y and
+		mousePos.Y <= popupPos.Y + popupSize.Y
+
+	if not inside then
+		popup.Visible = false
+	end
+end)
+
 end
 
 
