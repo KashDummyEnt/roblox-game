@@ -919,9 +919,10 @@ local function setOpen(nextOpen: boolean)
 		lastPopupAnchor = popup.AnchorPoint
 	end
 
-	toggleIcon.Text = isOpen and "×" or "≡"
+	toggleIcon.Image = isOpen and OPEN_ICON or CLOSED_ICON
 	tweenPopup(isOpen)
 end
+
 
 -- DRAGGING (SEPARATE)
 -- toggleButton drag removed so it stays pinned under Roblox UI
