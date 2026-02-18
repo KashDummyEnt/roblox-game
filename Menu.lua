@@ -26,7 +26,7 @@ local CONFIG = {
 	ToggleButtonName = "MenuToggleButton",
 	PopupName = "PopupPanel",
 
-	AnchorCorner = "BottomLeft", -- "BottomLeft" | "BottomRight" | "TopLeft" | "TopRight"
+	AnchorCorner = "BottomLeft",
 	Margin = 16,
 
 	ToggleSize = 56,
@@ -35,7 +35,7 @@ local CONFIG = {
 	OpenTweenTime = 0.18,
 	CloseTweenTime = 0.14,
 
-	Accent = Color3.fromRGB(105, 105, 255),
+	Accent = Color3.fromRGB(253, 55, 0),
 	Bg = Color3.fromRGB(14, 14, 16),
 	Bg2 = Color3.fromRGB(20, 20, 24),
 	Bg3 = Color3.fromRGB(26, 26, 32),
@@ -110,37 +110,6 @@ local function clampPopupPos(pos: Vector2, popupSize: Vector2, anchor: Vector2, 
 		topLeftX + (anchor.X * w),
 		topLeftY + (anchor.Y * h)
 	)
-end
-
-local function getCornerPositions(toggleSize: number, popupSize: Vector2, margin: number)
-	local ts = toggleSize
-	local psX, psY = popupSize.X, popupSize.Y
-
-	local function u2(xScale: number, xOffset: number, yScale: number, yOffset: number): UDim2
-		return UDim2.new(xScale, xOffset, yScale, yOffset)
-	end
-
-	if CONFIG.AnchorCorner == "BottomLeft" then
-		local togglePos = u2(0, margin, 1, -(margin + ts))
-		local popupPos = u2(0, margin, 1, -(margin + ts + 12))
-		return togglePos, popupPos
-	end
-
-	if CONFIG.AnchorCorner == "BottomRight" then
-		local togglePos = u2(1, -(margin + ts), 1, -(margin + ts))
-		local popupPos = u2(1, -(margin + psX), 1, -(margin + ts + 12))
-		return togglePos, popupPos
-	end
-
-	if CONFIG.AnchorCorner == "TopLeft" then
-		local togglePos = u2(0, margin, 0, margin)
-		local popupPos = u2(0, margin, 0, margin + ts + 12)
-		return togglePos, popupPos
-	end
-
-	local togglePos = u2(1, -(margin + ts), 0, margin)
-	local popupPos = u2(1, -(margin + psX), 0, margin + ts + 12)
-	return togglePos, popupPos
 end
 
 local function runRemote(url: string)
@@ -752,7 +721,7 @@ local function setTabVisuals(activeName: string)
 			btn.BackgroundColor3 = isActive and CONFIG.Bg or CONFIG.Bg2
 			local stroke = btn:FindFirstChildOfClass("UIStroke")
 			if stroke then
-				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke ;
+				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke
 				(stroke :: UIStroke).Transparency = isActive and 0.05 or 0.25
 			end
 			local accent = btn:FindFirstChild("AccentBar")
@@ -840,7 +809,7 @@ for i, t in ipairs(tabs) do
 end
 
 --================================================================================
--- Positions / animation states
+-- Positions / animation states (FIXED: no downward drift, remembers last pos)
 --================================================================================
 local isOpen = false
 popup.Visible = false
@@ -851,6 +820,8 @@ local openTween: Tween? = nil
 local closeTween: Tween? = nil
 
 local freeMenuPositioning = false
+local lastPopupPos: UDim2? = nil
+local lastPopupAnchor: Vector2? = nil
 
 local function placePopupCentered()
 	local viewport = getViewportSize()
@@ -865,11 +836,21 @@ end
 local function placePopupClampedToViewport()
 	local viewport = getViewportSize()
 	local anchor = popup.AnchorPoint
-	local absPos = popup.AbsolutePosition
-	local desired = Vector2.new(absPos.X + (anchor.X * CONFIG.PopupSize.X), absPos.Y + (anchor.Y * CONFIG.PopupSize.Y))
+
+	-- IMPORTANT: use popup.Position offsets, NOT AbsolutePosition (prevents drift)
+	local desired = Vector2.new(popup.Position.X.Offset, popup.Position.Y.Offset)
 	local clamped = clampPopupPos(desired, CONFIG.PopupSize, anchor, viewport)
+
 	popup.Position = UDim2.fromOffset(clamped.X, clamped.Y)
 end
+
+-- save position whenever user drags it
+popup:GetPropertyChangedSignal("Position"):Connect(function()
+	if freeMenuPositioning then
+		lastPopupPos = popup.Position
+		lastPopupAnchor = popup.AnchorPoint
+	end
+end)
 
 local function tweenPopup(open: boolean)
 	if openTween then
@@ -882,10 +863,15 @@ local function tweenPopup(open: boolean)
 	if open then
 		popup.Visible = true
 
-		if not freeMenuPositioning then
-			placePopupCentered()
-		else
+		-- reopen where it last was (or center once)
+		if lastPopupPos and lastPopupAnchor then
+			popup.AnchorPoint = lastPopupAnchor
+			popup.Position = lastPopupPos
 			placePopupClampedToViewport()
+		else
+			placePopupCentered()
+			lastPopupPos = popup.Position
+			lastPopupAnchor = popup.AnchorPoint
 		end
 
 		popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
@@ -920,6 +906,12 @@ local function setOpen(nextOpen: boolean)
 		return
 	end
 	isOpen = nextOpen
+
+	-- save where it was when closing
+	if not isOpen then
+		lastPopupPos = popup.Position
+		lastPopupAnchor = popup.AnchorPoint
+	end
 
 	toggleIcon.Text = isOpen and "×" or "≡"
 	tweenPopup(isOpen)
