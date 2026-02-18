@@ -176,7 +176,7 @@ local function buildName(plr: Player)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.fromRGB(255, 70, 70)
+	label.TextColor3 = ESPColor
 	label.TextStrokeTransparency = 0.5
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamSemibold
@@ -235,7 +235,7 @@ local function buildGlow(plr: Player)
 
 	local h = Instance.new("Highlight")
 	h.Name = GLOW_TAG
-	h.FillColor = Color3.fromRGB(255, 40, 40)
+	h.FillColor = ESPColor
 	h.FillTransparency = 0.7
 	h.OutlineColor = Color3.fromRGB(255, 255, 255)
 	h.OutlineTransparency = 0.1
@@ -503,7 +503,7 @@ local function ensureSnapFor(plr: Player): SnapData
 	ad.AlwaysOnTop = true
 	ad.ZIndex = 10
 
-	ad.Color3 = Color3.fromRGB(255, 0, 0)
+	ad.Color3 = ESPColor
 	ad.Transparency = SNAP_TRANSPARENCY
 	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
 	ad.Visible = true
@@ -692,7 +692,7 @@ local function ensureBoxFor(plr: Player): BoxData
 	-- This is the line thickness
 	ad.SizeRelativeOffset = Vector3.new(0, 0, 0)
 	ad.Transparency = 0.4
-	ad.Color3 = Color3.fromRGB(170, 0, 255)
+	ad.Color3 = ESPColor
 
 	-- Wireframe look
 	ad.AlwaysOnTop = true
