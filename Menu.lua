@@ -16,6 +16,8 @@ local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-ga
 local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NoFog.lua"
 local ADMINESP_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/AdminESP.lua"
 local FLIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Flight.lua"
+local NPCSELECTOR_URL = "https://raw.githubusercontent.com/<YOU>/<REPO>/refs/heads/main/NPCSelector.lua"
+
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -688,7 +690,12 @@ Toggles.AddToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI clic
 	print("UI Sounds:", state)
 end)
 
-addPlaceholders(pageSettings, "Settings", 3)
+Toggles.AddToggleCard(pageSettings, "tools_npcselector", "NPC Selector", "List Workspace > NPCs models and pick one.", 3, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
+	if state then
+		ensureFeatureLoaded("tools_npcselector", NPCSELECTOR_URL)
+	end
+end)
+
 addPlaceholders(pageAbout, "About", 1)
 
 --================================================================================
