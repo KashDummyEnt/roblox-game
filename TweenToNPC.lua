@@ -1,6 +1,7 @@
 -- TweenToNPC.lua
--- Constant-speed fly-to / noclip follow: stays 5 studs in front of selected NPC
--- Stops only when toggle turns off.
+-- Constant-speed fly-to / noclip follow
+-- Stays 5 studs in front of selected NPC
+-- Uses registry fallback if NPC despawns
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,9 +11,9 @@ local player = Players.LocalPlayer
 -- =========================
 -- CONFIG
 -- =========================
-local MOVE_SPEED = 150			-- studs per second
-local FRONT_DISTANCE = 5		-- studs in front of NPC
-local HEIGHT_OFFSET = 3			-- keep you slightly above target so you don't scrape floors
+local MOVE_SPEED = 150
+local FRONT_DISTANCE = 5
+local HEIGHT_OFFSET = 3
 
 -- =========================
 -- Global access
@@ -39,6 +40,9 @@ local activeConnection: RBXScriptConnection? = nil
 local savedCanCollide: {[BasePart]: boolean} = {}
 local savedHumanoidState: Enum.HumanoidStateType? = nil
 
+-- =========================
+-- Character helpers
+-- =========================
 local function getChar(): Model?
 	return player.Character
 end
@@ -59,18 +63,15 @@ local function getRoot(char: Model): BasePart?
 	return nil
 end
 
-local function getNpcModel(name: string): Model?
-	local folder = workspace:FindFirstChild("NPCs")
-	if not folder then
+-- =========================
+-- Registry integration
+-- =========================
+local function getRegistryEntry(name: string): any
+	local reg = G.__HIGGI_NPC_REGISTRY
+	if not reg or not reg.byName then
 		return nil
 	end
-
-	local m = folder:FindFirstChild(name)
-	if m and m:IsA("Model") then
-		return m
-	end
-
-	return nil
+	return reg.byName[name]
 end
 
 local function getNpcPrimaryPart(model: Model): BasePart?
@@ -84,6 +85,30 @@ local function getNpcPrimaryPart(model: Model): BasePart?
 	end
 
 	return model:FindFirstChildWhichIsA("BasePart")
+end
+
+local function resolveNpcPose(selected: string): (Vector3?, Vector3?)
+	local entry = getRegistryEntry(selected)
+	if not entry then
+		return nil, nil
+	end
+
+	-- Prefer live model
+	local m = entry.model
+	if m and m.Parent then
+		local pp = getNpcPrimaryPart(m)
+		if pp then
+			return pp.Position, pp.CFrame.LookVector
+		end
+	end
+
+	-- Fallback to last known
+	local cf = entry.lastCFrame
+	if cf then
+		return cf.Position, cf.LookVector
+	end
+
+	return nil, nil
 end
 
 -- =========================
@@ -112,12 +137,10 @@ end
 
 local function setHumanoidPhysics(h: Humanoid, enabled: boolean)
 	if enabled then
-		-- Save state once
 		if not savedHumanoidState then
 			savedHumanoidState = h:GetState()
 		end
 
-		-- Disable common states that fight movement
 		pcall(function()
 			h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 			h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
@@ -127,14 +150,12 @@ local function setHumanoidPhysics(h: Humanoid, enabled: boolean)
 			h:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
 		end)
 
-		-- Put humanoid into Physics so gravity/walking controllers stop fighting
 		pcall(function()
 			h:ChangeState(Enum.HumanoidStateType.Physics)
 		end)
 
 		h.AutoRotate = false
 	else
-		-- Restore state enabling
 		pcall(function()
 			h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
 			h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
@@ -151,6 +172,7 @@ local function setHumanoidPhysics(h: Humanoid, enabled: boolean)
 				h:ChangeState(savedHumanoidState :: Enum.HumanoidStateType)
 			end)
 		end
+
 		savedHumanoidState = nil
 	end
 end
@@ -167,11 +189,11 @@ local function stopFly()
 		if h then
 			setHumanoidPhysics(h, false)
 		end
+
 		setNoclip(char, false)
 
 		local root = getRoot(char)
 		if root then
-			-- Clear velocity so you don't keep drifting
 			root.AssemblyLinearVelocity = Vector3.zero
 			root.AssemblyAngularVelocity = Vector3.zero
 		end
@@ -179,32 +201,27 @@ local function stopFly()
 end
 
 -- =========================
--- Core follow logic (fly/velocity)
+-- Core follow logic
 -- =========================
 local function startFlyFollow()
 	stopFly()
 
 	local char = getChar()
-	if not char then
-		return
-	end
+	if not char then return end
 
 	local h = getHumanoid(char)
 	local root = getRoot(char)
-	if not h or not root then
-		return
-	end
+	if not h or not root then return end
 
 	setHumanoidPhysics(h, true)
 	setNoclip(char, true)
 
-	activeConnection = RunService.Heartbeat:Connect(function(dt)
+	activeConnection = RunService.Heartbeat:Connect(function()
 		if not Toggles.GetState("world_tween_to_npc", false) then
 			stopFly()
 			return
 		end
 
-		-- keep noclip forced (some games re-enable collisions)
 		setNoclip(char, true)
 
 		local selected = G.__HIGGI_SELECTED_NPC
@@ -213,40 +230,28 @@ local function startFlyFollow()
 			return
 		end
 
-		local npc = getNpcModel(selected)
-		if not npc then
+		local npcPos, npcLook = resolveNpcPose(selected)
+		if not npcPos or not npcLook then
 			root.AssemblyLinearVelocity = Vector3.zero
 			return
 		end
 
-		local npcPart = getNpcPrimaryPart(npc)
-		if not npcPart then
-			root.AssemblyLinearVelocity = Vector3.zero
-			return
-		end
-
-		local npcPos = npcPart.Position
-		local npcLook = npcPart.CFrame.LookVector
-
-		-- 5 studs in front of NPC, plus a small height lift
-		local targetPos = npcPos + (npcLook * FRONT_DISTANCE) + Vector3.new(0, HEIGHT_OFFSET, 0)
+		local targetPos =
+			npcPos
+			+ (npcLook * FRONT_DISTANCE)
+			+ Vector3.new(0, HEIGHT_OFFSET, 0)
 
 		local currentPos = root.Position
 		local delta = targetPos - currentPos
 		local dist = delta.Magnitude
 
 		if dist < 0.25 then
-			-- close enough: hold position + face NPC
 			root.AssemblyLinearVelocity = Vector3.zero
 			root.CFrame = CFrame.new(currentPos, npcPos)
 			return
 		end
 
-		-- velocity-based constant speed (no gravity fight)
-		local vel = delta.Unit * MOVE_SPEED
-		root.AssemblyLinearVelocity = vel
-
-		-- face NPC while moving
+		root.AssemblyLinearVelocity = delta.Unit * MOVE_SPEED
 		root.CFrame = CFrame.new(currentPos, npcPos)
 	end)
 end
@@ -264,7 +269,6 @@ end
 
 Toggles.Subscribe("world_tween_to_npc", handleState)
 
--- Run immediately if already enabled
 if Toggles.GetState("world_tween_to_npc", false) then
 	handleState(true)
 end
