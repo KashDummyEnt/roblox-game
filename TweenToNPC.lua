@@ -1,7 +1,9 @@
 -- TweenToNPC.lua
--- Constant linear-speed fly-to / noclip follow
--- Keeps Freefall state (falling animation)
--- Cancels gravity manually (no ground drag)
+-- Linear fly follow
+-- Freefall animation kept
+-- Floor states fully disabled
+-- Gravity cancelled
+-- No ground drag
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -39,12 +41,11 @@ end
 -- =========================
 local activeConnection: RBXScriptConnection? = nil
 local savedCanCollide: {[BasePart]: boolean} = {}
-
 local linearVelocity: LinearVelocity? = nil
 local attachment: Attachment? = nil
 
 -- =========================
--- Character helpers
+-- Helpers
 -- =========================
 local function getChar(): Model?
 	return player.Character
@@ -145,14 +146,14 @@ local function stopFly()
 	if char then
 		setNoclip(char, false)
 
-		local root = getRoot(char)
-		if root then
-			root.AssemblyLinearVelocity = Vector3.zero
-			root.AssemblyAngularVelocity = Vector3.zero
-		end
-
 		local humanoid = getHumanoid(char)
 		if humanoid then
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
+
 			humanoid.AutoRotate = true
 		end
 	end
@@ -169,7 +170,7 @@ local function stopFly()
 end
 
 -- =========================
--- Core linear movement
+-- Core
 -- =========================
 local function startFlyFollow()
 	stopFly()
@@ -185,11 +186,17 @@ local function startFlyFollow()
 
 	setNoclip(char, true)
 
-	-- Stay in Freefall (keeps falling animation)
+	-- Disable floor-related states
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+
+	-- Keep Freefall animation
 	humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 	humanoid.AutoRotate = false
 
-	-- Setup attachment + LinearVelocity
 	attachment = Instance.new("Attachment")
 	attachment.Parent = root
 
@@ -200,7 +207,7 @@ local function startFlyFollow()
 	linearVelocity.VectorVelocity = Vector3.zero
 	linearVelocity.Parent = root
 
-	activeConnection = RunService.Heartbeat:Connect(function(dt)
+	activeConnection = RunService.Heartbeat:Connect(function()
 
 		if not root:IsDescendantOf(workspace) then
 			stopFly()
@@ -214,14 +221,14 @@ local function startFlyFollow()
 
 		setNoclip(char, true)
 
-		-- Force Freefall state every frame
+		-- Force Freefall constantly
 		if humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
 			humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 		end
 
-		-- Cancel gravity (kill vertical velocity)
-		local currentVel = root.AssemblyLinearVelocity
-		root.AssemblyLinearVelocity = Vector3.new(currentVel.X, 0, currentVel.Z)
+		-- Kill gravity
+		local vel = root.AssemblyLinearVelocity
+		root.AssemblyLinearVelocity = Vector3.new(vel.X, 0, vel.Z)
 
 		local selected = G.__HIGGI_SELECTED_NPC
 		if not selected or selected == "" then
@@ -238,8 +245,7 @@ local function startFlyFollow()
 			+ (npcLook * FRONT_DISTANCE)
 			+ Vector3.new(0, HEIGHT_OFFSET, 0)
 
-		local currentPos = root.Position
-		local delta = targetPos - currentPos
+		local delta = targetPos - root.Position
 		local dist = delta.Magnitude
 
 		if dist <= ARRIVAL_THRESHOLD then
@@ -248,13 +254,12 @@ local function startFlyFollow()
 			return
 		end
 
-		local direction = delta.Unit
-		linearVelocity.VectorVelocity = direction * MOVE_SPEED
+		linearVelocity.VectorVelocity = delta.Unit * MOVE_SPEED
 	end)
 end
 
 -- =========================
--- Toggle handling
+-- Toggle
 -- =========================
 local function handleState(state: boolean)
 	if state then
