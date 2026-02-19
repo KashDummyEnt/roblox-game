@@ -577,6 +577,15 @@ local body = make("Frame", {
 	ZIndex = 41,
 	Parent = popup,
 })
+-- Clicking anywhere inside the menu closes dropdowns
+body.Active = true
+body.InputBegan:Connect(function(input: InputObject)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
+		Toggles.CloseAllDropdowns()
+	end
+end)
+
 
 -- Sidebar
 local sidebar = make("Frame", {
@@ -589,6 +598,16 @@ local sidebar = make("Frame", {
 })
 addCorner(sidebar, 12)
 addStroke(sidebar, 1, CONFIG.Stroke, 0.25)
+
+-- Sidebar clicks close any open dropdown
+sidebar.Active = true
+sidebar.InputBegan:Connect(function(input: InputObject)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
+		Toggles.CloseAllDropdowns()
+	end
+end)
+
 
 make("UIGradient", {
 	Rotation = 90,
@@ -941,18 +960,22 @@ local function makeTabButton(tab: TabDef, order: number)
 		end
 	end)
 
-	btn.MouseLeave:Connect(function()
-		if currentTabName ~= tab.Name then
-			btn.BackgroundColor3 = CONFIG.Bg2
-		end
-	end)
+btn.MouseLeave:Connect(function()
+	if currentTabName ~= tab.Name then
+		btn.BackgroundColor3 = CONFIG.Bg2
+	end
+end)
 
-	btn.MouseButton1Click:Connect(function()
-		setActivePage(tab.Name)
-		setTabVisuals(tab.Name)
-	end)
+btn.MouseButton1Click:Connect(function()
+	-- switching pages closes dropdowns
+	Toggles.CloseAllDropdowns()
 
-	tabButtons[tab.Name] = btn
+	setActivePage(tab.Name)
+	setTabVisuals(tab.Name)
+end)
+
+tabButtons[tab.Name] = btn
+
 end
 
 for i, t in ipairs(tabs) do
@@ -1062,6 +1085,7 @@ local function setOpen(nextOpen: boolean)
 	if not isOpen then
 		lastPopupPos = popup.Position
 		lastPopupAnchor = popup.AnchorPoint
+		Toggles.CloseAllDropdowns()
 	end
 
 	toggleIcon.Image = isOpen and OPEN_ICON or CLOSED_ICON
