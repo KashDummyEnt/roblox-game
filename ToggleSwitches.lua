@@ -28,15 +28,22 @@ local Store = G.__HIGGI_TOGGLES
 local DropdownManager = {
 	OpenPopup = nil :: Frame?,
 	OpenButton = nil :: GuiObject?,
+	OpenClose = nil :: (() -> ())?,
 }
 
+
 local function closeAnyDropdown()
-	if DropdownManager.OpenPopup then
+	if DropdownManager.OpenClose then
+		DropdownManager.OpenClose()
+	elseif DropdownManager.OpenPopup then
 		DropdownManager.OpenPopup.Visible = false
 	end
+
 	DropdownManager.OpenPopup = nil
 	DropdownManager.OpenButton = nil
+	DropdownManager.OpenClose = nil
 end
+
 
 function ToggleSwitches.CloseAllDropdowns()
 	closeAnyDropdown()
@@ -391,6 +398,8 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 	end
 
 	local UserInputService = services.UserInputService
+	local TweenService = services.TweenService
+
 
 	local card = make("Frame", {
 		Name = "DropDownCard_" .. tostring(key),
@@ -487,21 +496,70 @@ local popup = make("Frame", {
 })
 
 
-	local function positionPopup()
+local POPUP_HEIGHT = 180
+local POPUP_NUDGE_X = 0
+local POPUP_NUDGE_Y = 6
+
+local function positionPopup()
 	local btnPos = btn.AbsolutePosition
 	local btnSize = btn.AbsoluteSize
 
 	popup.Position = UDim2.fromOffset(
-		btnPos.X,
-		btnPos.Y + btnSize.Y
+		btnPos.X + POPUP_NUDGE_X,
+		btnPos.Y + btnSize.Y + POPUP_NUDGE_Y
 	)
 
 	popup.Size = UDim2.fromOffset(
 		btnSize.X,
-		180
+		POPUP_HEIGHT
 	)
 end
 
+local openTween: Tween? = nil
+local closeTween: Tween? = nil
+
+local function cancelTweens()
+	if openTween then
+		openTween:Cancel()
+		openTween = nil
+	end
+	if closeTween then
+		closeTween:Cancel()
+		closeTween = nil
+	end
+end
+
+local function setPopupOpen(open: boolean)
+	cancelTweens()
+
+	if open then
+		positionPopup()
+
+		-- start collapsed, then expand
+		popup.Visible = true
+		popup.Size = UDim2.fromOffset(popup.Size.X.Offset, 0)
+
+		local tInfo = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		openTween = TweenService:Create(popup, tInfo, {
+			Size = UDim2.fromOffset(popup.Size.X.Offset, POPUP_HEIGHT),
+		})
+		openTween:Play()
+	else
+		if not popup.Visible then
+			return
+		end
+
+		local tInfo = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		closeTween = TweenService:Create(popup, tInfo, {
+			Size = UDim2.fromOffset(popup.Size.X.Offset, 0),
+		})
+		closeTween.Completed:Once(function()
+			popup.Visible = false
+			cancelTweens()
+		end)
+		closeTween:Play()
+	end
+end
 
 	addCorner(popup, 12)
 	addStroke(popup, 1, config.Stroke, 0.25)
@@ -601,6 +659,7 @@ end
 				end
 
 				closeAnyDropdown()
+
 			end)
 
 			y = y + itemH + 6
@@ -612,27 +671,31 @@ end
 btn.MouseButton1Click:Connect(function()
 	local wantOpen = not popup.Visible
 
-	-- If opening a new dropdown, close any other one first
 	if wantOpen then
+		-- close whatever is currently open first
 		if DropdownManager.OpenPopup and DropdownManager.OpenPopup ~= popup then
 			closeAnyDropdown()
 		end
-	end
 
-	popup.Visible = wantOpen
+		setPopupOpen(true)
+		rebuild()
 
-	if popup.Visible then
 		DropdownManager.OpenPopup = popup
 		DropdownManager.OpenButton = btn
-
-		positionPopup()
-		rebuild()
+		DropdownManager.OpenClose = function()
+			setPopupOpen(false)
+		end
 	else
+		setPopupOpen(false)
+
 		if DropdownManager.OpenPopup == popup then
-			closeAnyDropdown()
+			DropdownManager.OpenPopup = nil
+			DropdownManager.OpenButton = nil
+			DropdownManager.OpenClose = nil
 		end
 	end
 end)
+
 
 
 
