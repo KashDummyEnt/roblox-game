@@ -760,8 +760,8 @@ end
 local pageMain = makePage("Main")
 local pageVisuals = makePage("Visuals")
 local pageWorld = makePage("World")
+local pageMisc = makePage("Misc")
 local pageSettings = makePage("Settings")
-local pageAbout = makePage("About")
 
 -- Main tab (keep placeholders for now)
 
@@ -886,12 +886,6 @@ Toggles.AddToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for cleare
 	end
 end)
 
-Toggles.AddToggleCard(pageWorld, "world_flight", "Flight / Noclip", "Free flight with noclip enabled.", 4, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	if state then
-		ensureFeatureLoaded("world_flight", FLIGHT_URL)
-	end
-end)
-
 -- Settings tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageSettings, "settings_keybinds", "Keybind Hints", "Show keybind tips in UI.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("Keybind Hints:", state)
@@ -901,7 +895,12 @@ Toggles.AddToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI clic
 	print("UI Sounds:", state)
 end)
 
-addPlaceholders(pageAbout, "About", 1)
+Toggles.AddToggleCard(pageMisc, "world_flight", "Flight / Noclip", "Free flight with noclip enabled.", 1, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
+	if state then
+		ensureFeatureLoaded("world_flight", FLIGHT_URL)
+	end
+end)
+
 
 --================================================================================
 -- Tab system
@@ -916,8 +915,8 @@ local tabs: {TabDef} = {
 	{Name = "Main", Page = pageMain, Icon = "■"},
 	{Name = "Visuals", Page = pageVisuals, Icon = "◈"},
 	{Name = "World", Page = pageWorld, Icon = "◉"},
+	{Name = "Misc", Page = pageMisc, Icon = "✦"},
 	{Name = "Settings", Page = pageSettings, Icon = "⚙"},
-	{Name = "About", Page = pageAbout, Icon = "?"},
 }
 
 local currentTabName = ""
