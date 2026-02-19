@@ -9,6 +9,8 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local GuiService = game:GetService("GuiService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 
 local SKY_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ClientSky.lua"
 local TOGGLES_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ToggleSwitches.lua"
@@ -281,43 +283,24 @@ end
 
 local function startNpcWatcher()
 
-	local function tryRegister(inst: Instance)
-		if not inst:IsA("Model") then
-			return
-		end
+	task.spawn(function()
 
-		-- Only register fully loaded NPCs
-		if inst:GetAttribute("NPCLoaded") == true then
-			registryUpsertModel(inst)
-			return
-		end
+		local folder = ReplicatedStorage:WaitForChild("NPCs")
 
-		-- Wait until NPCLoaded flips true
-		inst:GetAttributeChangedSignal("NPCLoaded"):Connect(function()
-			if inst:GetAttribute("NPCLoaded") == true then
+		local function register(inst: Instance)
+			if inst:IsA("Model") then
 				registryUpsertModel(inst)
 			end
-		end)
-	end
-
-	task.spawn(function()
-		local folder = workspace:WaitForChild("NPCs")
-
-		-- Seed existing NPCs
-		for _, inst in ipairs(folder:GetDescendants()) do
-			tryRegister(inst)
 		end
 
-		-- Future NPCs
-		folder.DescendantAdded:Connect(function(inst)
-			tryRegister(inst)
-		end)
+		-- seed existing
+		for _, inst in ipairs(folder:GetDescendants()) do
+			register(inst)
+		end
 
-		folder.DescendantRemoving:Connect(function(inst)
-			if inst:IsA("Model") then
-				registryMarkRemoved(inst.Name)
-			end
-		end)
+		-- future NPCs
+		folder.DescendantAdded:Connect(register)
+
 	end)
 end
 
