@@ -147,6 +147,9 @@ end
 local function cleanupPlayer(plr: Player)
 	disconnectUser(plr.UserId)
 
+	-- Restore default Roblox name
+	setDefaultNameVisible(plr, true)
+
 	local cw = charWatchConns[plr.UserId]
 	if cw then
 		cw:Disconnect()
@@ -157,6 +160,7 @@ local function cleanupPlayer(plr: Player)
 		cleanupCharacter(plr.Character)
 	end
 end
+
 
 local function cleanupAll()
 	for _, plr in ipairs(Players:GetPlayers()) do
