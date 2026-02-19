@@ -16,6 +16,8 @@ local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-ga
 local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NoFog.lua"
 local ADMINESP_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/AdminESP.lua"
 local FLIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Flight.lua"
+local TWEEN_NPC_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/TweenToNPC.lua"
+
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -658,6 +660,23 @@ Toggles.AddDropDownCard(
 		G.__HIGGI_SELECTED_NPC = selectedName
 	end
 )
+
+Toggles.AddToggleCard(
+	pageMain,
+	"world_tween_to_npc",
+	"Tween To Selected NPC",
+	"Smoothly move to the selected NPC's position.",
+	2,
+	false,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state)
+		if state then
+			ensureFeatureLoaded("world_tween_to_npc", TWEEN_NPC_URL)
+		end
+	end
+)
+
 
 --================================================================================
 -- Toggle-driven lazy feature loading
