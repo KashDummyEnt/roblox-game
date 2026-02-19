@@ -184,6 +184,8 @@ local function buildName(plr: Player)
 	label.Parent = bill
 end
 
+local TweenService = game:GetService("TweenService")
+
 local function buildHealth(plr: Player)
 	local char = plr.Character
 	if not char then return end
@@ -201,11 +203,40 @@ local function buildHealth(plr: Player)
 	bill.Size = UDim2.new(0, HP_BASE_W, 0, HP_BASE_H)
 	bill.Parent = root
 
+	------------------------------------------------------------------
+	-- BACK FRAME
+	------------------------------------------------------------------
+
 	local back = Instance.new("Frame")
 	back.Size = UDim2.new(1, 0, 1, 0)
-	back.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+	back.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 	back.BorderSizePixel = 0
 	back.Parent = bill
+
+	local backCorner = Instance.new("UICorner")
+	backCorner.CornerRadius = UDim.new(1, 0)
+	backCorner.Parent = back
+
+	local backStroke = Instance.new("UIStroke")
+	backStroke.Thickness = 1
+	backStroke.Color = Color3.fromRGB(60, 60, 60)
+	backStroke.Transparency = 0.3
+	backStroke.Parent = back
+
+	------------------------------------------------------------------
+	-- PADDING
+	------------------------------------------------------------------
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0, 1)
+	padding.PaddingRight = UDim.new(0, 1)
+	padding.PaddingTop = UDim.new(0, 1)
+	padding.PaddingBottom = UDim.new(0, 1)
+	padding.Parent = back
+
+	------------------------------------------------------------------
+	-- FILL
+	------------------------------------------------------------------
 
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
@@ -213,13 +244,42 @@ local function buildHealth(plr: Player)
 	fill.BorderSizePixel = 0
 	fill.Parent = back
 
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(1, 0)
+	fillCorner.Parent = fill
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = 0
+	gradient.Parent = fill
+
+	local function getColor(pct: number)
+		return Color3.fromRGB(
+			math.floor(255 * (1 - pct)),
+			math.floor(255 * pct),
+			70
+		)
+	end
+
 	local function update()
 		local pct = 0
 		if hum.MaxHealth > 0 then
 			pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
 		end
-		fill.Size = UDim2.new(pct, 0, 1, 0)
-		fill.BackgroundColor3 = Color3.fromRGB(255 * (1 - pct), 255 * pct, 60)
+
+		local targetSize = UDim2.new(pct, 0, 1, 0)
+
+		TweenService:Create(
+			fill,
+			TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = targetSize }
+		):Play()
+
+		local baseColor = getColor(pct)
+
+		gradient.Color = ColorSequence.new{
+			ColorSequenceKeypoint.new(0, baseColor),
+			ColorSequenceKeypoint.new(1, baseColor:Lerp(Color3.new(1,1,1), 0.25))
+		}
 	end
 
 	update()
@@ -227,6 +287,7 @@ local function buildHealth(plr: Player)
 	playerConns[plr.UserId] = playerConns[plr.UserId] or {}
 	table.insert(playerConns[plr.UserId], hum.HealthChanged:Connect(update))
 end
+
 
 local function buildGlow(plr: Player)
 	local char = plr.Character
