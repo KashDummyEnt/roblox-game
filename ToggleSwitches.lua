@@ -532,18 +532,19 @@ end
 local function setPopupOpen(open: boolean)
 	cancelTweens()
 
-	if open then
-		positionPopup()
+if open then
+	positionPopup()
 
-		-- start collapsed, then expand
-		popup.Visible = true
-		popup.Size = UDim2.fromOffset(popup.Size.X.Offset, 0)
+	-- start collapsed (keep correct width), then expand height
+	popup.Visible = true
+	popup.Size = UDim2.fromOffset(btn.AbsoluteSize.X, 0)
 
-		local tInfo = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		openTween = TweenService:Create(popup, tInfo, {
-			Size = UDim2.fromOffset(popup.Size.X.Offset, POPUP_HEIGHT),
-		})
-		openTween:Play()
+	local tInfo = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	openTween = TweenService:Create(popup, tInfo, {
+		Size = UDim2.fromOffset(btn.AbsoluteSize.X, POPUP_HEIGHT),
+	})
+	openTween:Play()
+
 	else
 		if not popup.Visible then
 			return
