@@ -135,8 +135,7 @@ local function tweenToNpc()
 	end)
 end
 
--- subscribe to toggle state
-Toggles.Subscribe("world_tween_to_npc", function(state)
+local function handleState(state)
 	if state then
 		task.defer(function()
 			tweenToNpc()
@@ -144,5 +143,13 @@ Toggles.Subscribe("world_tween_to_npc", function(state)
 	else
 		cancelTween()
 	end
-end)
+end
+
+Toggles.Subscribe("world_tween_to_npc", handleState)
+
+-- IMPORTANT: run immediately if already enabled
+if Toggles.GetState("world_tween_to_npc", false) then
+	handleState(true)
+end
+
 
