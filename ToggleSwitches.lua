@@ -605,16 +605,23 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 	--========================
 	-- Scrolling list
 	--========================
-	local list = make("ScrollingFrame", {
-		Name = "List",
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		ScrollBarThickness = 6,
-		CanvasSize = UDim2.new(0, 0, 0, 0),
-		Size = UDim2.new(1, 0, 1, 0),
-		ZIndex = 501,
-		Parent = popup,
-	})
+local list = make("ScrollingFrame", {
+	Name = "List",
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+
+	-- hide the scrollbar entirely (no more right-side cut)
+	ScrollBarThickness = 0,
+
+	-- keeps scrolling working, just no visible bar
+	ScrollingDirection = Enum.ScrollingDirection.Y,
+
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	Size = UDim2.new(1, 0, 1, 0),
+	ZIndex = 501,
+	Parent = popup,
+})
+
 
 	local function rebuild()
 		for _, ch in ipairs(list:GetChildren()) do
