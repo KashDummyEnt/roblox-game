@@ -242,6 +242,7 @@ end
 local npcWatchConn: RBXScriptConnection? = nil
 local npcAddedConn: RBXScriptConnection? = nil
 local npcRemovedConn: RBXScriptConnection? = nil
+local npcRefreshConn: RBXScriptConnection? = nil
 local hookedFolder: Instance? = nil
 
 local function hookFolder(folder: Folder)
