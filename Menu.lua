@@ -830,7 +830,7 @@ Toggles.AddToggleDropDownCard(
 	"Toggle + pick a skybox preset",
 	1,								-- layout order
 	false,							-- default toggle state
-	"Neon Night",					-- default dropdown value
+	"Space Rocks",					-- default dropdown value
 	getSkyboxNames,					-- options provider
 	CONFIG,
 	TOGGLE_SERVICES,
