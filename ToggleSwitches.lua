@@ -22,6 +22,27 @@ G.__HIGGI_TOGGLES = G.__HIGGI_TOGGLES or {
 
 local Store = G.__HIGGI_TOGGLES
 
+--============================================================
+-- Dropdown manager (ONLY ONE open at a time)
+--============================================================
+local DropdownManager = {
+	OpenPopup = nil :: Frame?,
+	OpenButton = nil :: GuiObject?,
+}
+
+local function closeAnyDropdown()
+	if DropdownManager.OpenPopup then
+		DropdownManager.OpenPopup.Visible = false
+	end
+	DropdownManager.OpenPopup = nil
+	DropdownManager.OpenButton = nil
+end
+
+function ToggleSwitches.CloseAllDropdowns()
+	closeAnyDropdown()
+end
+
+
 local function make(instanceType, props)
 	local inst = Instance.new(instanceType)
 	if props then
@@ -579,7 +600,7 @@ end
 					pcall(onSelected, opt)
 				end
 
-				popup.Visible = false
+				closeAnyDropdown()
 			end)
 
 			y = y + itemH + 6
@@ -589,18 +610,35 @@ end
 	end
 
 btn.MouseButton1Click:Connect(function()
-	popup.Visible = not popup.Visible
+	local wantOpen = not popup.Visible
+
+	-- If opening a new dropdown, close any other one first
+	if wantOpen then
+		if DropdownManager.OpenPopup and DropdownManager.OpenPopup ~= popup then
+			closeAnyDropdown()
+		end
+	end
+
+	popup.Visible = wantOpen
 
 	if popup.Visible then
+		DropdownManager.OpenPopup = popup
+		DropdownManager.OpenButton = btn
+
 		positionPopup()
 		rebuild()
+	else
+		if DropdownManager.OpenPopup == popup then
+			closeAnyDropdown()
+		end
 	end
 end)
 
 
+
 	-- click-off close
 UserInputService.InputBegan:Connect(function(input, gp)
-	if gp then return end
+
 	if not popup.Visible then return end
 
 	if input.UserInputType ~= Enum.UserInputType.MouseButton1
@@ -608,9 +646,14 @@ UserInputService.InputBegan:Connect(function(input, gp)
 		return
 	end
 
+	-- Only react if THIS popup is the open one
+	if DropdownManager.OpenPopup ~= popup then
+		return
+	end
+
 	local clickPos = input.Position
 
-	local function isInside(guiObject)
+	local function isInside(guiObject: GuiObject)
 		local absPos = guiObject.AbsolutePosition
 		local absSize = guiObject.AbsoluteSize
 
@@ -620,10 +663,12 @@ UserInputService.InputBegan:Connect(function(input, gp)
 			and clickPos.Y <= absPos.Y + absSize.Y
 	end
 
+	-- If click is NOT inside popup AND NOT inside the dropdown button
 	if not isInside(popup) and not isInside(btn) then
-		popup.Visible = false
+		closeAnyDropdown()
 	end
 end)
+
 
 
 
