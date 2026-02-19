@@ -32,23 +32,27 @@ local savedTransparency = {}
 local savedMaterials = {}
 local savedLighting = {}
 
+-- =========================
+-- Disable world visuals
+-- =========================
 local function disableTextures()
+
 	for _, inst in ipairs(workspace:GetDescendants()) do
-		
+
 		-- Disable decals
 		if inst:IsA("Decal") then
 			if savedTransparency[inst] == nil then
 				savedTransparency[inst] = inst.Transparency
 			end
 			inst.Transparency = 1
-		
+
 		-- Disable textures
 		elseif inst:IsA("Texture") then
 			if savedTransparency[inst] == nil then
 				savedTransparency[inst] = inst.Transparency
 			end
 			inst.Transparency = 1
-		
+
 		-- Flatten materials
 		elseif inst:IsA("BasePart") then
 			if savedMaterials[inst] == nil then
@@ -58,14 +62,19 @@ local function disableTextures()
 		end
 	end
 
-	-- Optional lighting optimization
+	-- Lighting optimization
 	if savedLighting.GlobalShadows == nil then
 		savedLighting.GlobalShadows = Lighting.GlobalShadows
 	end
+
 	Lighting.GlobalShadows = false
 end
 
+-- =========================
+-- Restore world visuals
+-- =========================
 local function restoreTextures()
+
 	for inst, value in pairs(savedTransparency) do
 		if inst and inst.Parent then
 			inst.Transparency = value
@@ -88,12 +97,18 @@ local function restoreTextures()
 end
 
 -- =========================
--- Subscribe to toggle
+-- Toggle handler
 -- =========================
-Toggles.Subscribe("world_fastmode", function(state: boolean)
+local function applyState(state: boolean)
 	if state then
 		disableTextures()
 	else
 		restoreTextures()
 	end
-end)
+end
+
+-- Subscribe to future changes
+Toggles.Subscribe("world_fastmode", applyState)
+
+-- IMPORTANT: apply current state immediately (fixes double-toggle issue)
+applyState(Toggles.GetState("world_fastmode", false))
