@@ -1,9 +1,7 @@
 -- TweenToNPC.lua
--- Solver-safe linear fly follow
--- No gravity
--- No ground drag
--- No jitter
--- Clean state restore
+-- Constant linear-speed fly-to / noclip follow
+-- Keeps Freefall state (falling animation)
+-- Cancels gravity manually (no ground drag)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -40,10 +38,10 @@ end
 -- State
 -- =========================
 local activeConnection: RBXScriptConnection? = nil
-local activeAttachment: Attachment? = nil
-local activeVelocity: LinearVelocity? = nil
 local savedCanCollide: {[BasePart]: boolean} = {}
-local originalAutoRotate: boolean? = nil
+
+local linearVelocity: LinearVelocity? = nil
+local attachment: Attachment? = nil
 
 -- =========================
 -- Character helpers
@@ -138,82 +136,71 @@ end
 -- Stop
 -- =========================
 local function stopFly()
-
 	if activeConnection then
 		activeConnection:Disconnect()
 		activeConnection = nil
-	end
-
-	if activeVelocity then
-		activeVelocity:Destroy()
-		activeVelocity = nil
-	end
-
-	if activeAttachment then
-		activeAttachment:Destroy()
-		activeAttachment = nil
 	end
 
 	local char = getChar()
 	if char then
 		setNoclip(char, false)
 
-		local humanoid = getHumanoid(char)
-		if humanoid then
-			if originalAutoRotate ~= nil then
-				humanoid.AutoRotate = originalAutoRotate
-			end
-			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-		end
-
 		local root = getRoot(char)
 		if root then
 			root.AssemblyLinearVelocity = Vector3.zero
 			root.AssemblyAngularVelocity = Vector3.zero
 		end
+
+		local humanoid = getHumanoid(char)
+		if humanoid then
+			humanoid.AutoRotate = true
+		end
+	end
+
+	if linearVelocity then
+		linearVelocity:Destroy()
+		linearVelocity = nil
+	end
+
+	if attachment then
+		attachment:Destroy()
+		attachment = nil
 	end
 end
 
 -- =========================
--- Core movement
+-- Core linear movement
 -- =========================
 local function startFlyFollow()
-
 	stopFly()
 
 	local char = getChar()
 	if not char then return end
 
-	local humanoid = getHumanoid(char)
-	if not humanoid then return end
-
 	local root = getRoot(char)
 	if not root then return end
 
+	local humanoid = getHumanoid(char)
+	if not humanoid then return end
+
 	setNoclip(char, true)
 
-	-- Disable humanoid ground logic
-	originalAutoRotate = humanoid.AutoRotate
+	-- Stay in Freefall (keeps falling animation)
+	humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 	humanoid.AutoRotate = false
-	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 
-	-- Create physics attachment
-	local attachment = Instance.new("Attachment")
-	attachment.Name = "TweenAttachment"
+	-- Setup attachment + LinearVelocity
+	attachment = Instance.new("Attachment")
 	attachment.Parent = root
 
-	local lv = Instance.new("LinearVelocity")
-	lv.Name = "TweenVelocity"
-	lv.Attachment0 = attachment
-	lv.RelativeTo = Enum.ActuatorRelativeTo.World
-	lv.MaxForce = math.huge
-	lv.VectorVelocity = Vector3.zero
-	lv.Parent = root
+	linearVelocity = Instance.new("LinearVelocity")
+	linearVelocity.Attachment0 = attachment
+	linearVelocity.MaxForce = math.huge
+	linearVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+	linearVelocity.VectorVelocity = Vector3.zero
+	linearVelocity.Parent = root
 
-	activeAttachment = attachment
-	activeVelocity = lv
-
-	activeConnection = RunService.Heartbeat:Connect(function()
+	activeConnection = RunService.Heartbeat:Connect(function(dt)
 
 		if not root:IsDescendantOf(workspace) then
 			stopFly()
@@ -227,15 +214,22 @@ local function startFlyFollow()
 
 		setNoclip(char, true)
 
+		-- Force Freefall state every frame
+		if humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
+			humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+		end
+
+		-- Cancel gravity (kill vertical velocity)
+		local currentVel = root.AssemblyLinearVelocity
+		root.AssemblyLinearVelocity = Vector3.new(currentVel.X, 0, currentVel.Z)
+
 		local selected = G.__HIGGI_SELECTED_NPC
 		if not selected or selected == "" then
-			lv.VectorVelocity = Vector3.zero
 			return
 		end
 
 		local npcPos, npcLook = resolveNpcPose(selected)
 		if not npcPos or not npcLook then
-			lv.VectorVelocity = Vector3.zero
 			return
 		end
 
@@ -249,17 +243,13 @@ local function startFlyFollow()
 		local dist = delta.Magnitude
 
 		if dist <= ARRIVAL_THRESHOLD then
-			lv.VectorVelocity = Vector3.zero
+			linearVelocity.VectorVelocity = Vector3.zero
 			root.CFrame = CFrame.new(targetPos, npcPos)
 			return
 		end
 
 		local direction = delta.Unit
-		lv.VectorVelocity = direction * MOVE_SPEED
-
-		-- Face NPC
-		root.CFrame = CFrame.new(root.Position, npcPos)
-
+		linearVelocity.VectorVelocity = direction * MOVE_SPEED
 	end)
 end
 
@@ -280,7 +270,6 @@ if Toggles.GetState("world_tween_to_npc", false) then
 	handleState(true)
 end
 
--- Respawn safety
 player.CharacterAdded:Connect(function()
 	task.wait(0.2)
 	if Toggles.GetState("world_tween_to_npc", false) then
