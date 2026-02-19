@@ -138,6 +138,17 @@ local PRESETS = {
 		CelestialBodiesShown = false,
 		ClockTime = 14.5,
 	},
+
+		["Aurora"] = { 
+		SkyboxBk = "rbxassetid://340908398",
+		SkyboxDn = "rbxassetid://340908450",
+		SkyboxFt = "rbxassetid://340908468",
+		SkyboxLf = "rbxassetid://340908504",
+		SkyboxRt = "rbxassetid://340908530",
+		SkyboxUp = "rbxassetid://340908586",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+	},
 }
 
 -- =========================
