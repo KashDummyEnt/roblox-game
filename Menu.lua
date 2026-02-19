@@ -810,9 +810,43 @@ Toggles.AddToggleCard(pageVisuals, "visuals_box3d", "Boxes", "3D wireframe playe
 end)
 
 -- World tab: action + toggles + placeholders
-addCard(pageWorld, "Apply Skybox", "Runs ClientSky.lua from GitHub.", 1, function()
-	runRemote(SKY_URL)
-end)
+-- World tab: Skybox toggle + dropdown (REPLACES the old "Apply Skybox" card)
+
+local function getSkyboxNames(): {string}
+	-- placeholder names (match these in ClientSky.lua presets)
+	return {
+		"Neon Night",
+		"Pastel Clouds",
+		"Purple Dusk",
+		"Cyber Grid",
+	}
+end
+
+Toggles.AddToggleDropDownCard(
+	pageWorld,
+	"world_skybox",					-- toggle key
+	"world_skybox_dropdown",		-- value key
+	"Skybox Changer",				-- title
+	"Toggle + pick a skybox preset",
+	1,								-- layout order
+	false,							-- default toggle state
+	"Neon Night",					-- default dropdown value
+	getSkyboxNames,					-- options provider
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state)
+		if state then
+			-- load the script once; it subscribes to toggle + dropdown changes
+			ensureFeatureLoaded("world_skybox", SKY_URL)
+		end
+	end,
+	function(selectedName)
+		-- optional: mirror what you did for NPC selection
+		-- ClientSky.lua will also read from Toggles.GetValue, so this is just convenience.
+		G.__HIGGI_SELECTED_SKYBOX = selectedName
+	end
+)
+
 
 Toggles.AddToggleCard(pageWorld, "world_fullbright", "Fullbright", "Force maximum brightness locally.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	if state then
