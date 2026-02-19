@@ -518,6 +518,13 @@ end
 local openTween: Tween? = nil
 local closeTween: Tween? = nil
 
+local OPEN_TIME = 0.18
+local CLOSE_TIME = 0.12
+
+local OPEN_FADE_FROM = 1
+local OPEN_FADE_TO = 0
+local CLOSE_FADE_TO = 1
+
 local function cancelTweens()
 	if openTween then
 		openTween:Cancel()
@@ -535,30 +542,57 @@ local function setPopupOpen(open: boolean)
 if open then
 	positionPopup()
 
-	-- start collapsed (keep correct width), then expand height
+	-- start collapsed + faded, then expand + fade in
 	popup.Visible = true
 	popup.Size = UDim2.fromOffset(btn.AbsoluteSize.X, 0)
+	popup.BackgroundTransparency = OPEN_FADE_FROM
 
-	local tInfo = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local stroke = popup:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		(stroke :: UIStroke).Transparency = 1
+	end
+
+	local tInfo = TweenInfo.new(OPEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
 	openTween = TweenService:Create(popup, tInfo, {
 		Size = UDim2.fromOffset(btn.AbsoluteSize.X, POPUP_HEIGHT),
+		BackgroundTransparency = OPEN_FADE_TO,
 	})
 	openTween:Play()
+
+	if stroke then
+		TweenService:Create(stroke, tInfo, {Transparency = 0.25}):Play()
+	end
+
 
 	else
 		if not popup.Visible then
 			return
 		end
 
-		local tInfo = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-		closeTween = TweenService:Create(popup, tInfo, {
-			Size = UDim2.fromOffset(popup.Size.X.Offset, 0),
-		})
-		closeTween.Completed:Once(function()
-			popup.Visible = false
-			cancelTweens()
-		end)
-		closeTween:Play()
+local stroke = popup:FindFirstChildOfClass("UIStroke")
+
+local tInfo = TweenInfo.new(CLOSE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+closeTween = TweenService:Create(popup, tInfo, {
+	Size = UDim2.fromOffset(popup.Size.X.Offset, 0),
+	BackgroundTransparency = CLOSE_FADE_TO,
+})
+closeTween.Completed:Once(function()
+	popup.Visible = false
+	cancelTweens()
+
+	-- reset for next open
+	popup.BackgroundTransparency = OPEN_FADE_FROM
+	if stroke then
+		(stroke :: UIStroke).Transparency = 1
+	end
+end)
+closeTween:Play()
+
+if stroke then
+	TweenService:Create(stroke, tInfo, {Transparency = 1}):Play()
+end
+
 	end
 end
 
