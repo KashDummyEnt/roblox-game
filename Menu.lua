@@ -856,7 +856,7 @@ Toggles.AddToggleDropDownCard(
 	"Toggle + pick a skybox preset",
 	1,								-- layout order
 	false,							-- default toggle state
-	"Chromatic Horizon",					-- default dropdown value
+	"Eyes",					-- default dropdown value
 	getSkyboxNames,					-- options provider
 	CONFIG,
 	TOGGLE_SERVICES,
