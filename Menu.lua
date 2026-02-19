@@ -196,17 +196,110 @@ end
 --================================================================================
 -- NPC dropdown data source (Workspace > NPCs)
 --================================================================================
-local function getNpcNames(): {string}
-	local folder = workspace:FindFirstChild("NPCs")
-	if not folder then
-		return {}
+
+--================================================================================
+-- NPC Registry (reliable list + last-known positions)
+--================================================================================
+local function getNpcFolder(): Folder?
+	local f = workspace:FindFirstChild("NPCs")
+	if f and f:IsA("Folder") then
+		return f
+	end
+	return nil
+end
+
+G.__HIGGI_NPC_REGISTRY = G.__HIGGI_NPC_REGISTRY or {
+	byName = {}, -- [name] = {model: Model?, lastCFrame: CFrame?, lastSeen: number}
+}
+
+local Registry = G.__HIGGI_NPC_REGISTRY
+
+local function registryUpsertModel(m: Model)
+	local name = m.Name
+	local entry = Registry.byName[name]
+	if not entry then
+		entry = {model = nil, lastCFrame = nil, lastSeen = 0}
+		Registry.byName[name] = entry
 	end
 
-	local names: {string} = {}
+	entry.model = m
+	entry.lastSeen = os.clock()
+
+	local pp = m.PrimaryPart or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChildWhichIsA("BasePart")
+	if pp and pp:IsA("BasePart") then
+		entry.lastCFrame = pp.CFrame
+	end
+end
+
+local function registryMarkRemoved(name: string)
+	local entry = Registry.byName[name]
+	if entry then
+		entry.model = nil
+		entry.lastSeen = os.clock()
+	end
+end
+
+local npcWatchConn: RBXScriptConnection? = nil
+local npcAddedConn: RBXScriptConnection? = nil
+local npcRemovedConn: RBXScriptConnection? = nil
+local hookedFolder: Instance? = nil
+
+local function hookFolder(folder: Folder)
+	if npcAddedConn then npcAddedConn:Disconnect(); npcAddedConn = nil end
+	if npcRemovedConn then npcRemovedConn:Disconnect(); npcRemovedConn = nil end
+
+	-- seed
 	for _, ch in ipairs(folder:GetChildren()) do
 		if ch:IsA("Model") then
-			table.insert(names, ch.Name)
+			registryUpsertModel(ch)
 		end
+	end
+
+	-- live updates
+	npcAddedConn = folder.ChildAdded:Connect(function(ch)
+		if ch:IsA("Model") then
+			registryUpsertModel(ch)
+		end
+	end)
+
+	npcRemovedConn = folder.ChildRemoved:Connect(function(ch)
+		if ch:IsA("Model") then
+			registryMarkRemoved(ch.Name)
+		end
+	end)
+
+	hookedFolder = folder
+end
+
+local function startNpcWatcher()
+	if npcWatchConn then
+		return
+	end
+
+	npcWatchConn = RunService.Heartbeat:Connect(function()
+		local folder = getNpcFolder()
+
+		-- folder missing: nothing to hook
+		if not folder then
+			hookedFolder = nil
+			return
+		end
+
+		-- folder replaced: re-hook
+		if folder ~= hookedFolder then
+			hookFolder(folder)
+		end
+	end)
+end
+
+startNpcWatcher()
+
+
+local function getNpcNames(): {string}
+	local names: {string} = {}
+
+	for name, _ in pairs(Registry.byName) do
+		table.insert(names, name)
 	end
 
 	table.sort(names, function(a, b)
@@ -215,6 +308,7 @@ local function getNpcNames(): {string}
 
 	return names
 end
+
 
 --================================================================================
 -- Pin toggle under Roblox top-left UI (Roblox button row)
