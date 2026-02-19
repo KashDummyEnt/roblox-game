@@ -100,7 +100,7 @@ local PRESETS = {
 		CelestialBodiesShown = true,
 	},
 
-	["Neon Planet"] = {
+	["Cyan Planet"] = {
 		SkyboxBk = "rbxassetid://16823386986",
 		SkyboxDn = "rbxassetid://16823388586",
 		SkyboxFt = "rbxassetid://16823390254",
@@ -109,6 +109,17 @@ local PRESETS = {
 		SkyboxUp = "rbxassetid://16823395515",
 		CelestialBodiesShown = false,
 	},
+
+	["Synthwave"] = {
+		SkyboxBk = "rbxassetid://5260808177",
+		SkyboxDn = "rbxassetid://5260653793",
+		SkyboxFt = "rbxassetid://5260817288",
+		SkyboxLf = "rbxassetid://5260800833",
+		SkyboxRt = "rbxassetid://5260811073",
+		SkyboxUp = "rbxassetid://5260824661",
+		CelestialBodiesShown = false, -- or true
+},
+
 }
 
 
