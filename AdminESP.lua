@@ -107,6 +107,19 @@ local function waitForChildOfClass(parent: Instance, className: string, timeout:
 	return nil
 end
 
+local function setDefaultNameVisible(plr: Player, visible: boolean)
+	if not plr.Character then return end
+
+	local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+
+	if visible then
+		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+	else
+		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	end
+end
+
 ------------------------------------------------------------------
 -- CLEANUP
 ------------------------------------------------------------------
@@ -316,11 +329,25 @@ local function applyForPlayer(plr: Player)
 
 	cleanupCharacter(plr.Character)
 
+	------------------------------------------------------------------
+	-- TOGGLE DEFAULT ROBLOX NAME
+	------------------------------------------------------------------
+
+	if featureState.Name then
+		setDefaultNameVisible(plr, false)
+	else
+		setDefaultNameVisible(plr, true)
+	end
+
+	------------------------------------------------------------------
+	-- BUILD ESP FEATURES
+	------------------------------------------------------------------
+
 	if featureState.Name then buildName(plr) end
 	if featureState.Health then buildHealth(plr) end
 	if featureState.Player then buildGlow(plr) end
 
-	-- retry safety
+	-- retry safety (streaming delay protection)
 	task.delay(0.4, function()
 		if plr.Character then
 			if featureState.Name then buildName(plr) end
@@ -336,13 +363,20 @@ local function applyForPlayer(plr: Player)
 	end)
 end
 
+
 local function ensureCharWatcher(plr: Player)
 	if plr == LocalPlayer then return end
 	if charWatchConns[plr.UserId] then return end
 
-	charWatchConns[plr.UserId] = plr.CharacterAdded:Connect(function()
-		applyForPlayer(plr)
-	end)
+charWatchConns[plr.UserId] = plr.CharacterAdded:Connect(function(char)
+	task.wait(0.2)
+
+	-- Re-apply default name visibility on respawn
+	setDefaultNameVisible(plr, not featureState.Name)
+
+	applyForPlayer(plr)
+end)
+
 
 	if plr.Character then
 		applyForPlayer(plr)
