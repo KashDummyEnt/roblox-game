@@ -400,7 +400,6 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 	local UserInputService = services.UserInputService
 	local TweenService = services.TweenService
 
-
 	local card = make("Frame", {
 		Name = "DropDownCard_" .. tostring(key),
 		BackgroundColor3 = config.Bg2,
@@ -482,139 +481,130 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 		Parent = btn,
 	})
 
-local Overlay = services.Overlay
-assert(Overlay, "DropDown requires Overlay in services")
+	local Overlay = services.Overlay
+	assert(Overlay, "DropDown requires Overlay in services")
 
-local popup = make("Frame", {
-	Name = "Popup",
-	BackgroundColor3 = config.Bg2,
-	Visible = false,
-	Size = UDim2.fromOffset(200, 180),
-	ZIndex = 500,
-	ClipsDescendants = true,
-	Parent = Overlay,
-})
-
-
-local POPUP_HEIGHT = 180
-local POPUP_NUDGE_X = 0
-local POPUP_NUDGE_Y = 6
-
-local function positionPopup()
-	local btnPos = btn.AbsolutePosition
-	local btnSize = btn.AbsoluteSize
-
-	popup.Position = UDim2.fromOffset(
-		btnPos.X + POPUP_NUDGE_X,
-		btnPos.Y + btnSize.Y + POPUP_NUDGE_Y
-	)
-
-	popup.Size = UDim2.fromOffset(
-		btnSize.X,
-		POPUP_HEIGHT
-	)
-end
-
-local openTween: Tween? = nil
-local closeTween: Tween? = nil
-
-local OPEN_TIME = 0.18
-local CLOSE_TIME = 0.12
-
-local OPEN_FADE_FROM = 1
-local OPEN_FADE_TO = 0
-local CLOSE_FADE_TO = 1
-
-local function cancelTweens()
-	if openTween then
-		openTween:Cancel()
-		openTween = nil
-	end
-	if closeTween then
-		closeTween:Cancel()
-		closeTween = nil
-	end
-end
-
-addCorner(popup, 12)
-addStroke(popup, 1, config.Stroke, 0.25)
-
-local popupStroke = popup:FindFirstChildOfClass("UIStroke")
-
-popup.BackgroundTransparency = 1
-if popupStroke then
-	(popupStroke :: UIStroke).Transparency = 1
-end
-
-local function setPopupOpen(open: boolean)
-	cancelTweens()
-
-	local stroke = popupStroke
-
-	if open then
-		positionPopup()
-
-		-- start collapsed + faded, then expand + fade in
-		popup.Visible = true
-		popup.Size = UDim2.fromOffset(btn.AbsoluteSize.X, 0)
-		popup.BackgroundTransparency = OPEN_FADE_FROM
-
-		if stroke then
-			(stroke :: UIStroke).Transparency = 1
-		end
-
-		local tInfo = TweenInfo.new(OPEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
-		openTween = TweenService:Create(popup, tInfo, {
-			Size = UDim2.fromOffset(btn.AbsoluteSize.X, POPUP_HEIGHT),
-			BackgroundTransparency = OPEN_FADE_TO,
-		})
-		openTween:Play()
-
-		if stroke then
-			TweenService:Create(stroke, tInfo, {Transparency = 0.25}):Play()
-		end
-	else
-		if not popup.Visible then
-			return
-		end
-
-		local tInfo = TweenInfo.new(CLOSE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-
-		closeTween = TweenService:Create(popup, tInfo, {
-			Size = UDim2.fromOffset(popup.Size.X.Offset, 0),
-			BackgroundTransparency = CLOSE_FADE_TO,
-		})
-		closeTween.Completed:Once(function()
-			popup.Visible = false
-			cancelTweens()
-
-			-- reset for next open
-			popup.BackgroundTransparency = OPEN_FADE_FROM
-			if stroke then
-				(stroke :: UIStroke).Transparency = 1
-			end
-		end)
-		closeTween:Play()
-
-		if stroke then
-			TweenService:Create(stroke, tInfo, {Transparency = 1}):Play()
-		end
-	end
-end
-
-closeTween:Play()
-
-if stroke then
-	TweenService:Create(stroke, tInfo, {Transparency = 1}):Play()
-end
-
-	end
-end
+	--========================
+	-- Popup container
+	--========================
+	local popup = make("Frame", {
+		Name = "Popup",
+		BackgroundColor3 = config.Bg2,
+		Visible = false,
+		Size = UDim2.fromOffset(200, 180),
+		ZIndex = 500,
+		ClipsDescendants = true,
+		Parent = Overlay,
+	})
 
 	addCorner(popup, 12)
 	addStroke(popup, 1, config.Stroke, 0.25)
 
+	popup.BackgroundTransparency = 1
+	local popupStroke = popup:FindFirstChildOfClass("UIStroke")
+	if popupStroke then
+		(popupStroke :: UIStroke).Transparency = 1
+	end
+
+	local POPUP_HEIGHT = 180
+	local POPUP_NUDGE_X = 0
+	local POPUP_NUDGE_Y = 6
+
+	local function positionPopup()
+		local btnPos = btn.AbsolutePosition
+		local btnSize = btn.AbsoluteSize
+
+		popup.Position = UDim2.fromOffset(
+			btnPos.X + POPUP_NUDGE_X,
+			btnPos.Y + btnSize.Y + POPUP_NUDGE_Y
+		)
+
+		popup.Size = UDim2.fromOffset(
+			btnSize.X,
+			POPUP_HEIGHT
+		)
+	end
+
+	local openTween: Tween? = nil
+	local closeTween: Tween? = nil
+
+	local OPEN_TIME = 0.18
+	local CLOSE_TIME = 0.12
+
+	local OPEN_FADE_FROM = 1
+	local OPEN_FADE_TO = 0
+	local CLOSE_FADE_TO = 1
+
+	local function cancelTweens()
+		if openTween then
+			openTween:Cancel()
+			openTween = nil
+		end
+		if closeTween then
+			closeTween:Cancel()
+			closeTween = nil
+		end
+	end
+
+	local function setPopupOpen(open: boolean)
+		cancelTweens()
+
+		local stroke = popupStroke
+
+		if open then
+			positionPopup()
+
+			popup.Visible = true
+			popup.Size = UDim2.fromOffset(btn.AbsoluteSize.X, 0)
+			popup.BackgroundTransparency = OPEN_FADE_FROM
+
+			if stroke then
+				(stroke :: UIStroke).Transparency = 1
+			end
+
+			local tInfo = TweenInfo.new(OPEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+			openTween = TweenService:Create(popup, tInfo, {
+				Size = UDim2.fromOffset(btn.AbsoluteSize.X, POPUP_HEIGHT),
+				BackgroundTransparency = OPEN_FADE_TO,
+			})
+			openTween:Play()
+
+			if stroke then
+				TweenService:Create(stroke, tInfo, {Transparency = 0.25}):Play()
+			end
+		else
+			if not popup.Visible then
+				return
+			end
+
+			local tInfo = TweenInfo.new(CLOSE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
+			closeTween = TweenService:Create(popup, tInfo, {
+				Size = UDim2.fromOffset(popup.Size.X.Offset, 0),
+				BackgroundTransparency = CLOSE_FADE_TO,
+			})
+			closeTween.Completed:Once(function()
+				popup.Visible = false
+				cancelTweens()
+
+				-- reset for next open
+				popup.BackgroundTransparency = OPEN_FADE_FROM
+				if stroke then
+					(stroke :: UIStroke).Transparency = 1
+				end
+			end)
+			closeTween:Play()
+
+			if stroke then
+				TweenService:Create(stroke, tInfo, {Transparency = 1}):Play()
+			end
+		end
+	end
+
+	--========================
+	-- Scrolling list
+	--========================
 	local list = make("ScrollingFrame", {
 		Name = "List",
 		BackgroundTransparency = 1,
@@ -710,7 +700,6 @@ end
 				end
 
 				closeAnyDropdown()
-
 			end)
 
 			y = y + itemH + 6
@@ -719,72 +708,67 @@ end
 		list.CanvasSize = UDim2.new(0, 0, 0, y + 8)
 	end
 
-btn.MouseButton1Click:Connect(function()
-	local wantOpen = not popup.Visible
+	--========================
+	-- Button open/close
+	--========================
+	btn.MouseButton1Click:Connect(function()
+		local wantOpen = not popup.Visible
 
-	if wantOpen then
-		-- close whatever is currently open first
-		if DropdownManager.OpenPopup and DropdownManager.OpenPopup ~= popup then
+		if wantOpen then
+			if DropdownManager.OpenPopup and DropdownManager.OpenPopup ~= popup then
+				closeAnyDropdown()
+			end
+
+			setPopupOpen(true)
+			rebuild()
+
+			DropdownManager.OpenPopup = popup
+			DropdownManager.OpenButton = btn
+			DropdownManager.OpenClose = function()
+				setPopupOpen(false)
+			end
+		else
+			setPopupOpen(false)
+
+			if DropdownManager.OpenPopup == popup then
+				DropdownManager.OpenPopup = nil
+				DropdownManager.OpenButton = nil
+				DropdownManager.OpenClose = nil
+			end
+		end
+	end)
+
+	--========================
+	-- click-off close
+	--========================
+	UserInputService.InputBegan:Connect(function(input, gp)
+		if not popup.Visible then return end
+
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+		and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		if DropdownManager.OpenPopup ~= popup then
+			return
+		end
+
+		local clickPos = input.Position
+
+		local function isInside(guiObject: GuiObject)
+			local absPos = guiObject.AbsolutePosition
+			local absSize = guiObject.AbsoluteSize
+
+			return clickPos.X >= absPos.X
+				and clickPos.X <= absPos.X + absSize.X
+				and clickPos.Y >= absPos.Y
+				and clickPos.Y <= absPos.Y + absSize.Y
+		end
+
+		if not isInside(popup) and not isInside(btn) then
 			closeAnyDropdown()
 		end
-
-		setPopupOpen(true)
-		rebuild()
-
-		DropdownManager.OpenPopup = popup
-		DropdownManager.OpenButton = btn
-		DropdownManager.OpenClose = function()
-			setPopupOpen(false)
-		end
-	else
-		setPopupOpen(false)
-
-		if DropdownManager.OpenPopup == popup then
-			DropdownManager.OpenPopup = nil
-			DropdownManager.OpenButton = nil
-			DropdownManager.OpenClose = nil
-		end
-	end
-end)
-
-
-
-
-	-- click-off close
-UserInputService.InputBegan:Connect(function(input, gp)
-
-	if not popup.Visible then return end
-
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1
-	and input.UserInputType ~= Enum.UserInputType.Touch then
-		return
-	end
-
-	-- Only react if THIS popup is the open one
-	if DropdownManager.OpenPopup ~= popup then
-		return
-	end
-
-	local clickPos = input.Position
-
-	local function isInside(guiObject: GuiObject)
-		local absPos = guiObject.AbsolutePosition
-		local absSize = guiObject.AbsoluteSize
-
-		return clickPos.X >= absPos.X
-			and clickPos.X <= absPos.X + absSize.X
-			and clickPos.Y >= absPos.Y
-			and clickPos.Y <= absPos.Y + absSize.Y
-	end
-
-	-- If click is NOT inside popup AND NOT inside the dropdown button
-	if not isInside(popup) and not isInside(btn) then
-		closeAnyDropdown()
-	end
-end)
-
-
-
+	end)
 
 	return {
 		Get = function()
@@ -805,5 +789,6 @@ end)
 		end,
 	}
 end
+
 
 return ToggleSwitches
