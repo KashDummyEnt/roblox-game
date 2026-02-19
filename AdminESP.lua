@@ -56,6 +56,8 @@ local KEYS = {
 local NAME_TAG = "ESP_Name"
 local HEALTH_TAG = "ESP_Health"
 local GLOW_TAG = "ESP_Glow"
+local MOBS_FOLDER_NAME = "Mobs" -- Workspace > Mobs
+
 
 local NAME_BASE_W, NAME_BASE_H = 90, 22
 local HP_BASE_W, HP_BASE_H = 70, 8
@@ -78,6 +80,12 @@ local featureState = {
 
 local playerConns: {[number]: {RBXScriptConnection}} = {}
 local charWatchConns: {[number]: RBXScriptConnection} = {}
+local mobConns: {[Model]: {RBXScriptConnection}} = {}
+local mobRemoveConns: {[Model]: RBXScriptConnection} = {}
+
+local mobsFolderAddedConn: RBXScriptConnection? = nil
+local mobsFolderRemovingConn: RBXScriptConnection? = nil
+
 
 local scalerConn: RBXScriptConnection? = nil
 local snaplineConn: RBXScriptConnection? = nil
@@ -119,6 +127,70 @@ local function setDefaultNameVisible(plr: Player, visible: boolean)
 		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	end
 end
+
+------------------------------------------------------------------
+-- MOBS (Workspace > Mobs) SAFE HELPERS
+------------------------------------------------------------------
+
+local function getMobsFolder(): Instance?
+	local f = workspace:FindFirstChild(MOBS_FOLDER_NAME)
+	if f and f:IsA("Folder") then
+		return f
+	end
+	return nil
+end
+
+local function isValidMobModel(m: Instance): boolean
+	if not m:IsA("Model") then
+		return false
+	end
+	-- Must have a Humanoid (so we can do health + feet + etc)
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	return hum ~= nil
+end
+
+local function getMobModels(): {Model}
+	local folder = getMobsFolder()
+	if not folder then
+		return {}
+	end
+
+	local out: {Model} = {}
+	for _, child in ipairs(folder:GetChildren()) do
+		if isValidMobModel(child) then
+			table.insert(out, child :: Model)
+		end
+	end
+	return out
+end
+
+local function disconnectMob(mob: Model)
+	local bucket = mobConns[mob]
+	if bucket then
+		for _, c in ipairs(bucket) do
+			c:Disconnect()
+		end
+		mobConns[mob] = nil
+	end
+
+	local rm = mobRemoveConns[mob]
+	if rm then
+		rm:Disconnect()
+		mobRemoveConns[mob] = nil
+	end
+end
+
+local function cleanupMob(mob: Model)
+	disconnectMob(mob)
+	cleanupCharacter(mob)
+end
+
+local function cleanupAllMobs()
+	for _, mob in ipairs(getMobModels()) do
+		cleanupMob(mob)
+	end
+end
+
 
 ------------------------------------------------------------------
 -- CLEANUP
@@ -322,6 +394,135 @@ local function buildGlow(plr: Player)
 end
 
 ------------------------------------------------------------------
+-- MOB BUILDERS (MODEL-BASED)
+------------------------------------------------------------------
+
+local function buildMobName(mob: Model)
+	local head = waitForNamedChild(mob, "Head", 2.5)
+	if not head then return end
+	if head:FindFirstChild(NAME_TAG) then return end
+
+	local bill = Instance.new("BillboardGui")
+	bill.Name = NAME_TAG
+	bill.AlwaysOnTop = true
+	bill.MaxDistance = MAX_DISTANCE
+	bill.StudsOffset = Vector3.new(0, 2.9, 0)
+	bill.Size = UDim2.new(0, NAME_BASE_W, 0, NAME_BASE_H)
+	bill.Parent = head
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.fromRGB(255, 70, 70)
+	label.TextStrokeTransparency = 0.5
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamSemibold
+	label.Text = mob.Name
+	label.Parent = bill
+end
+
+local function buildMobHealth(mob: Model)
+	local root = waitForNamedChild(mob, "HumanoidRootPart", 2.5)
+	local hum = waitForChildOfClass(mob, "Humanoid", 2.5)
+	if not root or not hum then return end
+	if root:FindFirstChild(HEALTH_TAG) then return end
+
+	local bill = Instance.new("BillboardGui")
+	bill.Name = HEALTH_TAG
+	bill.AlwaysOnTop = true
+	bill.MaxDistance = MAX_DISTANCE
+	bill.StudsOffset = Vector3.new(0, -3.2, 0)
+	bill.Size = UDim2.new(0, HP_BASE_W, 0, HP_BASE_H)
+	bill.Parent = root
+
+	local back = Instance.new("Frame")
+	back.Size = UDim2.new(1, 0, 1, 0)
+	back.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+	back.BorderSizePixel = 0
+	back.Parent = bill
+
+	local backCorner = Instance.new("UICorner")
+	backCorner.CornerRadius = UDim.new(1, 0)
+	backCorner.Parent = back
+
+	local backStroke = Instance.new("UIStroke")
+	backStroke.Thickness = 1
+	backStroke.Color = Color3.fromRGB(60, 60, 60)
+	backStroke.Transparency = 0.3
+	backStroke.Parent = back
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0, 1)
+	padding.PaddingRight = UDim.new(0, 1)
+	padding.PaddingTop = UDim.new(0, 1)
+	padding.PaddingBottom = UDim.new(0, 1)
+	padding.Parent = back
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.new(1, 0, 1, 0)
+	fill.BorderSizePixel = 0
+	fill.Parent = back
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(1, 0)
+	fillCorner.Parent = fill
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = 0
+	gradient.Parent = fill
+
+	local function getColor(pct: number)
+		return Color3.fromRGB(
+			math.floor(255 * (1 - pct)),
+			math.floor(255 * pct),
+			70
+		)
+	end
+
+	local function update()
+		local pct = 0
+		if hum.MaxHealth > 0 then
+			pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+		end
+
+		local targetSize = UDim2.new(pct, 0, 1, 0)
+
+		TweenService:Create(
+			fill,
+			TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = targetSize }
+		):Play()
+
+		local baseColor = getColor(pct)
+
+		gradient.Color = ColorSequence.new{
+			ColorSequenceKeypoint.new(0, baseColor),
+			ColorSequenceKeypoint.new(1, baseColor:Lerp(Color3.new(1,1,1), 0.25))
+		}
+	end
+
+	update()
+
+	mobConns[mob] = mobConns[mob] or {}
+	table.insert(mobConns[mob], hum.HealthChanged:Connect(update))
+end
+
+local function buildMobGlow(mob: Model)
+	if mob:FindFirstChild(GLOW_TAG) then return end
+
+	local h = Instance.new("Highlight")
+	h.Name = GLOW_TAG
+	h.FillColor = Color3.fromRGB(255, 40, 40)
+	h.FillTransparency = 0.7
+	h.OutlineColor = Color3.fromRGB(255, 255, 255)
+	h.OutlineTransparency = 0.1
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	h.Parent = mob
+end
+
+
+------------------------------------------------------------------
 -- LIFECYCLE FIX
 ------------------------------------------------------------------
 
@@ -366,6 +567,84 @@ local function applyForPlayer(plr: Player)
 		end
 	end)
 end
+
+------------------------------------------------------------------
+-- MOB LIFECYCLE
+------------------------------------------------------------------
+
+local function applyForMob(mob: Model)
+	if not mob or not mob.Parent then return end
+	if not isValidMobModel(mob) then return end
+
+	cleanupCharacter(mob)
+
+	if featureState.Name then buildMobName(mob) end
+	if featureState.Health then buildMobHealth(mob) end
+	if featureState.Player then buildMobGlow(mob) end
+
+	-- streaming-ish retry safety
+	task.delay(0.4, function()
+		if mob and mob.Parent then
+			if featureState.Name then buildMobName(mob) end
+			if featureState.Health then buildMobHealth(mob) end
+		end
+	end)
+
+	task.delay(1, function()
+		if mob and mob.Parent then
+			if featureState.Name then buildMobName(mob) end
+			if featureState.Health then buildMobHealth(mob) end
+		end
+	end)
+
+	-- auto-clean when mob is removed/destroyed
+	if not mobRemoveConns[mob] then
+		mobRemoveConns[mob] = mob.AncestryChanged:Connect(function(_, parent)
+			if parent == nil then
+				cleanupMob(mob)
+			end
+		end)
+	end
+end
+
+local function ensureMobWatchers()
+	local folder = getMobsFolder()
+	if not folder then
+		-- folder doesn’t exist, do nothing (NO CRASH)
+		return
+	end
+
+	if not mobsFolderAddedConn then
+		mobsFolderAddedConn = folder.ChildAdded:Connect(function(child)
+			if isValidMobModel(child) then
+				applyForMob(child :: Model)
+			end
+		end)
+	end
+
+	if not mobsFolderRemovingConn then
+		mobsFolderRemovingConn = folder.ChildRemoved:Connect(function(child)
+			if child:IsA("Model") then
+				cleanupMob(child :: Model)
+			end
+		end)
+	end
+
+	-- apply for already-existing mobs
+	for _, mob in ipairs(getMobModels()) do
+		applyForMob(mob)
+	end
+end
+
+------------------------------------------------------------------
+-- AUTO-REATTACH IF MOBS FOLDER APPEARS LATE
+------------------------------------------------------------------
+
+workspace.ChildAdded:Connect(function(child)
+	if child.Name == MOBS_FOLDER_NAME and child:IsA("Folder") then
+		ensureMobWatchers()
+	end
+end)
 
 
 local function ensureCharWatcher(plr: Player)
@@ -434,6 +713,9 @@ local function startScaler()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
+		------------------------------------------------------------------
+		-- PLAYER SCALING
+		------------------------------------------------------------------
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if plr ~= LocalPlayer then
 				local char = plr.Character
@@ -445,53 +727,96 @@ local function startScaler()
 						local dist = (cam.CFrame.Position - root.Position).Magnitude
 						local scale = math.clamp(70 / dist, 0, 1)
 
-						local nameHeightPixels = NAME_MIN_H
+						------------------------------------------------------------------
+						-- NAME (SELF-HEALING)
+						------------------------------------------------------------------
+						if featureState.Name then
+							local nameGui = head:FindFirstChild(NAME_TAG)
 
-------------------------------------------------------------------
--- NAME (SELF-HEALING)
-------------------------------------------------------------------
-if featureState.Name then
-	local nameGui = head:FindFirstChild(NAME_TAG)
+							if not nameGui then
+								buildName(plr)
+								nameGui = head:FindFirstChild(NAME_TAG)
+							end
 
-	-- Auto-build if missing
-	if not nameGui then
-		buildName(plr)
-		nameGui = head:FindFirstChild(NAME_TAG)
-	end
+							if nameGui then
+								local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
+								local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
 
-	if nameGui then
-		local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
-		local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
+								nameGui.Size = UDim2.new(0, w, 0, h)
+							end
+						end
 
-		nameGui.Size = UDim2.new(0, w, 0, h)
-		nameHeightPixels = h
-	end
-end
+						------------------------------------------------------------------
+						-- HEALTH (SELF-HEALING)
+						------------------------------------------------------------------
+						if featureState.Health then
+							local hpGui = root:FindFirstChild(HEALTH_TAG)
 
-------------------------------------------------------------------
--- HEALTH (SELF-HEALING)
-------------------------------------------------------------------
-if featureState.Health then
-	local hpGui = root:FindFirstChild(HEALTH_TAG)
+							if not hpGui then
+								buildHealth(plr)
+								hpGui = root:FindFirstChild(HEALTH_TAG)
+							end
 
-	-- Auto-build if missing
-	if not hpGui then
-		buildHealth(plr)
-		hpGui = root:FindFirstChild(HEALTH_TAG)
-	end
+							if hpGui then
+								local w = math.max(math.floor(HP_BASE_W * scale), HP_MIN_W)
+								local h = math.max(math.floor(HP_BASE_H * scale), HP_MIN_H)
 
-	if hpGui then
-		local w = math.max(math.floor(HP_BASE_W * scale), HP_MIN_W)
-		local h = math.max(math.floor(HP_BASE_H * scale), HP_MIN_H)
+								hpGui.Size = UDim2.new(0, w, 0, h)
+								hpGui.StudsOffset = Vector3.new(0, -3.2, 0)
+							end
+						end
+					end
+				end
+			end
+		end
 
-		hpGui.Size = UDim2.new(0, w, 0, h)
+		------------------------------------------------------------------
+		-- MOB SCALING (Workspace > Mobs)
+		------------------------------------------------------------------
+		for _, mob in ipairs(getMobModels()) do
+			local head = mob:FindFirstChild("Head")
+			local root = mob:FindFirstChild("HumanoidRootPart")
 
-		-- Keep healthbar below the player (classic style)
-		hpGui.StudsOffset = Vector3.new(0, -3.2, 0)
-	end
-end
+			if head and root then
+				local dist = (cam.CFrame.Position - root.Position).Magnitude
+				local scale = math.clamp(70 / dist, 0, 1)
 
+				------------------------------------------------------------------
+				-- NAME (SELF-HEALING)
+				------------------------------------------------------------------
+				if featureState.Name then
+					local nameGui = head:FindFirstChild(NAME_TAG)
 
+					if not nameGui then
+						buildMobName(mob)
+						nameGui = head:FindFirstChild(NAME_TAG)
+					end
+
+					if nameGui then
+						local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
+						local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
+
+						nameGui.Size = UDim2.new(0, w, 0, h)
+					end
+				end
+
+				------------------------------------------------------------------
+				-- HEALTH (SELF-HEALING)
+				------------------------------------------------------------------
+				if featureState.Health then
+					local hpGui = root:FindFirstChild(HEALTH_TAG)
+
+					if not hpGui then
+						buildMobHealth(mob)
+						hpGui = root:FindFirstChild(HEALTH_TAG)
+					end
+
+					if hpGui then
+						local w = math.max(math.floor(HP_BASE_W * scale), HP_MIN_W)
+						local h = math.max(math.floor(HP_BASE_H * scale), HP_MIN_H)
+
+						hpGui.Size = UDim2.new(0, w, 0, h)
+						hpGui.StudsOffset = Vector3.new(0, -3.2, 0)
 					end
 				end
 			end
@@ -505,6 +830,7 @@ local function stopScaler()
 		scalerConn = nil
 	end
 end
+
 
 ------------------------------------------------------------------
 -- SNAPLINES (BOXHANDLEADORNMENT "RODS" - FEET TO FEET, THROUGH WALLS)
@@ -960,16 +1286,26 @@ end
 ------------------------------------------------------------------
 
 local function refresh()
-	-- Make sure lifecycle watchers exist so join/respawn works even after toggles change
+	-- Players
 	ensureGlobalWatchers()
 
-	-- remove current ESP instances + old health conns, then re-apply to active chars
-	cleanupAll()
+	-- Mobs
+	ensureMobWatchers()
 
+	-- Cleanup everything we manage (players + mobs)
+	cleanupAll()
+	cleanupAllMobs()
+
+	-- Re-apply to players
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer then
 			applyForPlayer(plr)
 		end
+	end
+
+	-- Re-apply to mobs
+	for _, mob in ipairs(getMobModels()) do
+		applyForMob(mob)
 	end
 
 	if featureState.Name or featureState.Health then
@@ -978,6 +1314,7 @@ local function refresh()
 		stopScaler()
 	end
 end
+
 
 ------------------------------------------------------------------
 -- BIND TOGGLES
