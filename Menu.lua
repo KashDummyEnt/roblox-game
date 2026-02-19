@@ -180,6 +180,20 @@ local TOGGLE_SERVICES = {
 }
 
 --================================================================================
+-- Toggle-driven lazy feature loading (MOVED HERE)
+--================================================================================
+local featureLoaded: {[string]: boolean} = {}
+
+local function ensureFeatureLoaded(key: string, url: string)
+	if featureLoaded[key] then
+		return
+	end
+	featureLoaded[key] = true
+	runRemote(url)
+end
+
+
+--================================================================================
 -- NPC dropdown data source (Workspace > NPCs)
 --================================================================================
 local function getNpcNames(): {string}
@@ -676,20 +690,6 @@ Toggles.AddToggleCard(
 		end
 	end
 )
-
-
---================================================================================
--- Toggle-driven lazy feature loading
---================================================================================
-local featureLoaded: {[string]: boolean} = {}
-
-local function ensureFeatureLoaded(key: string, url: string)
-	if featureLoaded[key] then
-		return
-	end
-	featureLoaded[key] = true
-	runRemote(url)
-end
 
 -- Visuals tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageVisuals, "visuals_player", "Chams", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
