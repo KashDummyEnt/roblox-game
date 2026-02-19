@@ -15,6 +15,9 @@ local G = getGlobal()
 G.__HIGGI_TOGGLES = G.__HIGGI_TOGGLES or {
 	states = {},
 	listeners = {}, -- [key] = {fn, fn, ...}
+
+	values = {}, -- [key] = any (string/number/table)
+	valueListeners = {}, -- [key] = {fn, fn, ...}
 }
 
 local Store = G.__HIGGI_TOGGLES
@@ -50,6 +53,9 @@ local function isTouchDevice(userInputService)
 	return userInputService.TouchEnabled and not userInputService.KeyboardEnabled
 end
 
+--============================================================
+-- Toggle state notifications
+--============================================================
 local function notify(key, state)
 	local list = Store.listeners[key]
 	if not list then
@@ -112,6 +118,66 @@ function ToggleSwitches.FlipState(key, defaultState)
 	return nextState
 end
 
+--============================================================
+-- Value notifications (dropdown + future controls)
+--============================================================
+local function notifyValue(key, value)
+	local list = Store.valueListeners[key]
+	if not list then
+		return
+	end
+	for i = 1, #list do
+		local fn = list[i]
+		if type(fn) == "function" then
+			pcall(fn, value)
+		end
+	end
+end
+
+function ToggleSwitches.SubscribeValue(key, fn)
+	if type(fn) ~= "function" then
+		return function() end
+	end
+
+	Store.valueListeners[key] = Store.valueListeners[key] or {}
+	local list = Store.valueListeners[key]
+	table.insert(list, fn)
+
+	local alive = true
+	return function()
+		if not alive then
+			return
+		end
+		alive = false
+		for i = #list, 1, -1 do
+			if list[i] == fn then
+				table.remove(list, i)
+				break
+			end
+		end
+	end
+end
+
+function ToggleSwitches.GetValue(key, defaultValue)
+	local v = Store.values[key]
+	if v == nil then
+		v = defaultValue
+		Store.values[key] = v
+	end
+	return v
+end
+
+function ToggleSwitches.SetValue(key, value)
+	if Store.values[key] == value then
+		return
+	end
+	Store.values[key] = value
+	notifyValue(key, value)
+end
+
+--============================================================
+-- Toggle UI card
+--============================================================
 function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultState, config, services, onChanged)
 	if Store.states[key] == nil then
 		Store.states[key] = defaultState and true or false
@@ -291,6 +357,266 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 		end,
 		Flip = function()
 			setState(not Store.states[key])
+		end,
+	}
+end
+
+--============================================================
+-- Dropdown UI card
+--============================================================
+function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, defaultValue, getOptions, config, services, onSelected)
+	if Store.values[key] == nil then
+		Store.values[key] = defaultValue
+	end
+
+	local UserInputService = services.UserInputService
+
+	local card = make("Frame", {
+		Name = "DropDownCard_" .. tostring(key),
+		BackgroundColor3 = config.Bg2,
+		Size = UDim2.new(1, 0, 0, 92),
+		ZIndex = 43,
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	addCorner(card, 12)
+	addStroke(card, 1, config.Stroke, 0.35)
+
+	make("TextLabel", {
+		BackgroundTransparency = 1,
+		Text = title,
+		TextColor3 = config.Text,
+		TextSize = 15,
+		Font = Enum.Font.GothamSemibold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, -16, 0, 22),
+		Position = UDim2.new(0, 10, 0, 8),
+		ZIndex = 44,
+		Parent = card,
+	})
+
+	make("TextLabel", {
+		BackgroundTransparency = 1,
+		Text = desc,
+		TextColor3 = config.SubText,
+		TextSize = 13,
+		Font = Enum.Font.Gotham,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Size = UDim2.new(1, -16, 0, 28),
+		Position = UDim2.new(0, 10, 0, 30),
+		ZIndex = 44,
+		Parent = card,
+	})
+
+	local btn = make("TextButton", {
+		Name = "DropButton",
+		AutoButtonColor = false,
+		BackgroundColor3 = config.Bg3,
+		Size = UDim2.new(1, -20, 0, 30),
+		Position = UDim2.new(0, 10, 0, 56),
+		Text = "",
+		ZIndex = 45,
+		Parent = card,
+	})
+	addCorner(btn, 10)
+	addStroke(btn, 1, config.Stroke, 0.25)
+
+	local label = make("TextLabel", {
+		Name = "Value",
+		BackgroundTransparency = 1,
+		Text = tostring(Store.values[key] or ""),
+		TextColor3 = config.Text,
+		TextSize = 14,
+		Font = Enum.Font.GothamSemibold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Size = UDim2.new(1, -34, 1, 0),
+		Position = UDim2.new(0, 10, 0, 0),
+		ZIndex = 46,
+		Parent = btn,
+	})
+
+	make("TextLabel", {
+		Name = "Caret",
+		BackgroundTransparency = 1,
+		Text = "▾",
+		TextColor3 = config.SubText,
+		TextSize = 16,
+		Font = Enum.Font.GothamBold,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(0, 24, 1, 0),
+		Position = UDim2.new(1, -26, 0, 0),
+		ZIndex = 46,
+		Parent = btn,
+	})
+
+	local popup = make("Frame", {
+		Name = "Popup",
+		BackgroundColor3 = config.Bg2,
+		Visible = false,
+		Size = UDim2.new(1, -20, 0, 180),
+		Position = UDim2.new(0, 10, 0, 90),
+		ZIndex = 80,
+		Parent = card,
+	})
+	addCorner(popup, 12)
+	addStroke(popup, 1, config.Stroke, 0.25)
+
+	local list = make("ScrollingFrame", {
+		Name = "List",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(1, 0, 1, 0),
+		ZIndex = 81,
+		Parent = popup,
+	})
+
+	local function rebuild()
+		for _, ch in ipairs(list:GetChildren()) do
+			if ch:IsA("TextButton") or ch:IsA("TextLabel") then
+				ch:Destroy()
+			end
+		end
+
+		local options = {}
+		if type(getOptions) == "function" then
+			local ok, res = pcall(getOptions)
+			if ok and type(res) == "table" then
+				options = res
+			end
+		end
+
+		if #options == 0 then
+			make("TextLabel", {
+				BackgroundTransparency = 1,
+				Text = "No options.",
+				TextColor3 = config.SubText,
+				TextSize = 13,
+				Font = Enum.Font.Gotham,
+				TextWrapped = true,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Top,
+				Size = UDim2.new(1, -16, 1, -16),
+				Position = UDim2.new(0, 8, 0, 8),
+				ZIndex = 82,
+				Parent = list,
+			})
+			list.CanvasSize = UDim2.new(0, 0, 0, 0)
+			return
+		end
+
+		local y = 0
+		local itemH = 30
+
+		for i = 1, #options do
+			local opt = options[i]
+			local text = tostring(opt)
+
+			local item = make("TextButton", {
+				AutoButtonColor = false,
+				BackgroundColor3 = config.Bg3,
+				Size = UDim2.new(1, -8, 0, itemH),
+				Position = UDim2.new(0, 4, 0, y + 4),
+				Text = "",
+				ZIndex = 82,
+				Parent = list,
+			})
+			addCorner(item, 8)
+			addStroke(item, 1, config.Stroke, 0.35)
+
+			make("TextLabel", {
+				BackgroundTransparency = 1,
+				Text = text,
+				TextColor3 = config.Text,
+				TextSize = 13,
+				Font = Enum.Font.Gotham,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Size = UDim2.new(1, -12, 1, 0),
+				Position = UDim2.new(0, 8, 0, 0),
+				ZIndex = 83,
+				Parent = item,
+			})
+
+			item.MouseEnter:Connect(function()
+				item.BackgroundColor3 = config.Bg2
+			end)
+			item.MouseLeave:Connect(function()
+				item.BackgroundColor3 = config.Bg3
+			end)
+
+			item.MouseButton1Click:Connect(function()
+				Store.values[key] = opt
+				label.Text = tostring(opt)
+				notifyValue(key, opt)
+
+				if onSelected then
+					pcall(onSelected, opt)
+				end
+
+				popup.Visible = false
+			end)
+
+			y = y + itemH + 6
+		end
+
+		list.CanvasSize = UDim2.new(0, 0, 0, y + 8)
+	end
+
+	btn.MouseButton1Click:Connect(function()
+		popup.Visible = not popup.Visible
+		if popup.Visible then
+			rebuild()
+		end
+	end)
+
+	-- click-off close
+	UserInputService.InputBegan:Connect(function(input, gp)
+		if gp then
+			return
+		end
+		if not popup.Visible then
+			return
+		end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		local mpos = UserInputService:GetMouseLocation()
+		local x = mpos.X
+		local y = mpos.Y
+
+		local function inBounds(g)
+			local p = g.AbsolutePosition
+			local s = g.AbsoluteSize
+			return x >= p.X and x <= p.X + s.X and y >= p.Y and y <= p.Y + s.Y
+		end
+
+		if not inBounds(popup) and not inBounds(btn) then
+			popup.Visible = false
+		end
+	end)
+
+	return {
+		Get = function()
+			return Store.values[key]
+		end,
+		Set = function(v)
+			Store.values[key] = v
+			label.Text = tostring(v)
+			notifyValue(key, v)
+			if onSelected then
+				pcall(onSelected, v)
+			end
+		end,
+		Refresh = function()
+			if popup.Visible then
+				rebuild()
+			end
 		end,
 	}
 end
