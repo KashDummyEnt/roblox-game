@@ -118,7 +118,16 @@ local PRESETS = {
 		SkyboxRt = "rbxassetid://5260811073",
 		SkyboxUp = "rbxassetid://5260824661",
 		CelestialBodiesShown = false, -- or true
-},
+	},
+		["Sunset"] = {
+		SkyboxBk = "rbxassetid://151165214",
+		SkyboxDn = "rbxassetid://151165197",
+		SkyboxFt = "rbxassetid://151165224",
+		SkyboxLf = "rbxassetid://151165191",
+		SkyboxRt = "rbxassetid://151165206",
+		SkyboxUp = "rbxassetid://151165227",
+		CelestialBodiesShown = false, -- or true
+	},
 
 }
 
