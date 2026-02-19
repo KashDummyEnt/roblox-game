@@ -813,12 +813,12 @@ end)
 -- World tab: Skybox toggle + dropdown (REPLACES the old "Apply Skybox" card)
 
 local function getSkyboxNames(): {string}
-	-- placeholder names (match these in ClientSky.lua presets)
 	return {
-		"Neon Night",
-		"Pastel Clouds",
-		"Purple Dusk",
-		"Cyber Grid",
+		"Space Rocks",
+		"Red Planet",
+		"Cyan Space",
+		"Purple Space",
+		"Neon Planet",
 	}
 end
 
