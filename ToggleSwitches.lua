@@ -536,59 +536,73 @@ local function cancelTweens()
 	end
 end
 
+addCorner(popup, 12)
+addStroke(popup, 1, config.Stroke, 0.25)
+
+local popupStroke = popup:FindFirstChildOfClass("UIStroke")
+
+popup.BackgroundTransparency = 1
+if popupStroke then
+	(popupStroke :: UIStroke).Transparency = 1
+end
+
 local function setPopupOpen(open: boolean)
 	cancelTweens()
 
-if open then
-	positionPopup()
-
-	-- start collapsed + faded, then expand + fade in
-	popup.Visible = true
-	popup.Size = UDim2.fromOffset(btn.AbsoluteSize.X, 0)
-	popup.BackgroundTransparency = OPEN_FADE_FROM
-
 	local stroke = popupStroke
 
-	if stroke then
-		(stroke :: UIStroke).Transparency = 1
-	end
+	if open then
+		positionPopup()
 
-	local tInfo = TweenInfo.new(OPEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		-- start collapsed + faded, then expand + fade in
+		popup.Visible = true
+		popup.Size = UDim2.fromOffset(btn.AbsoluteSize.X, 0)
+		popup.BackgroundTransparency = OPEN_FADE_FROM
 
-	openTween = TweenService:Create(popup, tInfo, {
-		Size = UDim2.fromOffset(btn.AbsoluteSize.X, POPUP_HEIGHT),
-		BackgroundTransparency = OPEN_FADE_TO,
-	})
-	openTween:Play()
+		if stroke then
+			(stroke :: UIStroke).Transparency = 1
+		end
 
-	if stroke then
-		TweenService:Create(stroke, tInfo, {Transparency = 0.25}):Play()
-	end
+		local tInfo = TweenInfo.new(OPEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
+		openTween = TweenService:Create(popup, tInfo, {
+			Size = UDim2.fromOffset(btn.AbsoluteSize.X, POPUP_HEIGHT),
+			BackgroundTransparency = OPEN_FADE_TO,
+		})
+		openTween:Play()
 
+		if stroke then
+			TweenService:Create(stroke, tInfo, {Transparency = 0.25}):Play()
+		end
 	else
 		if not popup.Visible then
 			return
 		end
 
-local stroke = popupStroke
+		local tInfo = TweenInfo.new(CLOSE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
+		closeTween = TweenService:Create(popup, tInfo, {
+			Size = UDim2.fromOffset(popup.Size.X.Offset, 0),
+			BackgroundTransparency = CLOSE_FADE_TO,
+		})
+		closeTween.Completed:Once(function()
+			popup.Visible = false
+			cancelTweens()
 
-local tInfo = TweenInfo.new(CLOSE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-closeTween = TweenService:Create(popup, tInfo, {
-	Size = UDim2.fromOffset(popup.Size.X.Offset, 0),
-	BackgroundTransparency = CLOSE_FADE_TO,
-})
-closeTween.Completed:Once(function()
-	popup.Visible = false
-	cancelTweens()
+			-- reset for next open
+			popup.BackgroundTransparency = OPEN_FADE_FROM
+			if stroke then
+				(stroke :: UIStroke).Transparency = 1
+			end
+		end)
+		closeTween:Play()
 
-	-- reset for next open
-	popup.BackgroundTransparency = OPEN_FADE_FROM
-	if stroke then
-		(stroke :: UIStroke).Transparency = 1
+		if stroke then
+			TweenService:Create(stroke, tInfo, {Transparency = 1}):Play()
+		end
 	end
-end)
+end
+
 closeTween:Play()
 
 if stroke then
@@ -600,13 +614,6 @@ end
 
 	addCorner(popup, 12)
 	addStroke(popup, 1, config.Stroke, 0.25)
-
-	popup.BackgroundTransparency = 1
-	local popupStroke = popup:FindFirstChildOfClass("UIStroke")
-	if popupStroke then
-		(popupStroke :: UIStroke).Transparency = 1
-	end
-
 
 	local list = make("ScrollingFrame", {
 		Name = "List",
