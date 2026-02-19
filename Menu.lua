@@ -281,18 +281,36 @@ end
 
 local function startNpcWatcher()
 
-	local function hookFolderDeep(folder: Instance)
-		-- scan everything inside folder recursively
-		for _, inst in ipairs(folder:GetDescendants()) do
-			if inst:IsA("Model") then
-				registryUpsertModel(inst)
-			end
+	local function tryRegister(inst: Instance)
+		if not inst:IsA("Model") then
+			return
 		end
 
-		folder.DescendantAdded:Connect(function(inst)
-			if inst:IsA("Model") then
+		-- Only register fully loaded NPCs
+		if inst:GetAttribute("NPCLoaded") == true then
+			registryUpsertModel(inst)
+			return
+		end
+
+		-- Wait until NPCLoaded flips true
+		inst:GetAttributeChangedSignal("NPCLoaded"):Connect(function()
+			if inst:GetAttribute("NPCLoaded") == true then
 				registryUpsertModel(inst)
 			end
+		end)
+	end
+
+	task.spawn(function()
+		local folder = workspace:WaitForChild("NPCs")
+
+		-- Seed existing NPCs
+		for _, inst in ipairs(folder:GetDescendants()) do
+			tryRegister(inst)
+		end
+
+		-- Future NPCs
+		folder.DescendantAdded:Connect(function(inst)
+			tryRegister(inst)
 		end)
 
 		folder.DescendantRemoving:Connect(function(inst)
@@ -300,11 +318,6 @@ local function startNpcWatcher()
 				registryMarkRemoved(inst.Name)
 			end
 		end)
-	end
-
-	task.spawn(function()
-		local folder = workspace:WaitForChild("NPCs")
-		hookFolderDeep(folder)
 	end)
 end
 
