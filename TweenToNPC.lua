@@ -1,6 +1,6 @@
 -- TweenToNPC.lua
 -- Constant-speed fly-to / noclip follow
--- Stays 5 studs in front of selected NPC
+-- Constant Freefall animation while active
 -- Uses registry fallback if NPC despawns
 
 local Players = game:GetService("Players")
@@ -138,25 +138,19 @@ local function setHumanoidPhysics(h: Humanoid, enabled: boolean)
 		end
 
 		pcall(function()
-			h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+			h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
 			h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 			h:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
-			h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
 			h:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
 			h:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
-		end)
-
-		pcall(function()
-			h:ChangeState(Enum.HumanoidStateType.Physics)
 		end)
 
 		h.AutoRotate = false
 	else
 		pcall(function()
-			h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+			h:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 			h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
 			h:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-			h:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 			h:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
 			h:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
 		end)
@@ -197,7 +191,7 @@ local function stopFly()
 end
 
 -- =========================
--- Core follow logic (CFrame-based, no physics fight)
+-- Core follow logic (CFrame-based + forced Freefall)
 -- =========================
 local function startFlyFollow()
 	stopFly()
@@ -221,6 +215,13 @@ local function startFlyFollow()
 		if not Toggles.GetState("world_tween_to_npc", false) then
 			stopFly()
 			return
+		end
+
+		-- Force constant falling animation
+		if h:GetState() ~= Enum.HumanoidStateType.Freefall then
+			pcall(function()
+				h:ChangeState(Enum.HumanoidStateType.Freefall)
+			end)
 		end
 
 		local selected = G.__HIGGI_SELECTED_NPC
