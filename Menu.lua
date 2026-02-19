@@ -280,23 +280,34 @@ local function hookFolder(folder: Folder)
 end
 
 local function startNpcWatcher()
-	if npcWatchConn then
-		return
+
+	local function hookFolderDeep(folder: Instance)
+		-- scan everything inside folder recursively
+		for _, inst in ipairs(folder:GetDescendants()) do
+			if inst:IsA("Model") then
+				registryUpsertModel(inst)
+			end
+		end
+
+		folder.DescendantAdded:Connect(function(inst)
+			if inst:IsA("Model") then
+				registryUpsertModel(inst)
+			end
+		end)
+
+		folder.DescendantRemoving:Connect(function(inst)
+			if inst:IsA("Model") then
+				registryMarkRemoved(inst.Name)
+			end
+		end)
 	end
 
-	npcWatchConn = RunService.Heartbeat:Connect(function()
-		local folder = getNpcFolder()
-
-		if not folder then
-			hookedFolder = nil
-			return
-		end
-
-		if folder ~= hookedFolder then
-			hookFolder(folder)
-		end
+	task.spawn(function()
+		local folder = workspace:WaitForChild("NPCs")
+		hookFolderDeep(folder)
 	end)
 end
+
 
 startNpcWatcher()
 
