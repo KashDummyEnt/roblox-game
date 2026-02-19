@@ -390,18 +390,39 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 end
 
 --============================================================
--- Dropdown UI card
+-- Combined Toggle + Dropdown UI card (ONE CARD)
 --============================================================
-function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, defaultValue, getOptions, config, services, onSelected)
-	if Store.values[key] == nil then
-		Store.values[key] = defaultValue
+function ToggleSwitches.AddToggleDropDownCard(
+	parent,
+	toggleKey,
+	valueKey,
+	title,
+	desc,
+	order,
+	defaultToggleState,
+	defaultValue,
+	getOptions,
+	config,
+	services,
+	onToggleChanged,
+	onSelected
+)
+	-- init store values
+	if Store.states[toggleKey] == nil then
+		Store.states[toggleKey] = defaultToggleState and true or false
+	end
+	if Store.values[valueKey] == nil then
+		Store.values[valueKey] = defaultValue
 	end
 
-	local UserInputService = services.UserInputService
 	local TweenService = services.TweenService
+	local UserInputService = services.UserInputService
 
+	--========================
+	-- Card container
+	--========================
 	local card = make("Frame", {
-		Name = "DropDownCard_" .. tostring(key),
+		Name = "ToggleDropDownCard_" .. tostring(toggleKey) .. "_" .. tostring(valueKey),
 		BackgroundColor3 = config.Bg2,
 		Size = UDim2.new(1, 0, 0, 92),
 		ZIndex = 43,
@@ -411,20 +432,20 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 	addCorner(card, 12)
 	addStroke(card, 1, config.Stroke, 0.35)
 
-	make("TextLabel", {
+	local titleLbl = make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = title,
 		TextColor3 = config.Text,
 		TextSize = 15,
 		Font = Enum.Font.GothamSemibold,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -16, 0, 22),
+		Size = UDim2.new(1, -118, 0, 22),
 		Position = UDim2.new(0, 10, 0, 8),
 		ZIndex = 44,
 		Parent = card,
 	})
 
-	make("TextLabel", {
+	local descLbl = make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = desc,
 		TextColor3 = config.SubText,
@@ -433,12 +454,121 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 		TextWrapped = true,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Top,
-		Size = UDim2.new(1, -16, 0, 28),
+		Size = UDim2.new(1, -118, 0, 28),
 		Position = UDim2.new(0, 10, 0, 30),
 		ZIndex = 44,
 		Parent = card,
 	})
 
+	--========================
+	-- Toggle (right side)
+	--========================
+	local SWITCH_W = 64
+	local SWITCH_H = 30
+	local PADDING_R = 14
+
+	local switchBtn = make("TextButton", {
+		Name = "Switch",
+		AutoButtonColor = false,
+		Text = "",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(SWITCH_W, SWITCH_H),
+		Position = UDim2.new(1, -(PADDING_R + SWITCH_W), 0, 16),
+		ZIndex = 46,
+		Parent = card,
+	})
+
+	local track = make("Frame", {
+		Name = "Track",
+		BackgroundColor3 = config.Bg3,
+		Size = UDim2.new(1, 0, 1, 0),
+		Position = UDim2.new(0, 0, 0, 0),
+		ZIndex = 46,
+		Parent = switchBtn,
+	})
+	addCorner(track, math.floor(SWITCH_H / 2))
+	addStroke(track, 1, config.Stroke, 0.25)
+
+	local knob = make("Frame", {
+		Name = "Knob",
+		BackgroundColor3 = Color3.fromRGB(245, 245, 248),
+		Size = UDim2.fromOffset(SWITCH_H - 6, SWITCH_H - 6),
+		Position = UDim2.new(0, 3, 0, 3),
+		ZIndex = 47,
+		Parent = switchBtn,
+	})
+	addCorner(knob, 999)
+	addStroke(knob, 1, Color3.fromRGB(0, 0, 0), 0.75)
+
+	local function applyToggleVisual(state: boolean, instant: boolean)
+		local knobXOn = SWITCH_W - (SWITCH_H - 6) - 3
+		local knobXOff = 3
+
+		local goalTrackColor = state and config.Accent or config.Bg3
+		local goalStrokeColor = state and config.Accent or config.Stroke
+		local goalStrokeTrans = state and 0.05 or 0.25
+		local goalKnobPos = state and UDim2.new(0, knobXOn, 0, 3) or UDim2.new(0, knobXOff, 0, 3)
+
+		local trackStroke = track:FindFirstChildOfClass("UIStroke")
+		if not trackStroke then
+			return
+		end
+
+		if instant then
+			track.BackgroundColor3 = goalTrackColor
+			trackStroke.Color = goalStrokeColor
+			trackStroke.Transparency = goalStrokeTrans
+			knob.Position = goalKnobPos
+			return
+		end
+
+		local ti = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		TweenService:Create(track, ti, {BackgroundColor3 = goalTrackColor}):Play()
+		TweenService:Create(trackStroke, ti, {Color = goalStrokeColor, Transparency = goalStrokeTrans}):Play()
+		TweenService:Create(knob, ti, {Position = goalKnobPos}):Play()
+	end
+
+	local function setToggleState(nextState: boolean)
+		nextState = nextState and true or false
+		if Store.states[toggleKey] == nextState then
+			return
+		end
+
+		Store.states[toggleKey] = nextState
+		applyToggleVisual(nextState, false)
+		notify(toggleKey, nextState)
+
+		if onToggleChanged then
+			pcall(onToggleChanged, nextState)
+		end
+	end
+
+	applyToggleVisual(Store.states[toggleKey], true)
+
+	switchBtn.MouseButton1Click:Connect(function()
+		setToggleState(not Store.states[toggleKey])
+	end)
+
+	-- hover
+	if not isTouchDevice(UserInputService) then
+		card.MouseEnter:Connect(function()
+			card.BackgroundColor3 = config.Bg3
+		end)
+		card.MouseLeave:Connect(function()
+			card.BackgroundColor3 = config.Bg2
+		end)
+
+		switchBtn.MouseEnter:Connect(function()
+			track.BackgroundColor3 = (Store.states[toggleKey] and config.Accent) or config.Bg2
+		end)
+		switchBtn.MouseLeave:Connect(function()
+			applyToggleVisual(Store.states[toggleKey], true)
+		end)
+	end
+
+	--========================
+	-- Dropdown button (bottom row)
+	--========================
 	local btn = make("TextButton", {
 		Name = "DropButton",
 		AutoButtonColor = false,
@@ -455,7 +585,7 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 	local label = make("TextLabel", {
 		Name = "Value",
 		BackgroundTransparency = 1,
-		Text = tostring(Store.values[key] or ""),
+		Text = tostring(Store.values[valueKey] or ""),
 		TextColor3 = config.Text,
 		TextSize = 14,
 		Font = Enum.Font.GothamSemibold,
@@ -481,12 +611,12 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 		Parent = btn,
 	})
 
+	--========================
+	-- Popup container (overlay)
+	--========================
 	local Overlay = services.Overlay
-	assert(Overlay, "DropDown requires Overlay in services")
+	assert(Overlay, "ToggleDropDown requires Overlay in services")
 
-	--========================
-	-- Popup container
-	--========================
 	local popup = make("Frame", {
 		Name = "Popup",
 		BackgroundColor3 = config.Bg2,
@@ -496,7 +626,6 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 		ClipsDescendants = true,
 		Parent = Overlay,
 	})
-
 	addCorner(popup, 12)
 	addStroke(popup, 1, config.Stroke, 0.25)
 
@@ -508,7 +637,7 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 
 	local POPUP_HEIGHT = 180
 	local POPUP_NUDGE_X = 0
-	local POPUP_NUDGE_Y = 25
+	local POPUP_NUDGE_Y = 12 -- <- bump this up if you want it lower
 
 	local function positionPopup()
 		local btnPos = btn.AbsolutePosition
@@ -519,10 +648,7 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 			btnPos.Y + btnSize.Y + POPUP_NUDGE_Y
 		)
 
-		popup.Size = UDim2.fromOffset(
-			btnSize.X,
-			POPUP_HEIGHT
-		)
+		popup.Size = UDim2.fromOffset(btnSize.X, POPUP_HEIGHT)
 	end
 
 	local openTween: Tween? = nil
@@ -588,7 +714,6 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 				popup.Visible = false
 				cancelTweens()
 
-				-- reset for next open
 				popup.BackgroundTransparency = OPEN_FADE_FROM
 				if stroke then
 					(stroke :: UIStroke).Transparency = 1
@@ -605,23 +730,17 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 	--========================
 	-- Scrolling list
 	--========================
-local list = make("ScrollingFrame", {
-	Name = "List",
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-
-	-- hide the scrollbar entirely (no more right-side cut)
-	ScrollBarThickness = 0,
-
-	-- keeps scrolling working, just no visible bar
-	ScrollingDirection = Enum.ScrollingDirection.Y,
-
-	CanvasSize = UDim2.new(0, 0, 0, 0),
-	Size = UDim2.new(1, 0, 1, 0),
-	ZIndex = 501,
-	Parent = popup,
-})
-
+	local list = make("ScrollingFrame", {
+		Name = "List",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 0,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(1, 0, 1, 0),
+		ZIndex = 501,
+		Parent = popup,
+	})
 
 	local function rebuild()
 		for _, ch in ipairs(list:GetChildren()) do
@@ -638,22 +757,19 @@ local list = make("ScrollingFrame", {
 			end
 		end
 
+		-- clean blank / whitespace-only
 		local cleaned = {}
-
-for i = 1, #options do
-	local v = options[i]
-	if v ~= nil then
-		local s = tostring(v)
-		s = s:gsub("^%s+", ""):gsub("%s+$", "") -- trim
-
-		if s ~= "" then
-			table.insert(cleaned, v)
+		for i = 1, #options do
+			local v = options[i]
+			if v ~= nil then
+				local s = tostring(v)
+				s = s:gsub("^%s+", ""):gsub("%s+$", "")
+				if s ~= "" then
+					table.insert(cleaned, v)
+				end
+			end
 		end
-	end
-end
-
-options = cleaned
-
+		options = cleaned
 
 		if #options == 0 then
 			make("TextLabel", {
@@ -715,9 +831,9 @@ options = cleaned
 			end)
 
 			item.MouseButton1Click:Connect(function()
-				Store.values[key] = opt
+				Store.values[valueKey] = opt
 				label.Text = tostring(opt)
-				notifyValue(key, opt)
+				notifyValue(valueKey, opt)
 
 				if onSelected then
 					pcall(onSelected, opt)
@@ -795,13 +911,19 @@ options = cleaned
 	end)
 
 	return {
-		Get = function()
-			return Store.values[key]
+		GetToggle = function()
+			return Store.states[toggleKey] and true or false
 		end,
-		Set = function(v)
-			Store.values[key] = v
+		SetToggle = function(v)
+			setToggleState(v and true or false)
+		end,
+		GetValue = function()
+			return Store.values[valueKey]
+		end,
+		SetValue = function(v)
+			Store.values[valueKey] = v
 			label.Text = tostring(v)
-			notifyValue(key, v)
+			notifyValue(valueKey, v)
 			if onSelected then
 				pcall(onSelected, v)
 			end
@@ -813,6 +935,8 @@ options = cleaned
 		end,
 	}
 end
+
+
 
 
 return ToggleSwitches
