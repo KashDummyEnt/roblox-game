@@ -19,6 +19,8 @@ local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/re
 local ADMINESP_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/AdminESP.lua"
 local FLIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Flight.lua"
 local TWEEN_NPC_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/TweenToNPC.lua"
+local FASTMODE_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/FastMode.lua"
+
 
 
 local player = Players.LocalPlayer
@@ -885,6 +887,13 @@ Toggles.AddToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for cleare
 		ensureFeatureLoaded("world_nofog", NOFOG_URL)
 	end
 end)
+
+Toggles.AddToggleCard(pageWorld, "world_fastmode", "Fast Mode", "Disable world textures & shadows for FPS boost.", 5, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
+	if state then
+		ensureFeatureLoaded("world_fastmode", FASTMODE_URL)
+	end
+end)
+
 
 -- Settings tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageSettings, "settings_keybinds", "Keybind Hints", "Show keybind tips in UI.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
