@@ -1,6 +1,5 @@
 -- TweenToNPC.lua
--- Constant linear-speed fly-to / noclip follow
--- Clean snap on arrival (no glide, no jitter)
+-- Solver-safe linear fly follow using LinearVelocity (no gravity pull)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -37,6 +36,8 @@ end
 -- State
 -- =========================
 local activeConnection: RBXScriptConnection? = nil
+local activeAttachment: Attachment? = nil
+local activeVelocity: LinearVelocity? = nil
 local savedCanCollide: {[BasePart]: boolean} = {}
 
 -- =========================
@@ -132,9 +133,20 @@ end
 -- Stop
 -- =========================
 local function stopFly()
+
 	if activeConnection then
 		activeConnection:Disconnect()
 		activeConnection = nil
+	end
+
+	if activeVelocity then
+		activeVelocity:Destroy()
+		activeVelocity = nil
+	end
+
+	if activeAttachment then
+		activeAttachment:Destroy()
+		activeAttachment = nil
 	end
 
 	local char = getChar()
@@ -150,18 +162,38 @@ local function stopFly()
 end
 
 -- =========================
--- Core linear movement
+-- Core linear movement (solver-safe)
 -- =========================
 local function startFlyFollow()
+
 	stopFly()
 
 	local char = getChar()
 	if not char then return end
 
+	local humanoid = getHumanoid(char)
+	if not humanoid then return end
+
 	local root = getRoot(char)
 	if not root then return end
 
 	setNoclip(char, true)
+
+	-- Create physics attachment
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "TweenAttachment"
+	attachment.Parent = root
+
+	local lv = Instance.new("LinearVelocity")
+	lv.Name = "TweenVelocity"
+	lv.Attachment0 = attachment
+	lv.RelativeTo = Enum.ActuatorRelativeTo.World
+	lv.MaxForce = math.huge
+	lv.VectorVelocity = Vector3.zero
+	lv.Parent = root
+
+	activeAttachment = attachment
+	activeVelocity = lv
 
 	activeConnection = RunService.Heartbeat:Connect(function(dt)
 
@@ -175,16 +207,17 @@ local function startFlyFollow()
 			return
 		end
 
-		-- enforce noclip every frame
 		setNoclip(char, true)
 
 		local selected = G.__HIGGI_SELECTED_NPC
 		if not selected or selected == "" then
+			lv.VectorVelocity = Vector3.zero
 			return
 		end
 
 		local npcPos, npcLook = resolveNpcPose(selected)
 		if not npcPos or not npcLook then
+			lv.VectorVelocity = Vector3.zero
 			return
 		end
 
@@ -197,28 +230,18 @@ local function startFlyFollow()
 		local delta = targetPos - currentPos
 		local dist = delta.Magnitude
 
--- arrival lock
-if dist <= ARRIVAL_THRESHOLD then
-	if not root:GetAttribute("TweenLocked") then
-		root:SetAttribute("TweenLocked", true)
+		if dist <= ARRIVAL_THRESHOLD then
+			lv.VectorVelocity = Vector3.zero
+			root.CFrame = CFrame.new(targetPos, npcPos)
+			return
+		end
 
-		root.AssemblyLinearVelocity = Vector3.zero
-		root.AssemblyAngularVelocity = Vector3.zero
-		root.CFrame = CFrame.new(targetPos, npcPos)
-	end
-
-	return
-else
-	root:SetAttribute("TweenLocked", false)
-end
-
-
-		-- CONSTANT LINEAR SPEED
-		local moveStep = MOVE_SPEED * dt
 		local direction = delta.Unit
-		local newPos = currentPos + direction * moveStep
+		lv.VectorVelocity = direction * MOVE_SPEED
 
-		root.CFrame = CFrame.new(newPos, npcPos)
+		-- Keep facing NPC
+		root.CFrame = CFrame.new(root.Position, npcPos)
+
 	end)
 end
 
@@ -239,7 +262,6 @@ if Toggles.GetState("world_tween_to_npc", false) then
 	handleState(true)
 end
 
--- Respawn safety
 player.CharacterAdded:Connect(function()
 	task.wait(0.2)
 	if Toggles.GetState("world_tween_to_npc", false) then
