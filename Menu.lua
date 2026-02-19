@@ -16,7 +16,7 @@ local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-ga
 local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NoFog.lua"
 local ADMINESP_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/AdminESP.lua"
 local FLIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Flight.lua"
-local NPCSELECTOR_URL = "https://raw.githubusercontent.com/<YOU>/<REPO>/refs/heads/main/NPCSelector.lua"
+local NPCSELECTOR_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NPCSelector.lua"
 
 
 local player = Players.LocalPlayer
