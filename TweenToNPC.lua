@@ -12,7 +12,7 @@ local player = Players.LocalPlayer
 -- CONFIG
 -- =========================
 local MOVE_SPEED = 150
-local FRONT_DISTANCE = 5
+local FRONT_DISTANCE = 15
 local HEIGHT_OFFSET = 3
 local ARRIVAL_THRESHOLD = 0.25
 local ROTATION_LERP = 0.25
