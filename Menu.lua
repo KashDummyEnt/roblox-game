@@ -819,11 +819,27 @@ local function getSkyboxNames(): {string}
 		"Cyan Space",
 		"Purple Space",
 		"Cyan Planet",
-		"Synthwave",
+		"Neon Borealis",
 		"Sunset",
 		"Aurora",
+		"Error",
+		"Dreamy",
+		"Emerald Borealis",
+		"War",
+		"Nuke",
+		"Storm",
+		"Violet Moon",
+		"Toon Moon",
+		"Red Moon",
+		"Crimson Despair",
+		"Corrupted",
+		"Dark Matter",
+		"Molten",
+		"Ghost",
+		"Battlerock",
 	}
 end
+
 
 Toggles.AddToggleDropDownCard(
 	pageWorld,
