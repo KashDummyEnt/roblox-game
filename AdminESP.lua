@@ -752,8 +752,8 @@ local function ensureBoxFor(plr: Player): BoxData
 
 	-- This is the line thickness
 	ad.SizeRelativeOffset = Vector3.new(0, 0, 0)
-	ad.Transparency = 0.4
-	ad.Color3 = Color3.fromRGB(170, 0, 255)
+	ad.Transparency = 0.6
+	ad.Color3 = Color3.fromRGB(253, 55, 0)
 
 	-- Wireframe look
 	ad.AlwaysOnTop = true
