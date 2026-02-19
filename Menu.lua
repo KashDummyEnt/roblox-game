@@ -769,8 +769,8 @@ Toggles.AddToggleDropDownCard(
 	pageMain,
 	"world_tween_to_npc",      -- toggle key
 	"npc_dropdown",            -- value key
-	"Tween To Selected NPC",   -- title
-	"Smoothly move to the selected NPC's position.",
+	"Npc Teleport",   -- title
+	"Moves Player to Selected NPC",
 	1,                         -- layout order
 	false,                     -- default toggle state
 	"Select NPC",              -- default dropdown value
