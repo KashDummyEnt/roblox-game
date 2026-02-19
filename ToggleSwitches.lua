@@ -637,7 +637,7 @@ function ToggleSwitches.AddToggleDropDownCard(
 
 	local POPUP_HEIGHT = 180
 	local POPUP_NUDGE_X = 0
-	local POPUP_NUDGE_Y = 12 -- <- bump this up if you want it lower
+	local POPUP_NUDGE_Y = 25 -- <- bump this up if you want it lower
 
 	local function positionPopup()
 		local btnPos = btn.AbsolutePosition
