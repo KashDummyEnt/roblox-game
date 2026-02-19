@@ -83,9 +83,17 @@ end
 
 local function tweenToNpc()
 	local selected = G.__HIGGI_SELECTED_NPC
+
+	-- wait briefly for dropdown to populate if needed
+	if not selected or selected == "" then
+		task.wait(0.1)
+		selected = G.__HIGGI_SELECTED_NPC
+	end
+
 	if not selected or selected == "" then
 		return
 	end
+
 
 	local root = getRoot()
 	if not root then
@@ -130,8 +138,11 @@ end
 -- subscribe to toggle state
 Toggles.Subscribe("world_tween_to_npc", function(state)
 	if state then
-		tweenToNpc()
+		task.defer(function()
+			tweenToNpc()
+		end)
 	else
 		cancelTween()
 	end
 end)
+
