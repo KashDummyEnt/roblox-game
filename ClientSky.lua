@@ -60,58 +60,57 @@ local VALUE_KEY = "world_skybox_dropdown"
 -- Put whatever names you want (must match the dropdown options list)
 -- Replace asset ids later.
 local PRESETS = {
-	["Neon Night"] = {
-		SkyboxBk = "rbxassetid://11111111111",
-		SkyboxDn = "rbxassetid://11111111112",
-		SkyboxFt = "rbxassetid://11111111113",
-		SkyboxLf = "rbxassetid://11111111114",
-		SkyboxRt = "rbxassetid://11111111115",
-		SkyboxUp = "rbxassetid://11111111116",
-		SunAngularSize = 21,
-		MoonAngularSize = 11,
-		StarCount = 3000,
+	["Space Rocks"] = {
+		SkyboxBk = "rbxassetid://16262356578",
+		SkyboxDn = "rbxassetid://16262358026",
+		SkyboxFt = "rbxassetid://16262360469",
+		SkyboxLf = "rbxassetid://16262362003",
+		SkyboxRt = "rbxassetid://16262363873",
+		SkyboxUp = "rbxassetid://16262366016",
+		CelestialBodiesShown = false,
+	},
+
+	["Red Planet"] = {
+		SkyboxBk = "rbxassetid://11730840088",
+		SkyboxDn = "rbxassetid://11730842997",
+		SkyboxFt = "rbxassetid://11730849615",
+		SkyboxLf = "rbxassetid://11730852920",
+		SkyboxRt = "rbxassetid://11730855491",
+		SkyboxUp = "rbxassetid://11730857150",
+		CelestialBodiesShown = false,
+	},
+
+	["Cyan Space"] = {
+		SkyboxBk = "rbxassetid://16876760844",
+		SkyboxDn = "rbxassetid://16876762818",
+		SkyboxFt = "rbxassetid://16876765234",
+		SkyboxLf = "rbxassetid://16876767659",
+		SkyboxRt = "rbxassetid://16876769447",
+		SkyboxUp = "rbxassetid://16876771721",
+		CelestialBodiesShown = false,
+	},
+
+	["Purple Space"] = {
+		SkyboxBk = "rbxassetid://14543264135",
+		SkyboxDn = "rbxassetid://14543358958",
+		SkyboxFt = "rbxassetid://14543257810",
+		SkyboxLf = "rbxassetid://14543275895",
+		SkyboxRt = "rbxassetid://14543280890",
+		SkyboxUp = "rbxassetid://14543371676",
 		CelestialBodiesShown = true,
 	},
 
-	["Pastel Clouds"] = {
-		SkyboxBk = "rbxassetid://22222222221",
-		SkyboxDn = "rbxassetid://22222222222",
-		SkyboxFt = "rbxassetid://22222222223",
-		SkyboxLf = "rbxassetid://22222222224",
-		SkyboxRt = "rbxassetid://22222222225",
-		SkyboxUp = "rbxassetid://22222222226",
-		SunAngularSize = 18,
-		MoonAngularSize = 10,
-		StarCount = 1500,
-		CelestialBodiesShown = true,
-	},
-
-	["Purple Dusk"] = {
-		SkyboxBk = "rbxassetid://33333333331",
-		SkyboxDn = "rbxassetid://33333333332",
-		SkyboxFt = "rbxassetid://33333333333",
-		SkyboxLf = "rbxassetid://33333333334",
-		SkyboxRt = "rbxassetid://33333333335",
-		SkyboxUp = "rbxassetid://33333333336",
-		SunAngularSize = 20,
-		MoonAngularSize = 12,
-		StarCount = 4000,
-		CelestialBodiesShown = true,
-	},
-
-	["Cyber Grid"] = {
-		SkyboxBk = "rbxassetid://44444444441",
-		SkyboxDn = "rbxassetid://44444444442",
-		SkyboxFt = "rbxassetid://44444444443",
-		SkyboxLf = "rbxassetid://44444444444",
-		SkyboxRt = "rbxassetid://44444444445",
-		SkyboxUp = "rbxassetid://44444444446",
-		SunAngularSize = 16,
-		MoonAngularSize = 9,
-		StarCount = 0,
+	["Neon Planet"] = {
+		SkyboxBk = "rbxassetid://16823386986",
+		SkyboxDn = "rbxassetid://16823388586",
+		SkyboxFt = "rbxassetid://16823390254",
+		SkyboxLf = "rbxassetid://16823392344",
+		SkyboxRt = "rbxassetid://16823394120",
+		SkyboxUp = "rbxassetid://16823395515",
 		CelestialBodiesShown = false,
 	},
 }
+
 
 -- =========================
 -- Original sky backup
