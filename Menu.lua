@@ -309,6 +309,7 @@ local function startNpcWatcher()
 end
 
 
+
 startNpcWatcher()
 
 local function getNpcNames(): {string}
