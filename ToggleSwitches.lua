@@ -599,31 +599,33 @@ end)
 
 
 	-- click-off close
-	UserInputService.InputBegan:Connect(function(input, gp)
-		if gp then
-			return
-		end
-		if not popup.Visible then
-			return
-		end
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
-		end
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if not popup.Visible then return end
 
-		local mpos = UserInputService:GetMouseLocation()
-		local x = mpos.X
-		local y = mpos.Y
+	if input.UserInputType ~= Enum.UserInputType.MouseButton1 
+	and input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
 
-		local function inBounds(g)
-			local p = g.AbsolutePosition
-			local s = g.AbsoluteSize
-			return x >= p.X and x <= p.X + s.X and y >= p.Y and y <= p.Y + s.Y
-		end
+	local mousePos = UserInputService:GetMouseLocation()
 
-		if not inBounds(popup) and not inBounds(btn) then
-			popup.Visible = false
-		end
-	end)
+	local function isInside(guiObject)
+		local absPos = guiObject.AbsolutePosition
+		local absSize = guiObject.AbsoluteSize
+
+		return mousePos.X >= absPos.X
+			and mousePos.X <= absPos.X + absSize.X
+			and mousePos.Y >= absPos.Y
+			and mousePos.Y <= absPos.Y + absSize.Y
+	end
+
+	-- if click is NOT inside popup AND NOT inside button
+	if not isInside(popup) and not isInside(btn) then
+		popup.Visible = false
+	end
+end)
+
 
 	return {
 		Get = function()
