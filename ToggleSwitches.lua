@@ -424,7 +424,7 @@ function ToggleSwitches.AddToggleDropDownCard(
 	local card = make("Frame", {
 		Name = "ToggleDropDownCard_" .. tostring(toggleKey) .. "_" .. tostring(valueKey),
 		BackgroundColor3 = config.Bg2,
-		Size = UDim2.new(1, 0, 0, 104),
+		Size = UDim2.new(1, 0, 0, 100),
 		ZIndex = 43,
 		LayoutOrder = order,
 		Parent = parent,
