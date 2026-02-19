@@ -625,10 +625,6 @@ local pageAbout = makePage("About")
 -- Main tab (keep placeholders for now)
 addPlaceholders(pageMain, "Main", 1)
 
-task.defer(function()
-	ensureFeatureLoaded("npc_dropdown", NPC_DROPDOWN_URL)
-end)
-
 
 --================================================================================
 -- Toggle-driven lazy feature loading
@@ -642,6 +638,11 @@ local function ensureFeatureLoaded(key: string, url: string)
 	featureLoaded[key] = true
 	runRemote(url)
 end
+
+task.defer(function()
+	ensureFeatureLoaded("npc_dropdown", NPC_DROPDOWN_URL)
+end)
+
 
 -- Visuals tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageVisuals, "visuals_player", "Chams", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
@@ -696,11 +697,6 @@ Toggles.AddToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI clic
 	print("UI Sounds:", state)
 end)
 
-Toggles.AddToggleCard(pageSettings, "tools_npcselector", "NPC Selector", "List Workspace > NPCs models and pick one.", 3, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	if state then
-		ensureFeatureLoaded("tools_npcselector", NPCSELECTOR_URL)
-	end
-end)
 
 addPlaceholders(pageAbout, "About", 1)
 
