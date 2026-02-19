@@ -194,10 +194,6 @@ end
 
 
 --================================================================================
--- NPC dropdown data source (Workspace > NPCs)
---================================================================================
-
---================================================================================
 -- NPC Registry (reliable list + last-known positions)
 --================================================================================
 local function getNpcFolder(): Folder?
@@ -209,23 +205,34 @@ local function getNpcFolder(): Folder?
 end
 
 G.__HIGGI_NPC_REGISTRY = G.__HIGGI_NPC_REGISTRY or {
-	byName = {}, -- [name] = {model: Model?, lastCFrame: CFrame?, lastSeen: number}
+	byName = {},      -- [name] = {model: Model?, lastCFrame: CFrame?}
+	namesSeen = {},   -- [name] = true (never removed from dropdown)
 }
 
 local Registry = G.__HIGGI_NPC_REGISTRY
 
 local function registryUpsertModel(m: Model)
 	local name = m.Name
+
+	-- permanently track name
+	Registry.namesSeen[name] = true
+
 	local entry = Registry.byName[name]
 	if not entry then
-		entry = {model = nil, lastCFrame = nil, lastSeen = 0}
+		entry = {
+			model = nil,
+			lastCFrame = nil,
+		}
 		Registry.byName[name] = entry
 	end
 
 	entry.model = m
-	entry.lastSeen = os.clock()
 
-	local pp = m.PrimaryPart or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChildWhichIsA("BasePart")
+	local pp =
+		m.PrimaryPart
+		or m:FindFirstChild("HumanoidRootPart")
+		or m:FindFirstChildWhichIsA("BasePart")
+
 	if pp and pp:IsA("BasePart") then
 		entry.lastCFrame = pp.CFrame
 	end
@@ -235,21 +242,21 @@ local function registryMarkRemoved(name: string)
 	local entry = Registry.byName[name]
 	if entry then
 		entry.model = nil
-		entry.lastSeen = os.clock()
 	end
+	-- DO NOT remove from namesSeen
+	-- DO NOT delete entry
 end
 
 local npcWatchConn: RBXScriptConnection? = nil
 local npcAddedConn: RBXScriptConnection? = nil
 local npcRemovedConn: RBXScriptConnection? = nil
-local npcRefreshConn: RBXScriptConnection? = nil
 local hookedFolder: Instance? = nil
 
 local function hookFolder(folder: Folder)
 	if npcAddedConn then npcAddedConn:Disconnect(); npcAddedConn = nil end
 	if npcRemovedConn then npcRemovedConn:Disconnect(); npcRemovedConn = nil end
 
-	-- seed
+	-- seed existing
 	for _, ch in ipairs(folder:GetChildren()) do
 		if ch:IsA("Model") then
 			registryUpsertModel(ch)
@@ -280,13 +287,11 @@ local function startNpcWatcher()
 	npcWatchConn = RunService.Heartbeat:Connect(function()
 		local folder = getNpcFolder()
 
-		-- folder missing: nothing to hook
 		if not folder then
 			hookedFolder = nil
 			return
 		end
 
-		-- folder replaced: re-hook
 		if folder ~= hookedFolder then
 			hookFolder(folder)
 		end
@@ -295,11 +300,11 @@ end
 
 startNpcWatcher()
 
-
 local function getNpcNames(): {string}
 	local names: {string} = {}
 
-	for name, _ in pairs(Registry.byName) do
+	-- IMPORTANT: use namesSeen so names never disappear
+	for name, _ in pairs(Registry.namesSeen) do
 		table.insert(names, name)
 	end
 
