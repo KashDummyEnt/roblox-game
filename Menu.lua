@@ -836,7 +836,7 @@ local function getSkyboxNames(): {string}
 		"Purple Space",
 		"Red Moon",
 		"Red Planet",
-		"Space Rocks",
+		"",
 		"Stellar",
 		"Storm",
 		"Sunset",
@@ -856,7 +856,7 @@ Toggles.AddToggleDropDownCard(
 	"Toggle + pick a skybox preset",
 	1,								-- layout order
 	false,							-- default toggle state
-	"Space Rocks",					-- default dropdown value
+	"Chromatic Horizon",					-- default dropdown value
 	getSkyboxNames,					-- options provider
 	CONFIG,
 	TOGGLE_SERVICES,
