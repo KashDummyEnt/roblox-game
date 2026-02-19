@@ -1,5 +1,5 @@
 --!strict
--- Fullbright.lua (REMOTE FEATURE SCRIPT)
+-- Fullbright.lua
 -- Toggle key: "world_fullbright"
 
 local Lighting = game:GetService("Lighting")
@@ -20,7 +20,6 @@ if not Store then
 	return
 end
 
--- prevent double-load
 G.__HIGGI_FULLBRIGHT = G.__HIGGI_FULLBRIGHT or {}
 local FB = G.__HIGGI_FULLBRIGHT
 if FB.Loaded then
@@ -41,7 +40,6 @@ local original = {
 	Has = false,
 	Brightness = nil :: number?,
 	ClockTime = nil :: number?,
-	FogEnd = nil :: number?,
 	GlobalShadows = nil :: boolean?,
 	Ambient = nil :: Color3?,
 	OutdoorAmbient = nil :: Color3?,
@@ -57,35 +55,27 @@ local function captureOriginal()
 	original.Has = true
 	original.Brightness = Lighting.Brightness
 	original.ClockTime = Lighting.ClockTime
-	original.FogEnd = Lighting.FogEnd
 	original.GlobalShadows = Lighting.GlobalShadows
 	original.Ambient = Lighting.Ambient
 	original.OutdoorAmbient = Lighting.OutdoorAmbient
 end
 
 --------------------------------------------------------------------------------
--- ENFORCEMENT LOOP
+-- ENFORCE
 --------------------------------------------------------------------------------
 
 local function startEnforce()
 	if enforceConn then return end
 
 	enforceConn = RunService.RenderStepped:Connect(function()
-		if not enabled then
-			return
-		end
+		if not enabled then return end
 
-		-- Only correct if something drifts (cheap checks)
 		if Lighting.Brightness ~= 3 then
 			Lighting.Brightness = 3
 		end
 
 		if Lighting.ClockTime ~= 14 then
 			Lighting.ClockTime = 14
-		end
-
-		if Lighting.FogEnd < 100000 then
-			Lighting.FogEnd = 100000
 		end
 
 		if Lighting.GlobalShadows ~= false then
@@ -123,13 +113,11 @@ local function applyOn()
 
 	Lighting.Brightness = 3
 	Lighting.ClockTime = 14
-	Lighting.FogEnd = 100000
 	Lighting.GlobalShadows = false
 	Lighting.Ambient = Color3.fromRGB(255, 255, 255)
 	Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
 
 	startEnforce()
-	print("[Fullbright] enabled")
 end
 
 local function applyOff()
@@ -142,12 +130,9 @@ local function applyOff()
 
 	Lighting.Brightness = original.Brightness
 	Lighting.ClockTime = original.ClockTime
-	Lighting.FogEnd = original.FogEnd
 	Lighting.GlobalShadows = original.GlobalShadows
 	Lighting.Ambient = original.Ambient
 	Lighting.OutdoorAmbient = original.OutdoorAmbient
-
-	print("[Fullbright] disabled")
 end
 
 --------------------------------------------------------------------------------
@@ -164,14 +149,10 @@ end
 
 if type(G.__HIGGI_TOGGLES_API) == "table"
 and type(G.__HIGGI_TOGGLES_API.Subscribe) == "function" then
-
-	local unsub = G.__HIGGI_TOGGLES_API.Subscribe(KEY, function(state)
+	G.__HIGGI_TOGGLES_API.Subscribe(KEY, function(state)
 		setEnabled(state)
 	end)
-
-	FB.Unsub = unsub
 end
 
--- Apply current state immediately
 local current = Store.states[KEY]
 setEnabled(current and true or false)
