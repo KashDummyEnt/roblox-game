@@ -1,11 +1,9 @@
 --!strict
 -- NoFog.lua
--- Requires Menu.lua to have already loaded ToggleSwitches.lua and set:
--- getgenv().__HIGGI_TOGGLES_API = TogglesTable
---
--- Toggle key expected: "world_nofog"
+-- Toggle key: "world_nofog"
 
 local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 
 local function getGlobal(): any
 	local gg = (typeof(getgenv) == "function") and getgenv() or nil
@@ -24,7 +22,6 @@ local function waitForTogglesApi(timeoutSeconds: number): any?
 	while os.clock() - start < timeoutSeconds do
 		local api = G.__HIGGI_TOGGLES_API
 		if type(api) == "table" then
-			-- minimal surface we expect
 			if type(api.GetState) == "function" and type(api.Subscribe) == "function" then
 				return api
 			end
@@ -36,15 +33,16 @@ end
 
 local Toggles = waitForTogglesApi(6)
 if not Toggles then
-	warn("[NoFog] Toggle API not found (did Menu.lua run first?)")
+	warn("[NoFog] Toggle API not found")
 	return
 end
 
---////////////////////////////////////////////////////////////////////////////////
--- State capture + apply/revert
---////////////////////////////////////////////////////////////////////////////////
+--------------------------------------------------------------------------------
+-- STATE
+--------------------------------------------------------------------------------
 
 local enabled = false
+local enforceConn: RBXScriptConnection? = nil
 
 local originalFogStart = Lighting.FogStart
 local originalFogEnd = Lighting.FogEnd
@@ -61,6 +59,10 @@ type AtmosBackup = {
 }
 
 local atmosBackups: {AtmosBackup} = {}
+
+--------------------------------------------------------------------------------
+-- SNAPSHOT
+--------------------------------------------------------------------------------
 
 local function snapshotAtmospheres()
 	table.clear(atmosBackups)
@@ -80,26 +82,62 @@ local function snapshotAtmospheres()
 	end
 end
 
-local function applyNoFog()
-	if enabled then
-		return
+--------------------------------------------------------------------------------
+-- ENFORCEMENT LOOP
+--------------------------------------------------------------------------------
+
+local function startEnforce()
+	if enforceConn then return end
+
+	enforceConn = RunService.RenderStepped:Connect(function()
+		if not enabled then
+			return
+		end
+
+		-- Fog correction (cheap comparisons)
+		if Lighting.FogStart ~= 0 then
+			Lighting.FogStart = 0
+		end
+
+		if Lighting.FogEnd < 1e8 then
+			Lighting.FogEnd = 1e9
+		end
+
+		-- Atmosphere correction (lightweight)
+		for _, inst in ipairs(Lighting:GetDescendants()) do
+			if inst:IsA("Atmosphere") then
+				if inst.Density ~= 0 then inst.Density = 0 end
+				if inst.Haze ~= 0 then inst.Haze = 0 end
+				if inst.Glare ~= 0 then inst.Glare = 0 end
+			end
+		end
+	end)
+end
+
+local function stopEnforce()
+	if enforceConn then
+		enforceConn:Disconnect()
+		enforceConn = nil
 	end
+end
+
+--------------------------------------------------------------------------------
+-- APPLY / REVERT
+--------------------------------------------------------------------------------
+
+local function applyNoFog()
+	if enabled then return end
 	enabled = true
 
-	-- capture current (in case something changed after initial load)
 	originalFogStart = Lighting.FogStart
 	originalFogEnd = Lighting.FogEnd
 	originalFogColor = Lighting.FogColor
+
 	snapshotAtmospheres()
 
-	-- basically “fog off”
 	Lighting.FogStart = 0
 	Lighting.FogEnd = 1e9
 
-	-- keep fog color as-is (some games use it for vibe). if you want, you can force:
-	-- Lighting.FogColor = Color3.fromRGB(255, 255, 255)
-
-	-- Atmosphere can still haze you even with FogEnd huge, so dial it down
 	for _, b in ipairs(atmosBackups) do
 		local a = b.Atmos
 		if a.Parent then
@@ -109,14 +147,15 @@ local function applyNoFog()
 		end
 	end
 
+	startEnforce()
 	print("[NoFog] enabled")
 end
 
 local function revertNoFog()
-	if not enabled then
-		return
-	end
+	if not enabled then return end
 	enabled = false
+
+	stopEnforce()
 
 	Lighting.FogStart = originalFogStart
 	Lighting.FogEnd = originalFogEnd
@@ -137,22 +176,22 @@ local function revertNoFog()
 	print("[NoFog] disabled")
 end
 
--- If atmospheres get added later while enabled, clamp them too
+--------------------------------------------------------------------------------
+-- NEW ATMOSPHERE SAFETY
+--------------------------------------------------------------------------------
+
 Lighting.DescendantAdded:Connect(function(inst: Instance)
-	if not enabled then
-		return
-	end
+	if not enabled then return end
 	if inst:IsA("Atmosphere") then
-		-- newly added atmosphere should also get killed
 		inst.Density = 0
 		inst.Haze = 0
 		inst.Glare = 0
 	end
 end)
 
---////////////////////////////////////////////////////////////////////////////////
--- Toggle wiring
---////////////////////////////////////////////////////////////////////////////////
+--------------------------------------------------------------------------------
+-- TOGGLE BINDING
+--------------------------------------------------------------------------------
 
 local function onToggle(nextState: boolean)
 	if nextState then
@@ -162,13 +201,8 @@ local function onToggle(nextState: boolean)
 	end
 end
 
--- subscribe to future changes
 Toggles.Subscribe(TOGGLE_KEY, onToggle)
 
--- apply current state if already ON
 if Toggles.GetState(TOGGLE_KEY, false) then
 	applyNoFog()
-else
-	-- stay idle until user turns it on
-	print("[NoFog] waiting (toggle is OFF)")
 end
