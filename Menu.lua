@@ -173,11 +173,11 @@ end
 -- expose module API globally so feature scripts can Subscribe without re-fetching
 G.__HIGGI_TOGGLES_API = Toggles
 
--- Shared services table for module
 local TOGGLE_SERVICES = {
 	TweenService = TweenService,
 	UserInputService = UserInputService,
 }
+
 
 --================================================================================
 -- Toggle-driven lazy feature loading (MOVED HERE)
@@ -465,10 +465,28 @@ local screenGui = make("ScreenGui", {
 	Parent = playerGui,
 })
 
+local overlay = make("Frame", {
+	Name = "OverlayLayer",
+	BackgroundTransparency = 1,
+	Size = UDim2.fromScale(1, 1),
+	Position = UDim2.fromScale(0, 0),
+	ZIndex = 999,
+	ClipsDescendants = false,
+	Parent = screenGui,
+})
+
+
 make("UIScale", {
 	Scale = isTouchDevice() and 1.05 or 1,
 	Parent = screenGui,
 })
+
+TOGGLE_SERVICES = {
+	TweenService = TweenService,
+	UserInputService = UserInputService,
+	Overlay = overlay,
+}
+
 
 -- Toggle button (background circle)
 local toggleButton = make("ImageButton", {
