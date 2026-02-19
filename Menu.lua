@@ -660,20 +660,6 @@ local pageAbout = makePage("About")
 -- Main tab (keep placeholders for now)
 addPlaceholders(pageMain, "Main", 2)
 
-Toggles.AddDropDownCard(
-	pageMain,
-	"npc_dropdown",
-	"NPC",
-	"Pick an NPC from Workspace > NPCs",
-	1,
-	"Select NPC",
-	getNpcNames,
-	CONFIG,
-	TOGGLE_SERVICES,
-	function(selectedName)
-		G.__HIGGI_SELECTED_NPC = selectedName
-	end
-)
 
 Toggles.AddToggleCard(
 	pageMain,
@@ -688,6 +674,21 @@ Toggles.AddToggleCard(
 		if state then
 			ensureFeatureLoaded("world_tween_to_npc", TWEEN_NPC_URL)
 		end
+	end
+)
+
+Toggles.AddDropDownCard(
+	pageMain,
+	"npc_dropdown",
+	"NPC",
+	"Pick an NPC from Workspace > NPCs",
+	1,
+	"Select NPC",
+	getNpcNames,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(selectedName)
+		G.__HIGGI_SELECTED_NPC = selectedName
 	end
 )
 
