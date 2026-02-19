@@ -532,7 +532,7 @@ local header = make("Frame", {
 make("TextLabel", {
 	Name = "Title",
 	BackgroundTransparency = 1,
-	Text = "Higgi's Menu",
+	Text = "Higgi's EBT Menu",
 	TextColor3 = CONFIG.Text,
 	TextSize = 18,
 	Font = Enum.Font.GothamSemibold,
