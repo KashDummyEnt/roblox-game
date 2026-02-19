@@ -658,8 +658,6 @@ local pageSettings = makePage("Settings")
 local pageAbout = makePage("About")
 
 -- Main tab (keep placeholders for now)
-addPlaceholders(pageMain, "Main", 2)
-
 
 Toggles.AddToggleCard(
 	pageMain,
