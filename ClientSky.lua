@@ -541,7 +541,7 @@ end
 -- Sync logic
 -- =========================
 local function getSelectedName()
-	local v = Toggles.GetValue(VALUE_KEY, "Space Rocks")
+	local v = Toggles.GetValue(VALUE_KEY, "Eyes")
 	if type(v) == "string" and v ~= "" then
 		return v
 	end
