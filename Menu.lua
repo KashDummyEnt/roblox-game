@@ -836,7 +836,7 @@ local function getSkyboxNames(): {string}
 		"Purple Space",
 		"Red Moon",
 		"Red Planet",
-		"",
+		"Space Rocks",
 		"Stellar",
 		"Storm",
 		"Sunset",
