@@ -315,15 +315,15 @@ local PRESETS = {
 	},
 
 		["Ghost"] = {
-		SkyboxBk = "rbxassetid://131463907527649",
-		SkyboxDn = "rbxassetid://116154164311420",
-		SkyboxFt = "rbxassetid://113077689016278",
-		SkyboxLf = "rbxassetid://79984367513909",
-		SkyboxRt = "rbxassetid://82395195737484",
-		SkyboxUp = "rbxassetid://117530106700350",
+		SkyboxBk = "rbxassetid://111506743048183",
+		SkyboxDn = "rbxassetid://86198196348228",
+		SkyboxFt = "rbxassetid://86265514167302",
+		SkyboxLf = "rbxassetid://100257959405445",
+		SkyboxRt = "rbxassetid://71935101953120",
+		SkyboxUp = "rbxassetid://132011089223498",
 		CelestialBodiesShown = false,
 		ClockTime = 14.5,
-		SkyboxOrientation = Vector3.new(0, 0, 0),
+		SkyboxOrientation = Vector3.new(0, 0, -90),
 	},
 
 		["Battlerock"] = {
