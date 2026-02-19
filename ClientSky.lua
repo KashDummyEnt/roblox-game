@@ -349,6 +349,67 @@ local PRESETS = {
 		ClockTime = 14.5,
 		SkyboxOrientation = Vector3.new(0, 0, -90),
 	},
+
+		["Grid"] = {
+		SkyboxBk = "rbxassetid://5024243191",
+		SkyboxDn = "rbxassetid://5024243191",
+		SkyboxFt = "rbxassetid://5024243191",
+		SkyboxLf = "rbxassetid://5024243191",
+		SkyboxRt = "rbxassetid://5024243191",
+		SkyboxUp = "rbxassetid://5024243191",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+		["Cyberpunk"] = {
+		SkyboxBk = "rbxassetid://13688944232",
+		SkyboxDn = "rbxassetid://13688950268",
+		SkyboxFt = "rbxassetid://13688946780",
+		SkyboxLf = "rbxassetid://13688948683",
+		SkyboxRt = "rbxassetid://13688942454",
+		SkyboxUp = "rbxassetid://13688952485",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+		["Emerald Oblivion"] = {
+		SkyboxBk = "rbxassetid://16823270864",
+		SkyboxDn = "rbxassetid://16823272150",
+		SkyboxFt = "rbxassetid://16823273508",
+		SkyboxLf = "rbxassetid://16823274898",
+		SkyboxRt = "rbxassetid://16823276281",
+		SkyboxUp = "rbxassetid://16823277547",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+		["Chromatic Horizon"] = {
+		SkyboxBk = "rbxassetid://16694187412",
+		SkyboxDn = "rbxassetid://16694190947",
+		SkyboxFt = "rbxassetid://16694194795",
+		SkyboxLf = "rbxassetid://16694197080",
+		SkyboxRt = "rbxassetid://16694200892",
+		SkyboxUp = "rbxassetid://16694204069",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+		["Eyes"] = {
+		SkyboxBk = "rbxassetid://113857258921684",
+		SkyboxDn = "rbxassetid://131099902234134",
+		SkyboxFt = "rbxassetid://98342317659302",
+		SkyboxLf = "rbxassetid://130914716725043",
+		SkyboxRt = "rbxassetid://93970360759256",
+		SkyboxUp = "rbxassetid://135000456639127",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+	
 }
 
 -- =========================
