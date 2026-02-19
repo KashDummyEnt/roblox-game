@@ -452,15 +452,34 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 		Parent = btn,
 	})
 
-	local popup = make("Frame", {
-		Name = "Popup",
-		BackgroundColor3 = config.Bg2,
-		Visible = false,
-		Size = UDim2.new(1, -20, 0, 180),
-		Position = UDim2.new(0, 10, 0, 90),
-		ZIndex = 80,
-		Parent = card,
-	})
+local Overlay = services.Overlay
+assert(Overlay, "DropDown requires Overlay in services")
+
+local popup = make("Frame", {
+	Name = "Popup",
+	BackgroundColor3 = config.Bg2,
+	Visible = false,
+	Size = UDim2.fromOffset(200, 180), -- temporary, will resize dynamically
+	ZIndex = 500,
+	Parent = Overlay,
+})
+
+	local function positionPopup()
+	local btnPos = btn.AbsolutePosition
+	local btnSize = btn.AbsoluteSize
+
+	popup.Position = UDim2.fromOffset(
+		btnPos.X,
+		btnPos.Y + btnSize.Y
+	)
+
+	popup.Size = UDim2.fromOffset(
+		btnSize.X,
+		180
+	)
+end
+
+
 	addCorner(popup, 12)
 	addStroke(popup, 1, config.Stroke, 0.25)
 
@@ -471,7 +490,7 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 		ScrollBarThickness = 6,
 		CanvasSize = UDim2.new(0, 0, 0, 0),
 		Size = UDim2.new(1, 0, 1, 0),
-		ZIndex = 81,
+		ZIndex = 501,
 		Parent = popup,
 	})
 
@@ -502,7 +521,7 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 				TextYAlignment = Enum.TextYAlignment.Top,
 				Size = UDim2.new(1, -16, 1, -16),
 				Position = UDim2.new(0, 8, 0, 8),
-				ZIndex = 82,
+				ZIndex = 502,
 				Parent = list,
 			})
 			list.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -522,7 +541,7 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 				Size = UDim2.new(1, -8, 0, itemH),
 				Position = UDim2.new(0, 4, 0, y + 4),
 				Text = "",
-				ZIndex = 82,
+				ZIndex = 502,
 				Parent = list,
 			})
 			addCorner(item, 8)
@@ -538,7 +557,7 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 				TextTruncate = Enum.TextTruncate.AtEnd,
 				Size = UDim2.new(1, -12, 1, 0),
 				Position = UDim2.new(0, 8, 0, 0),
-				ZIndex = 83,
+				ZIndex = 503,
 				Parent = item,
 			})
 
@@ -567,12 +586,15 @@ function ToggleSwitches.AddDropDownCard(parent, key, title, desc, order, default
 		list.CanvasSize = UDim2.new(0, 0, 0, y + 8)
 	end
 
-	btn.MouseButton1Click:Connect(function()
-		popup.Visible = not popup.Visible
-		if popup.Visible then
-			rebuild()
-		end
-	end)
+btn.MouseButton1Click:Connect(function()
+	popup.Visible = not popup.Visible
+
+	if popup.Visible then
+		positionPopup()
+		rebuild()
+	end
+end)
+
 
 	-- click-off close
 	UserInputService.InputBegan:Connect(function(input, gp)
