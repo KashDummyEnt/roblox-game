@@ -200,7 +200,7 @@ end
 -- =========================
 local function getSelectedName()
 	-- Prefer the value store (dropdown), but also accept the convenience global if you set it.
-	local v = Toggles.GetValue(VALUE_KEY, "Neon Night")
+	local v = Toggles.GetValue(VALUE_KEY, "Space Rocks")
 	if type(v) == "string" and v ~= "" then
 		return v
 	end
@@ -210,7 +210,7 @@ local function getSelectedName()
 		return g
 	end
 
-	return "Neon Night"
+	return "Space Rocks"
 end
 
 local function applyIfEnabled()
