@@ -197,13 +197,21 @@ local function startFlyFollow()
 		local delta = targetPos - currentPos
 		local dist = delta.Magnitude
 
-		-- ARRIVED: hard snap + zero velocity
-		if dist <= ARRIVAL_THRESHOLD then
-			root.AssemblyLinearVelocity = Vector3.zero
-			root.AssemblyAngularVelocity = Vector3.zero
-			root.CFrame = CFrame.new(targetPos, npcPos)
-			return
-		end
+-- arrival lock
+if dist <= ARRIVAL_THRESHOLD then
+	if not root:GetAttribute("TweenLocked") then
+		root:SetAttribute("TweenLocked", true)
+
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+		root.CFrame = CFrame.new(targetPos, npcPos)
+	end
+
+	return
+else
+	root:SetAttribute("TweenLocked", false)
+end
+
 
 		-- CONSTANT LINEAR SPEED
 		local moveStep = MOVE_SPEED * dt
