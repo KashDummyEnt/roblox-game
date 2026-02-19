@@ -55,10 +55,8 @@ local TOGGLE_KEY = "world_skybox"
 local VALUE_KEY = "world_skybox_dropdown"
 
 -- =========================
--- Presets (placeholders)
+-- Presets
 -- =========================
--- Put whatever names you want (must match the dropdown options list)
--- Replace asset ids later.
 local PRESETS = {
 	["Space Rocks"] = {
 		SkyboxBk = "rbxassetid://16262356578",
@@ -117,41 +115,36 @@ local PRESETS = {
 		SkyboxLf = "rbxassetid://5260800833",
 		SkyboxRt = "rbxassetid://5260811073",
 		SkyboxUp = "rbxassetid://5260824661",
-		CelestialBodiesShown = false, -- or true
+		CelestialBodiesShown = false,
 	},
-		["Sunset"] = {
+
+	["Sunset"] = {
 		SkyboxBk = "rbxassetid://151165214",
 		SkyboxDn = "rbxassetid://151165197",
 		SkyboxFt = "rbxassetid://151165224",
 		SkyboxLf = "rbxassetid://151165191",
 		SkyboxRt = "rbxassetid://151165206",
 		SkyboxUp = "rbxassetid://151165227",
-		CelestialBodiesShown = false, -- or true
+		CelestialBodiesShown = false,
 	},
-
 }
 
-
 -- =========================
--- Original sky backup
+-- Original sky + time backup
 -- =========================
 local originalSkyClone = nil
+local originalClockTime: number? = nil
 
-local function captureOriginalSkyOnce()
-	if originalSkyClone then
+local function captureOriginalStateOnce()
+	if originalSkyClone or originalClockTime ~= nil then
 		return
 	end
+
+	originalClockTime = Lighting.ClockTime
 
 	local existing = Lighting:FindFirstChildOfClass("Sky")
 	if existing then
 		originalSkyClone = existing:Clone()
-	end
-end
-
-local function destroyAnySkyNamedClientSky()
-	local s = Lighting:FindFirstChild("ClientSky")
-	if s and s:IsA("Sky") then
-		s:Destroy()
 	end
 end
 
@@ -168,20 +161,23 @@ end
 -- =========================
 local function applyPresetByName(name)
 	local preset = PRESETS[name]
+
 	if not preset then
-		-- fallback to any preset if name is unknown
 		for _, v in pairs(PRESETS) do
 			preset = v
 			break
 		end
 	end
+
 	if not preset then
 		return
 	end
 
-	captureOriginalSkyOnce()
+	captureOriginalStateOnce()
 
-	-- remove any existing sky (client-side)
+	-- Force time to 14.5
+	Lighting.ClockTime = 14.5
+
 	removeAllSkyInstances()
 
 	local sky = Instance.new("Sky")
@@ -194,24 +190,24 @@ local function applyPresetByName(name)
 	sky.SkyboxRt = preset.SkyboxRt
 	sky.SkyboxUp = preset.SkyboxUp
 
-	sky.SunAngularSize = preset.SunAngularSize or 21
-	sky.MoonAngularSize = preset.MoonAngularSize or 11
-	sky.StarCount = preset.StarCount or 3000
+	sky.SunAngularSize = 21
+	sky.MoonAngularSize = 11
+	sky.StarCount = 3000
 	sky.CelestialBodiesShown = (preset.CelestialBodiesShown ~= false)
 
 	sky.Parent = Lighting
 end
 
-local function restoreOriginalSky()
-	-- clear our sky first
+local function restoreOriginalState()
 	removeAllSkyInstances()
 
 	if originalSkyClone then
 		local restored = originalSkyClone:Clone()
 		restored.Parent = Lighting
-	else
-		-- nothing to restore; just leave it empty
-		destroyAnySkyNamedClientSky()
+	end
+
+	if originalClockTime ~= nil then
+		Lighting.ClockTime = originalClockTime
 	end
 end
 
@@ -219,7 +215,6 @@ end
 -- Sync logic
 -- =========================
 local function getSelectedName()
-	-- Prefer the value store (dropdown), but also accept the convenience global if you set it.
 	local v = Toggles.GetValue(VALUE_KEY, "Space Rocks")
 	if type(v) == "string" and v ~= "" then
 		return v
@@ -243,7 +238,7 @@ local function onToggleChanged(state)
 	if state then
 		applyPresetByName(getSelectedName())
 	else
-		restoreOriginalSky()
+		restoreOriginalState()
 	end
 end
 
@@ -262,7 +257,7 @@ State.cleanup = function()
 	pcall(unsubValue)
 end
 
--- initial sync (in case toggle was already on)
+-- Initial sync
 if Toggles.GetState(TOGGLE_KEY, false) then
 	applyPresetByName(getSelectedName())
 end
