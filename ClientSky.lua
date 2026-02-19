@@ -2,8 +2,12 @@
 -- Multi-preset skybox changer controlled by:
 -- Toggle: world_skybox
 -- Dropdown: world_skybox_dropdown
+--
+-- Each preset has its own ClockTime.
+-- ClockTime is enforced every frame while enabled so the server can't override it.
 
 local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 
 -- =========================
 -- Global access + toggle api
@@ -55,7 +59,7 @@ local TOGGLE_KEY = "world_skybox"
 local VALUE_KEY = "world_skybox_dropdown"
 
 -- =========================
--- Presets
+-- Presets (each has its own time)
 -- =========================
 local PRESETS = {
 	["Space Rocks"] = {
@@ -66,6 +70,7 @@ local PRESETS = {
 		SkyboxRt = "rbxassetid://16262363873",
 		SkyboxUp = "rbxassetid://16262366016",
 		CelestialBodiesShown = false,
+		ClockTime = 14.5,
 	},
 
 	["Red Planet"] = {
@@ -76,6 +81,7 @@ local PRESETS = {
 		SkyboxRt = "rbxassetid://11730855491",
 		SkyboxUp = "rbxassetid://11730857150",
 		CelestialBodiesShown = false,
+		ClockTime = 14.5,
 	},
 
 	["Cyan Space"] = {
@@ -86,6 +92,7 @@ local PRESETS = {
 		SkyboxRt = "rbxassetid://16876769447",
 		SkyboxUp = "rbxassetid://16876771721",
 		CelestialBodiesShown = false,
+		ClockTime = 14.5,
 	},
 
 	["Purple Space"] = {
@@ -96,6 +103,7 @@ local PRESETS = {
 		SkyboxRt = "rbxassetid://14543280890",
 		SkyboxUp = "rbxassetid://14543371676",
 		CelestialBodiesShown = true,
+		ClockTime = 14.5,
 	},
 
 	["Cyan Planet"] = {
@@ -106,6 +114,7 @@ local PRESETS = {
 		SkyboxRt = "rbxassetid://16823394120",
 		SkyboxUp = "rbxassetid://16823395515",
 		CelestialBodiesShown = false,
+		ClockTime = 14.5,
 	},
 
 	["Synthwave"] = {
@@ -116,6 +125,7 @@ local PRESETS = {
 		SkyboxRt = "rbxassetid://5260811073",
 		SkyboxUp = "rbxassetid://5260824661",
 		CelestialBodiesShown = false,
+		ClockTime = 14.5,
 	},
 
 	["Sunset"] = {
@@ -126,6 +136,7 @@ local PRESETS = {
 		SkyboxRt = "rbxassetid://151165206",
 		SkyboxUp = "rbxassetid://151165227",
 		CelestialBodiesShown = false,
+		ClockTime = 14.5,
 	},
 }
 
@@ -157,6 +168,33 @@ local function removeAllSkyInstances()
 end
 
 -- =========================
+-- ClockTime enforcement (anti server override)
+-- =========================
+local clockEnforceConn: RBXScriptConnection? = nil
+local enforcedClockTime: number? = nil
+
+local function stopClockEnforce()
+	enforcedClockTime = nil
+	if clockEnforceConn then
+		clockEnforceConn:Disconnect()
+		clockEnforceConn = nil
+	end
+end
+
+local function startClockEnforce(t: number)
+	enforcedClockTime = t
+	if clockEnforceConn then
+		return
+	end
+
+	clockEnforceConn = RunService.RenderStepped:Connect(function()
+		if enforcedClockTime ~= nil and Lighting.ClockTime ~= enforcedClockTime then
+			Lighting.ClockTime = enforcedClockTime
+		end
+	end)
+end
+
+-- =========================
 -- Apply / Restore
 -- =========================
 local function applyPresetByName(name)
@@ -175,8 +213,9 @@ local function applyPresetByName(name)
 
 	captureOriginalStateOnce()
 
-	-- Force time to 14.5
-	Lighting.ClockTime = 14.5
+	-- enforce time (per preset) so server can't override it
+	startClockEnforce(preset.ClockTime or 14.5)
+	Lighting.ClockTime = preset.ClockTime or 14.5
 
 	removeAllSkyInstances()
 
@@ -199,6 +238,7 @@ local function applyPresetByName(name)
 end
 
 local function restoreOriginalState()
+	stopClockEnforce()
 	removeAllSkyInstances()
 
 	if originalSkyClone then
@@ -255,6 +295,7 @@ local unsubValue = Toggles.SubscribeValue(VALUE_KEY, onDropdownChanged)
 State.cleanup = function()
 	pcall(unsubToggle)
 	pcall(unsubValue)
+	pcall(stopClockEnforce)
 end
 
 -- Initial sync
