@@ -765,36 +765,28 @@ local pageAbout = makePage("About")
 
 -- Main tab (keep placeholders for now)
 
-Toggles.AddToggleCard(
+Toggles.AddToggleDropDownCard(
 	pageMain,
-	"world_tween_to_npc",
-	"Tween To Selected NPC",
+	"world_tween_to_npc",      -- toggle key
+	"npc_dropdown",            -- value key
+	"Tween To Selected NPC",   -- title
 	"Smoothly move to the selected NPC's position.",
-	1,
-	false,
+	1,                         -- layout order
+	false,                     -- default toggle state
+	"Select NPC",              -- default dropdown value
+	getNpcNames,               -- options provider
 	CONFIG,
 	TOGGLE_SERVICES,
 	function(state)
 		if state then
 			ensureFeatureLoaded("world_tween_to_npc", TWEEN_NPC_URL)
 		end
-	end
-)
-
-Toggles.AddDropDownCard(
-	pageMain,
-	"npc_dropdown",
-	"NPC",
-	"Pick an NPC from Workspace > NPCs",
-	2,
-	"Select NPC",
-	getNpcNames,
-	CONFIG,
-	TOGGLE_SERVICES,
+	end,
 	function(selectedName)
 		G.__HIGGI_SELECTED_NPC = selectedName
 	end
 )
+
 
 -- Visuals tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageVisuals, "visuals_player", "Chams", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
