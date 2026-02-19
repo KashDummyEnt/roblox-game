@@ -16,9 +16,6 @@ local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-ga
 local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NoFog.lua"
 local ADMINESP_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/AdminESP.lua"
 local FLIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Flight.lua"
-local NPC_DROPDOWN_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NPCDropdown.lua"
-
-
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -181,6 +178,29 @@ local TOGGLE_SERVICES = {
 }
 
 --================================================================================
+-- NPC dropdown data source (Workspace > NPCs)
+--================================================================================
+local function getNpcNames(): {string}
+	local folder = workspace:FindFirstChild("NPCs")
+	if not folder then
+		return {}
+	end
+
+	local names: {string} = {}
+	for _, ch in ipairs(folder:GetChildren()) do
+		if ch:IsA("Model") then
+			table.insert(names, ch.Name)
+		end
+	end
+
+	table.sort(names, function(a, b)
+		return a:lower() < b:lower()
+	end)
+
+	return names
+end
+
+--================================================================================
 -- Pin toggle under Roblox top-left UI (Roblox button row)
 --================================================================================
 local TOPLEFT_X = 16
@@ -226,7 +246,6 @@ local function startPinnedToggle(btn: GuiObject)
 		end
 	end)
 end
-
 
 --================================================================================
 -- Drag helper (RenderStepped, sync-safe)
@@ -623,8 +642,22 @@ local pageSettings = makePage("Settings")
 local pageAbout = makePage("About")
 
 -- Main tab (keep placeholders for now)
-addPlaceholders(pageMain, "Main", 1)
+addPlaceholders(pageMain, "Main", 2)
 
+Toggles.AddDropDownCard(
+	pageMain,
+	"npc_dropdown",
+	"NPC",
+	"Pick an NPC from Workspace > NPCs",
+	1,
+	"Select NPC",
+	getNpcNames,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(selectedName)
+		G.__HIGGI_SELECTED_NPC = selectedName
+	end
+)
 
 --================================================================================
 -- Toggle-driven lazy feature loading
@@ -638,11 +671,6 @@ local function ensureFeatureLoaded(key: string, url: string)
 	featureLoaded[key] = true
 	runRemote(url)
 end
-
-task.defer(function()
-	ensureFeatureLoaded("npc_dropdown", NPC_DROPDOWN_URL)
-end)
-
 
 -- Visuals tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageVisuals, "visuals_player", "Chams", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
@@ -696,7 +724,6 @@ end)
 Toggles.AddToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI click sounds.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("UI Sounds:", state)
 end)
-
 
 addPlaceholders(pageAbout, "About", 1)
 
@@ -935,7 +962,6 @@ local function setOpen(nextOpen: boolean)
 	toggleIcon.Image = isOpen and OPEN_ICON or CLOSED_ICON
 	tweenPopup(isOpen)
 end
-
 
 -- DRAGGING (SEPARATE)
 -- toggleButton drag removed so it stays pinned under Roblox UI
