@@ -818,7 +818,8 @@ local function getSkyboxNames(): {string}
 		"Red Planet",
 		"Cyan Space",
 		"Purple Space",
-		"Neon Planet",
+		"Cyan Planet",
+		"Synthwave",
 	}
 end
 
