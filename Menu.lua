@@ -198,13 +198,6 @@ end
 --================================================================================
 -- NPC Registry (reliable list + last-known positions)
 --================================================================================
-local function getNpcFolder(): Folder?
-	local f = workspace:FindFirstChild("NPCs")
-	if f and f:IsA("Folder") then
-		return f
-	end
-	return nil
-end
 
 G.__HIGGI_NPC_REGISTRY = G.__HIGGI_NPC_REGISTRY or {
 	byName = {},      -- [name] = {model: Model?, lastCFrame: CFrame?}
@@ -247,38 +240,6 @@ local function registryMarkRemoved(name: string)
 	end
 	-- DO NOT remove from namesSeen
 	-- DO NOT delete entry
-end
-
-local npcWatchConn: RBXScriptConnection? = nil
-local npcAddedConn: RBXScriptConnection? = nil
-local npcRemovedConn: RBXScriptConnection? = nil
-local hookedFolder: Instance? = nil
-
-local function hookFolder(folder: Folder)
-	if npcAddedConn then npcAddedConn:Disconnect(); npcAddedConn = nil end
-	if npcRemovedConn then npcRemovedConn:Disconnect(); npcRemovedConn = nil end
-
-	-- seed existing
-	for _, ch in ipairs(folder:GetChildren()) do
-		if ch:IsA("Model") then
-			registryUpsertModel(ch)
-		end
-	end
-
-	-- live updates
-	npcAddedConn = folder.ChildAdded:Connect(function(ch)
-		if ch:IsA("Model") then
-			registryUpsertModel(ch)
-		end
-	end)
-
-	npcRemovedConn = folder.ChildRemoved:Connect(function(ch)
-		if ch:IsA("Model") then
-			registryMarkRemoved(ch.Name)
-		end
-	end)
-
-	hookedFolder = folder
 end
 
 local function startNpcWatcher()
