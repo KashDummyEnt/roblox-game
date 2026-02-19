@@ -313,6 +313,42 @@ local PRESETS = {
 		ClockTime = 14.5,
 		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
+
+		["Ghost"] = {
+		SkyboxBk = "rbxassetid://131463907527649",
+		SkyboxDn = "rbxassetid://116154164311420",
+		SkyboxFt = "rbxassetid://113077689016278",
+		SkyboxLf = "rbxassetid://79984367513909",
+		SkyboxRt = "rbxassetid://82395195737484",
+		SkyboxUp = "rbxassetid://117530106700350",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+		["Battlerock"] = {
+		SkyboxBk = "rbxassetid://131136284306917",
+		SkyboxDn = "rbxassetid://89505977207531",
+		SkyboxFt = "rbxassetid://140099243548102",
+		SkyboxLf = "rbxassetid://121676169821100",
+		SkyboxRt = "rbxassetid://97183886241447",
+		SkyboxUp = "rbxassetid://107128620201556",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+		["Stellar"] = {
+		SkyboxBk = "rbxassetid://107264897520277",
+		SkyboxDn = "rbxassetid://135637946277638",
+		SkyboxFt = "rbxassetid://135705252786048",
+		SkyboxLf = "rbxassetid://119667604517747",
+		SkyboxRt = "rbxassetid://75904303027092",
+		SkyboxUp = "rbxassetid://97011146822716",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, -90),
+	},
 }
 
 -- =========================
