@@ -14,6 +14,8 @@ local player = Players.LocalPlayer
 local MOVE_SPEED = 150
 local FRONT_DISTANCE = 5
 local HEIGHT_OFFSET = 3
+local ARRIVAL_THRESHOLD = 0.25
+local ROTATION_LERP = 0.25
 
 -- =========================
 -- Global access
@@ -48,11 +50,7 @@ local function getChar(): Model?
 end
 
 local function getHumanoid(char: Model): Humanoid?
-	local h = char:FindFirstChildOfClass("Humanoid")
-	if h and h:IsA("Humanoid") then
-		return h
-	end
-	return nil
+	return char:FindFirstChildOfClass("Humanoid")
 end
 
 local function getRoot(char: Model): BasePart?
@@ -66,7 +64,7 @@ end
 -- =========================
 -- Registry integration
 -- =========================
-local function getRegistryEntry(name: string): any
+local function getRegistryEntry(name: string)
 	local reg = G.__HIGGI_NPC_REGISTRY
 	if not reg or not reg.byName then
 		return nil
@@ -93,7 +91,6 @@ local function resolveNpcPose(selected: string): (Vector3?, Vector3?)
 		return nil, nil
 	end
 
-	-- Prefer live model
 	local m = entry.model
 	if m and m.Parent then
 		local pp = getNpcPrimaryPart(m)
@@ -102,7 +99,6 @@ local function resolveNpcPose(selected: string): (Vector3?, Vector3?)
 		end
 	end
 
-	-- Fallback to last known
 	local cf = entry.lastCFrame
 	if cf then
 		return cf.Position, cf.LookVector
@@ -201,7 +197,7 @@ local function stopFly()
 end
 
 -- =========================
--- Core follow logic
+-- Core follow logic (CFrame-based, no physics fight)
 -- =========================
 local function startFlyFollow()
 	stopFly()
@@ -216,23 +212,24 @@ local function startFlyFollow()
 	setHumanoidPhysics(h, true)
 	setNoclip(char, true)
 
-	activeConnection = RunService.Heartbeat:Connect(function()
+	activeConnection = RunService.RenderStepped:Connect(function(dt)
+		if not root:IsDescendantOf(workspace) then
+			stopFly()
+			return
+		end
+
 		if not Toggles.GetState("world_tween_to_npc", false) then
 			stopFly()
 			return
 		end
 
-		setNoclip(char, true)
-
 		local selected = G.__HIGGI_SELECTED_NPC
 		if not selected or selected == "" then
-			root.AssemblyLinearVelocity = Vector3.zero
 			return
 		end
 
 		local npcPos, npcLook = resolveNpcPose(selected)
 		if not npcPos or not npcLook then
-			root.AssemblyLinearVelocity = Vector3.zero
 			return
 		end
 
@@ -245,14 +242,17 @@ local function startFlyFollow()
 		local delta = targetPos - currentPos
 		local dist = delta.Magnitude
 
-		if dist < 0.25 then
-			root.AssemblyLinearVelocity = Vector3.zero
-			root.CFrame = CFrame.new(currentPos, npcPos)
+		if dist < ARRIVAL_THRESHOLD then
+			local lookCF = CFrame.new(targetPos, npcPos)
+			root.CFrame = root.CFrame:Lerp(lookCF, ROTATION_LERP)
 			return
 		end
 
-		root.AssemblyLinearVelocity = delta.Unit * MOVE_SPEED
-		root.CFrame = CFrame.new(currentPos, npcPos)
+		local moveStep = math.min(MOVE_SPEED * dt, dist)
+		local newPos = currentPos + delta.Unit * moveStep
+
+		local lookCF = CFrame.new(newPos, npcPos)
+		root.CFrame = root.CFrame:Lerp(lookCF, ROTATION_LERP)
 	end)
 end
 
@@ -272,3 +272,11 @@ Toggles.Subscribe("world_tween_to_npc", handleState)
 if Toggles.GetState("world_tween_to_npc", false) then
 	handleState(true)
 end
+
+-- Respawn safety
+player.CharacterAdded:Connect(function()
+	task.wait(0.2)
+	if Toggles.GetState("world_tween_to_npc", false) then
+		startFlyFollow()
+	end
+end)
