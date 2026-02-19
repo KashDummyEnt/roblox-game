@@ -459,10 +459,12 @@ local popup = make("Frame", {
 	Name = "Popup",
 	BackgroundColor3 = config.Bg2,
 	Visible = false,
-	Size = UDim2.fromOffset(200, 180), -- temporary, will resize dynamically
+	Size = UDim2.fromOffset(200, 180),
 	ZIndex = 500,
+	ClipsDescendants = true,
 	Parent = Overlay,
 })
+
 
 	local function positionPopup()
 	local btnPos = btn.AbsolutePosition
