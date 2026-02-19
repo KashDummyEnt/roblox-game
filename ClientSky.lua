@@ -3,8 +3,8 @@
 -- Toggle: world_skybox
 -- Dropdown: world_skybox_dropdown
 --
--- Each preset has its own ClockTime.
--- ClockTime is enforced every frame while enabled so the server can't override it.
+-- Each preset has its own ClockTime + SkyboxOrientation.
+-- ClockTime + SkyboxOrientation are enforced every frame while enabled so the server can't override them.
 
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
@@ -59,7 +59,7 @@ local TOGGLE_KEY = "world_skybox"
 local VALUE_KEY = "world_skybox_dropdown"
 
 -- =========================
--- Presets (each has its own time)
+-- Presets (each has its own time + orientation)
 -- =========================
 local PRESETS = {
 	["Space Rocks"] = {
@@ -71,6 +71,7 @@ local PRESETS = {
 		SkyboxUp = "rbxassetid://16262366016",
 		CelestialBodiesShown = false,
 		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
 
 	["Red Planet"] = {
@@ -82,6 +83,7 @@ local PRESETS = {
 		SkyboxUp = "rbxassetid://11730857150",
 		CelestialBodiesShown = false,
 		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
 
 	["Cyan Space"] = {
@@ -93,6 +95,7 @@ local PRESETS = {
 		SkyboxUp = "rbxassetid://16876771721",
 		CelestialBodiesShown = false,
 		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
 
 	["Purple Space"] = {
@@ -104,6 +107,7 @@ local PRESETS = {
 		SkyboxUp = "rbxassetid://14543371676",
 		CelestialBodiesShown = true,
 		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
 
 	["Cyan Planet"] = {
@@ -115,9 +119,10 @@ local PRESETS = {
 		SkyboxUp = "rbxassetid://16823395515",
 		CelestialBodiesShown = false,
 		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
 
-	["Synthwave"] = {
+	["Neon Borealis"] = {
 		SkyboxBk = "rbxassetid://5260808177",
 		SkyboxDn = "rbxassetid://5260653793",
 		SkyboxFt = "rbxassetid://5260817288",
@@ -126,6 +131,7 @@ local PRESETS = {
 		SkyboxUp = "rbxassetid://5260824661",
 		CelestialBodiesShown = false,
 		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
 
 	["Sunset"] = {
@@ -137,9 +143,10 @@ local PRESETS = {
 		SkyboxUp = "rbxassetid://151165227",
 		CelestialBodiesShown = false,
 		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
 
-		["Aurora"] = { 
+	["Aurora"] = {
 		SkyboxBk = "rbxassetid://340908398",
 		SkyboxDn = "rbxassetid://340908450",
 		SkyboxFt = "rbxassetid://340908468",
@@ -148,6 +155,163 @@ local PRESETS = {
 		SkyboxUp = "rbxassetid://340908586",
 		CelestialBodiesShown = false,
 		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Error"] = {
+		SkyboxBk = "rbxassetid://13710453307",
+		SkyboxDn = "rbxassetid://13710575997",
+		SkyboxFt = "rbxassetid://13710453307",
+		SkyboxLf = "rbxassetid://13710453307",
+		SkyboxRt = "rbxassetid://13710453307",
+		SkyboxUp = "rbxassetid://13710678849",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Dreamy"] = {
+		SkyboxBk = "rbxassetid://16642371727",
+		SkyboxDn = "rbxassetid://16642373510",
+		SkyboxFt = "rbxassetid://16642374596",
+		SkyboxLf = "rbxassetid://16642375956",
+		SkyboxRt = "rbxassetid://16642377351",
+		SkyboxUp = "rbxassetid://16642379025",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Emerald Borealis"] = {
+		SkyboxBk = "rbxassetid://16563478983",
+		SkyboxDn = "rbxassetid://16563481302",
+		SkyboxFt = "rbxassetid://16563484084",
+		SkyboxLf = "rbxassetid://16563485362",
+		SkyboxRt = "rbxassetid://16563487078",
+		SkyboxUp = "rbxassetid://16563489821",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["War"] = {
+		SkyboxBk = "rbxassetid://1012890",
+		SkyboxDn = "rbxassetid://1012891",
+		SkyboxFt = "rbxassetid://1012887",
+		SkyboxLf = "rbxassetid://1012889",
+		SkyboxRt = "rbxassetid://1012888",
+		SkyboxUp = "rbxassetid://1014449",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Nuke"] = {
+		SkyboxBk = "rbxassetid://435049698",
+		SkyboxDn = "rbxassetid://435037324",
+		SkyboxFt = "rbxassetid://435050854",
+		SkyboxLf = "rbxassetid://435034621",
+		SkyboxRt = "rbxassetid://435034046",
+		SkyboxUp = "rbxassetid://435051914",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Storm"] = {
+		SkyboxBk = "rbxassetid://255027929",
+		SkyboxDn = "rbxassetid://255027967",
+		SkyboxFt = "rbxassetid://255027923",
+		SkyboxLf = "rbxassetid://255027938",
+		SkyboxRt = "rbxassetid://255027946",
+		SkyboxUp = "rbxassetid://255027960",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Violet Moon"] = {
+		SkyboxBk = "rbxassetid://17839210699",
+		SkyboxDn = "rbxassetid://17839215896",
+		SkyboxFt = "rbxassetid://17839218166",
+		SkyboxLf = "rbxassetid://17839220800",
+		SkyboxRt = "rbxassetid://17839223605",
+		SkyboxUp = "rbxassetid://17839226876",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Toon Moon"] = {
+		SkyboxBk = "rbxassetid://16676744885",
+		SkyboxDn = "rbxassetid://16676747356",
+		SkyboxFt = "rbxassetid://16676750819",
+		SkyboxLf = "rbxassetid://16676754379",
+		SkyboxRt = "rbxassetid://16676757270",
+		SkyboxUp = "rbxassetid://16676760882",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Red Moon"] = {
+		SkyboxBk = "rbxassetid://401664839",
+		SkyboxDn = "rbxassetid://401664862",
+		SkyboxFt = "rbxassetid://401664960",
+		SkyboxLf = "rbxassetid://401664881",
+		SkyboxRt = "rbxassetid://401664901",
+		SkyboxUp = "rbxassetid://401664936",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Crimson Despair"] = {
+		SkyboxBk = "rbxassetid://18705029692",
+		SkyboxDn = "rbxassetid://18705031833",
+		SkyboxFt = "rbxassetid://18705034432",
+		SkyboxLf = "rbxassetid://18705037452",
+		SkyboxRt = "rbxassetid://18705041280",
+		SkyboxUp = "rbxassetid://18705044890",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Corrupted"] = {
+		SkyboxBk = "rbxassetid://75147627948681",
+		SkyboxDn = "rbxassetid://79112811930261",
+		SkyboxFt = "rbxassetid://100726299880961",
+		SkyboxLf = "rbxassetid://94672505047452",
+		SkyboxRt = "rbxassetid://103152999464233",
+		SkyboxUp = "rbxassetid://136002803290873",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Dark Matter"] = {
+		SkyboxBk = "rbxassetid://97629693450922",
+		SkyboxDn = "rbxassetid://97898396690232",
+		SkyboxFt = "rbxassetid://134755033418084",
+		SkyboxLf = "rbxassetid://118219143707956",
+		SkyboxRt = "rbxassetid://114940065588775",
+		SkyboxUp = "rbxassetid://95430908943263",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
+
+	["Molten"] = {
+		SkyboxBk = "rbxassetid://131463907527649",
+		SkyboxDn = "rbxassetid://116154164311420",
+		SkyboxFt = "rbxassetid://113077689016278",
+		SkyboxLf = "rbxassetid://79984367513909",
+		SkyboxRt = "rbxassetid://82395195737484",
+		SkyboxUp = "rbxassetid://117530106700350",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
 }
 
@@ -179,28 +343,38 @@ local function removeAllSkyInstances()
 end
 
 -- =========================
--- ClockTime enforcement (anti server override)
+-- ClockTime + SkyboxOrientation enforcement (anti override)
 -- =========================
-local clockEnforceConn: RBXScriptConnection? = nil
+local enforceConn: RBXScriptConnection? = nil
 local enforcedClockTime: number? = nil
+local enforcedOrientation: Vector3? = nil
 
-local function stopClockEnforce()
+local function stopEnforce()
 	enforcedClockTime = nil
-	if clockEnforceConn then
-		clockEnforceConn:Disconnect()
-		clockEnforceConn = nil
+	enforcedOrientation = nil
+	if enforceConn then
+		enforceConn:Disconnect()
+		enforceConn = nil
 	end
 end
 
-local function startClockEnforce(t: number)
-	enforcedClockTime = t
-	if clockEnforceConn then
+local function startEnforce(clockTime: number, orientation: Vector3)
+	enforcedClockTime = clockTime
+	enforcedOrientation = orientation
+	if enforceConn then
 		return
 	end
 
-	clockEnforceConn = RunService.RenderStepped:Connect(function()
+	enforceConn = RunService.RenderStepped:Connect(function()
 		if enforcedClockTime ~= nil and Lighting.ClockTime ~= enforcedClockTime then
 			Lighting.ClockTime = enforcedClockTime
+		end
+
+		local sky = Lighting:FindFirstChild("ClientSky")
+		if sky and sky:IsA("Sky") and enforcedOrientation ~= nil then
+			if sky.SkyboxOrientation ~= enforcedOrientation then
+				sky.SkyboxOrientation = enforcedOrientation
+			end
 		end
 	end)
 end
@@ -224,9 +398,11 @@ local function applyPresetByName(name)
 
 	captureOriginalStateOnce()
 
-	-- enforce time (per preset) so server can't override it
-	startClockEnforce(preset.ClockTime or 14.5)
-	Lighting.ClockTime = preset.ClockTime or 14.5
+	local targetTime = preset.ClockTime or 14.5
+	local targetOri = preset.SkyboxOrientation or Vector3.new(0, 0, 0)
+
+	startEnforce(targetTime, targetOri)
+	Lighting.ClockTime = targetTime
 
 	removeAllSkyInstances()
 
@@ -245,11 +421,13 @@ local function applyPresetByName(name)
 	sky.StarCount = 3000
 	sky.CelestialBodiesShown = (preset.CelestialBodiesShown ~= false)
 
+	sky.SkyboxOrientation = targetOri
+
 	sky.Parent = Lighting
 end
 
 local function restoreOriginalState()
-	stopClockEnforce()
+	stopEnforce()
 	removeAllSkyInstances()
 
 	if originalSkyClone then
@@ -306,7 +484,7 @@ local unsubValue = Toggles.SubscribeValue(VALUE_KEY, onDropdownChanged)
 State.cleanup = function()
 	pcall(unsubToggle)
 	pcall(unsubValue)
-	pcall(stopClockEnforce)
+	pcall(stopEnforce)
 end
 
 -- Initial sync
