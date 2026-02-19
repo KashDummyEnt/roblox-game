@@ -547,7 +547,8 @@ if open then
 	popup.Size = UDim2.fromOffset(btn.AbsoluteSize.X, 0)
 	popup.BackgroundTransparency = OPEN_FADE_FROM
 
-	local stroke = popup:FindFirstChildOfClass("UIStroke")
+	local stroke = popupStroke
+
 	if stroke then
 		(stroke :: UIStroke).Transparency = 1
 	end
@@ -570,7 +571,8 @@ if open then
 			return
 		end
 
-local stroke = popup:FindFirstChildOfClass("UIStroke")
+local stroke = popupStroke
+
 
 local tInfo = TweenInfo.new(CLOSE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 closeTween = TweenService:Create(popup, tInfo, {
@@ -598,6 +600,13 @@ end
 
 	addCorner(popup, 12)
 	addStroke(popup, 1, config.Stroke, 0.25)
+
+	popup.BackgroundTransparency = 1
+	local popupStroke = popup:FindFirstChildOfClass("UIStroke")
+	if popupStroke then
+		(popupStroke :: UIStroke).Transparency = 1
+	end
+
 
 	local list = make("ScrollingFrame", {
 		Name = "List",
