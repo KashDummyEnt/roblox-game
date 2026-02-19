@@ -837,6 +837,7 @@ local function getSkyboxNames(): {string}
 		"Molten",
 		"Ghost",
 		"Battlerock",
+		"Stellar",
 	}
 end
 
