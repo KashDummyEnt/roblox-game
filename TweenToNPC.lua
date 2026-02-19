@@ -1,5 +1,6 @@
 -- TweenToNPC.lua
--- True linear fly, no physics fighting, no jitter, instant noclip
+-- Constant linear-speed fly-to / noclip follow
+-- Clean snap on arrival (no glide, no jitter)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -15,187 +16,233 @@ local HEIGHT_OFFSET = 3
 local ARRIVAL_THRESHOLD = 1
 
 -- =========================
--- GLOBAL
+-- Global access
 -- =========================
 local function getGlobal()
-	return (typeof(getgenv) == "function" and getgenv()) or _G
+	if typeof(getgenv) == "function" then
+		return getgenv()
+	end
+	return _G
 end
 
 local G = getGlobal()
 local Toggles = G.__HIGGI_TOGGLES_API
-if not Toggles then return end
+
+if not Toggles then
+	warn("TweenToNPC: Toggles API missing")
+	return
+end
 
 -- =========================
--- STATE
+-- State
 -- =========================
-local connection: RBXScriptConnection? = nil
-local locked = false
+local activeConnection: RBXScriptConnection? = nil
+local savedCanCollide: {[BasePart]: boolean} = {}
 
 -- =========================
--- Helpers
+-- Character helpers
 -- =========================
-local function getChar()
+local function getChar(): Model?
 	return player.Character
 end
 
-local function getRoot(char)
-	return char and char:FindFirstChild("HumanoidRootPart")
+local function getHumanoid(char: Model): Humanoid?
+	return char:FindFirstChildOfClass("Humanoid")
 end
 
-local function getHumanoid(char)
-	return char and char:FindFirstChildOfClass("Humanoid")
+local function getRoot(char: Model): BasePart?
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+	return nil
 end
 
-local function getRegistryEntry(name)
+-- =========================
+-- Registry integration
+-- =========================
+local function getRegistryEntry(name: string)
 	local reg = G.__HIGGI_NPC_REGISTRY
-	return reg and reg.byName and reg.byName[name]
+	if not reg or not reg.byName then
+		return nil
+	end
+	return reg.byName[name]
 end
 
-local function resolveNpcPose(name)
-	local entry = getRegistryEntry(name)
-	if not entry then return nil, nil end
+local function getNpcPrimaryPart(model: Model): BasePart?
+	if model.PrimaryPart then
+		return model.PrimaryPart
+	end
 
-	if entry.model and entry.model.Parent then
-		local m = entry.model
-		local pp = m.PrimaryPart
-			or m:FindFirstChild("HumanoidRootPart")
-			or m:FindFirstChildWhichIsA("BasePart")
+	local hrp = model:FindFirstChild("HumanoidRootPart")
+	if hrp and hrp:IsA("BasePart") then
+		return hrp
+	end
 
+	return model:FindFirstChildWhichIsA("BasePart")
+end
+
+local function resolveNpcPose(selected: string): (Vector3?, Vector3?)
+	local entry = getRegistryEntry(selected)
+	if not entry then
+		return nil, nil
+	end
+
+	local m = entry.model
+	if m and m.Parent then
+		local pp = getNpcPrimaryPart(m)
 		if pp then
 			return pp.Position, pp.CFrame.LookVector
 		end
 	end
 
-	if entry.lastCFrame then
-		return entry.lastCFrame.Position, entry.lastCFrame.LookVector
+	local cf = entry.lastCFrame
+	if cf then
+		return cf.Position, cf.LookVector
 	end
 
 	return nil, nil
 end
 
 -- =========================
--- Hard Noclip
+-- Noclip
 -- =========================
-local function forceNoclip(char)
-	for _, v in ipairs(char:GetDescendants()) do
-		if v:IsA("BasePart") then
-			v.CanCollide = false
+local function setNoclip(char: Model, enabled: boolean)
+	for _, inst in ipairs(char:GetDescendants()) do
+		if inst:IsA("BasePart") then
+			if enabled then
+				if savedCanCollide[inst] == nil then
+					savedCanCollide[inst] = inst.CanCollide
+				end
+				inst.CanCollide = false
+			else
+				if savedCanCollide[inst] ~= nil then
+					inst.CanCollide = savedCanCollide[inst]
+				end
+			end
 		end
+	end
+
+	if not enabled then
+		savedCanCollide = {}
 	end
 end
 
 -- =========================
 -- Stop
 -- =========================
-local function stop()
-	if connection then
-		connection:Disconnect()
-		connection = nil
+local function stopFly()
+	if activeConnection then
+		activeConnection:Disconnect()
+		activeConnection = nil
 	end
 
 	local char = getChar()
-	if not char then return end
+	if char then
+		setNoclip(char, false)
 
-	local humanoid = getHumanoid(char)
-	if humanoid then
-		humanoid.PlatformStand = false
+		local root = getRoot(char)
+		if root then
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+		end
 	end
-
-	local root = getRoot(char)
-	if root then
-		root.Anchored = false
-		root.AssemblyLinearVelocity = Vector3.zero
-		root.AssemblyAngularVelocity = Vector3.zero
-	end
-
-	locked = false
 end
 
 -- =========================
--- Start
+-- Core linear movement
 -- =========================
-local function start()
-	stop()
+local function startFlyFollow()
+	stopFly()
 
 	local char = getChar()
 	if not char then return end
 
 	local root = getRoot(char)
-	local humanoid = getHumanoid(char)
-	if not root or not humanoid then return end
+	if not root then return end
 
-	-- kill physics controller entirely
-	humanoid.PlatformStand = true
+	setNoclip(char, true)
 
-	connection = RunService.Heartbeat:Connect(function(dt)
-
-		if not Toggles.GetState("world_tween_to_npc", false) then
-			stop()
-			return
-		end
+	activeConnection = RunService.Heartbeat:Connect(function(dt)
 
 		if not root:IsDescendantOf(workspace) then
-			stop()
+			stopFly()
 			return
 		end
 
-		forceNoclip(char)
+		if not Toggles.GetState("world_tween_to_npc", false) then
+			stopFly()
+			return
+		end
+
+		-- enforce noclip every frame
+		setNoclip(char, true)
 
 		local selected = G.__HIGGI_SELECTED_NPC
-		if not selected or selected == "" then return end
-
-		local npcPos, npcLook = resolveNpcPose(selected)
-		if not npcPos then return end
-
-		local target =
-			npcPos
-			+ npcLook * FRONT_DISTANCE
-			+ Vector3.new(0, HEIGHT_OFFSET, 0)
-
-		local delta = target - root.Position
-		local dist = delta.Magnitude
-
-		-- ARRIVAL
-		if dist <= ARRIVAL_THRESHOLD then
-			if not locked then
-				locked = true
-				root.Anchored = true
-				root.CFrame = CFrame.new(target, npcPos)
-			end
+		if not selected or selected == "" then
 			return
 		end
 
-		-- MOVING
-		if locked then
-			root.Anchored = false
-			locked = false
+		local npcPos, npcLook = resolveNpcPose(selected)
+		if not npcPos or not npcLook then
+			return
 		end
 
-		local step = math.min(MOVE_SPEED * dt, dist)
-		local newPos = root.Position + delta.Unit * step
+		local targetPos =
+			npcPos
+			+ (npcLook * FRONT_DISTANCE)
+			+ Vector3.new(0, HEIGHT_OFFSET, 0)
+
+		local currentPos = root.Position
+		local delta = targetPos - currentPos
+		local dist = delta.Magnitude
+
+-- arrival lock
+if dist <= ARRIVAL_THRESHOLD then
+	if not root:GetAttribute("TweenLocked") then
+		root:SetAttribute("TweenLocked", true)
+
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+		root.CFrame = CFrame.new(targetPos, npcPos)
+	end
+
+	return
+else
+	root:SetAttribute("TweenLocked", false)
+end
+
+
+		-- CONSTANT LINEAR SPEED
+		local moveStep = MOVE_SPEED * dt
+		local direction = delta.Unit
+		local newPos = currentPos + direction * moveStep
 
 		root.CFrame = CFrame.new(newPos, npcPos)
 	end)
 end
 
 -- =========================
--- Toggle
+-- Toggle handling
 -- =========================
-Toggles.Subscribe("world_tween_to_npc", function(state)
+local function handleState(state: boolean)
 	if state then
-		start()
+		startFlyFollow()
 	else
-		stop()
+		stopFly()
 	end
-end)
-
-if Toggles.GetState("world_tween_to_npc", false) then
-	start()
 end
 
+Toggles.Subscribe("world_tween_to_npc", handleState)
+
+if Toggles.GetState("world_tween_to_npc", false) then
+	handleState(true)
+end
+
+-- Respawn safety
 player.CharacterAdded:Connect(function()
 	task.wait(0.2)
 	if Toggles.GetState("world_tween_to_npc", false) then
-		start()
+		startFlyFollow()
 	end
 end)
