@@ -62,7 +62,7 @@ local HP_BASE_W, HP_BASE_H = 70, 8
 local NAME_MIN_W, NAME_MIN_H = 50, 14
 local HP_MIN_W, HP_MIN_H = 40, 6
 
-local MAX_DISTANCE = 9999
+local MAX_DISTANCE = 99999
 
 ------------------------------------------------------------------
 -- STATE
