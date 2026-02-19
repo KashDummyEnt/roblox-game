@@ -638,6 +638,23 @@ local list = make("ScrollingFrame", {
 			end
 		end
 
+		local cleaned = {}
+
+for i = 1, #options do
+	local v = options[i]
+	if v ~= nil then
+		local s = tostring(v)
+		s = s:gsub("^%s+", ""):gsub("%s+$", "") -- trim
+
+		if s ~= "" then
+			table.insert(cleaned, v)
+		end
+	end
+end
+
+options = cleaned
+
+
 		if #options == 0 then
 			make("TextLabel", {
 				BackgroundTransparency = 1,
