@@ -47,7 +47,6 @@ local KEYS = {
 	Player = "visuals_player",
 	Snaplines = "visuals_snaplines",
 	Box3D = "visuals_box3d",
-	Team = "visuals_team",
 }
 
 ------------------------------------------------------------------
@@ -81,44 +80,22 @@ local featureState = {
 -- TEAM CHECK
 ------------------------------------------------------------------
 
-------------------------------------------------------------------
--- TEAM LOGIC
-------------------------------------------------------------------
+local TEAM_CHECK_ENABLED = true -- flip false if you ever want FFA mode
 
-local function isSameTeam(plr: Player): boolean
+local function isEnemy(plr: Player): boolean
 	if plr == LocalPlayer then
 		return false
 	end
-
+	
+	if not TEAM_CHECK_ENABLED then
+		return true
+	end
+	
 	if not LocalPlayer.Team or not plr.Team then
-		return false
+		return true -- no team info = treat as enemy
 	end
-
-	return plr.Team == LocalPlayer.Team
-end
-
-local function shouldRenderFor(plr: Player): (boolean, boolean)
-	-- returns:
-	-- shouldRender, isTeammate
-
-	if plr == LocalPlayer then
-		return false, false
-	end
-
-	local teamESP = Toggles.GetState("visuals_team", false)
-
-	local sameTeam = isSameTeam(plr)
-
-	if sameTeam then
-		if teamESP then
-			return true, true
-		else
-			return false, true
-		end
-	end
-
-	-- enemy
-	return true, false
+	
+	return plr.Team ~= LocalPlayer.Team
 end
 
 local playerConns: {[number]: {RBXScriptConnection}} = {}
@@ -216,16 +193,10 @@ local function cleanupAll()
 end
 
 ------------------------------------------------------------------
--- BUILDERS (TEAM-AWARE)
+-- BUILDERS (FIXED)
 ------------------------------------------------------------------
 
-local TweenService = game:GetService("TweenService")
-
-------------------------------------------------------------------
--- NAME ESP
-------------------------------------------------------------------
-
-local function buildName(plr: Player, isTeammate: boolean)
+local function buildName(plr: Player)
 	local char = plr.Character
 	if not char then return end
 
@@ -244,25 +215,17 @@ local function buildName(plr: Player, isTeammate: boolean)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.fromRGB(255, 70, 70)
 	label.TextStrokeTransparency = 0.5
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamSemibold
 	label.Text = plr.DisplayName
-
-	if isTeammate then
-		label.TextColor3 = Color3.fromRGB(80, 170, 255)
-	else
-		label.TextColor3 = Color3.fromRGB(255, 70, 70)
-	end
-
 	label.Parent = bill
 end
 
-------------------------------------------------------------------
--- HEALTH ESP
-------------------------------------------------------------------
+local TweenService = game:GetService("TweenService")
 
-local function buildHealth(plr: Player, isTeammate: boolean)
+local function buildHealth(plr: Player)
 	local char = plr.Character
 	if not char then return end
 
@@ -295,14 +258,9 @@ local function buildHealth(plr: Player, isTeammate: boolean)
 
 	local backStroke = Instance.new("UIStroke")
 	backStroke.Thickness = 1
+	backStroke.Color = Color3.fromRGB(60, 60, 60)
 	backStroke.Transparency = 0.3
 	backStroke.Parent = back
-
-	if isTeammate then
-		backStroke.Color = Color3.fromRGB(80, 170, 255)
-	else
-		backStroke.Color = Color3.fromRGB(255, 70, 70)
-	end
 
 	------------------------------------------------------------------
 	-- PADDING
@@ -369,31 +327,21 @@ local function buildHealth(plr: Player, isTeammate: boolean)
 	table.insert(playerConns[plr.UserId], hum.HealthChanged:Connect(update))
 end
 
-------------------------------------------------------------------
--- GLOW / CHAMS
-------------------------------------------------------------------
 
-local function buildGlow(plr: Player, isTeammate: boolean)
+local function buildGlow(plr: Player)
 	local char = plr.Character
 	if not char then return end
 	if char:FindFirstChild(GLOW_TAG) then return end
 
 	local h = Instance.new("Highlight")
 	h.Name = GLOW_TAG
+	h.FillColor = Color3.fromRGB(255, 40, 40)
 	h.FillTransparency = 0.7
 	h.OutlineColor = Color3.fromRGB(255, 255, 255)
 	h.OutlineTransparency = 0.1
 	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-
-	if isTeammate then
-		h.FillColor = Color3.fromRGB(80, 170, 255)
-	else
-		h.FillColor = Color3.fromRGB(255, 40, 40)
-	end
-
 	h.Parent = char
 end
-
 
 ------------------------------------------------------------------
 -- LIFECYCLE FIX
@@ -402,12 +350,10 @@ end
 local function applyForPlayer(plr: Player)
 	if plr == LocalPlayer then return end
 
-	local shouldRender, isTeammate = shouldRenderFor(plr)
-
-if not shouldRender then
+	if not isEnemy(plr) then
 	cleanupPlayer(plr)
 	return
-end
+    end
 
 	disconnectUser(plr.UserId)
 	if not plr.Character then return end
@@ -428,22 +374,22 @@ end
 	-- BUILD ESP FEATURES
 	------------------------------------------------------------------
 
-if featureState.Name then buildName(plr, isTeammate) end
-if featureState.Health then buildHealth(plr, isTeammate) end
-if featureState.Player then buildGlow(plr, isTeammate) end
+	if featureState.Name then buildName(plr) end
+	if featureState.Health then buildHealth(plr) end
+	if featureState.Player then buildGlow(plr) end
 
 	-- retry safety (streaming delay protection)
 	task.delay(0.4, function()
 		if plr.Character then
-if featureState.Name then buildName(plr, isTeammate) end
-if featureState.Health then buildHealth(plr, isTeammate) end
+			if featureState.Name then buildName(plr) end
+			if featureState.Health then buildHealth(plr) end
 		end
 	end)
 
 	task.delay(1, function()
 		if plr.Character then
-if featureState.Name then buildName(plr, isTeammate) end
-if featureState.Health then buildHealth(plr, isTeammate) end
+			if featureState.Name then buildName(plr) end
+			if featureState.Health then buildHealth(plr) end
 		end
 	end)
 end
@@ -559,33 +505,31 @@ local function startScaler()
 				continue
 			end
 
-------------------------------------------------------------------
--- TEAM / RENDER ENFORCEMENT
-------------------------------------------------------------------
+			------------------------------------------------------------------
+			-- HARD TEAM CHECK ENFORCEMENT
+			------------------------------------------------------------------
 
-local shouldRender, isTeammate = shouldRenderFor(plr)
+			if not isEnemy(plr) then
+				-- Remove Name
+				local nameGui = head:FindFirstChild(NAME_TAG)
+				if nameGui then
+					nameGui:Destroy()
+				end
 
-if not shouldRender then
-	-- Remove Name
-	local nameGui = head:FindFirstChild(NAME_TAG)
-	if nameGui then
-		nameGui:Destroy()
-	end
+				-- Remove Health
+				local hpGui = root:FindFirstChild(HEALTH_TAG)
+				if hpGui then
+					hpGui:Destroy()
+				end
 
-	-- Remove Health
-	local hpGui = root:FindFirstChild(HEALTH_TAG)
-	if hpGui then
-		hpGui:Destroy()
-	end
+				-- Remove Glow
+				local glow = char:FindFirstChild(GLOW_TAG)
+				if glow then
+					glow:Destroy()
+				end
 
-	-- Remove Glow
-	local glow = char:FindFirstChild(GLOW_TAG)
-	if glow then
-		glow:Destroy()
-	end
-
-	continue
-end
+				continue
+			end
 
 			------------------------------------------------------------------
 			-- DISTANCE SCALING
@@ -604,7 +548,7 @@ end
 				local nameGui = head:FindFirstChild(NAME_TAG)
 
 				if not nameGui then
-					buildName(plr, isTeammate)
+					buildName(plr)
 					nameGui = head:FindFirstChild(NAME_TAG)
 				end
 
@@ -630,7 +574,7 @@ end
 				local hpGui = root:FindFirstChild(HEALTH_TAG)
 
 				if not hpGui then
-					buildHealth(plr, isTeammate)
+					buildHealth(plr)
 					hpGui = root:FindFirstChild(HEALTH_TAG)
 				end
 
@@ -654,7 +598,7 @@ end
 
 			if featureState.Player then
 				if not char:FindFirstChild(GLOW_TAG) then
-					buildGlow(plr, isTeammate)
+					buildGlow(plr)
 				end
 			else
 				local glow = char:FindFirstChild(GLOW_TAG)
@@ -794,9 +738,7 @@ local function updateSnapFor(plr: Player, data: SnapData, originWorld: Vector3)
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local root = char and (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
 
-	local shouldRender = select(1, shouldRenderFor(plr))
-
-	if not shouldRender then
+	if not isEnemy(plr) then
 		setSnapEnabled(data, false)
 		return
 	end
@@ -806,8 +748,10 @@ local function updateSnapFor(plr: Player, data: SnapData, originWorld: Vector3)
 		return
 	end
 
+	-- feet-to-feet target
 	local targetFeet = getFeetWorld(root, hum)
 
+	-- build a "rod" from origin to target
 	local dir = targetFeet - originWorld
 	local len = dir.Magnitude
 	if len < 0.05 then
@@ -817,9 +761,11 @@ local function updateSnapFor(plr: Player, data: SnapData, originWorld: Vector3)
 
 	local mid = originWorld + (dir * 0.5)
 
+	-- orient so Z axis points toward target
 	data.part.CFrame = CFrame.lookAt(mid, targetFeet)
-	data.ad.Size = Vector3.new(SNAP_THICKNESS, SNAP_THICKNESS, len)
 
+	-- thin box stretched along Z
+	data.ad.Size = Vector3.new(SNAP_THICKNESS, SNAP_THICKNESS, len)
 	setSnapEnabled(data, true)
 end
 
@@ -880,23 +826,13 @@ local function enableSnaplines()
 			snapOriginPart.CFrame = CFrame.new(originWorld)
 
 for _, plr in ipairs(Players:GetPlayers()) do
-	if plr ~= LocalPlayer then
-		local data = ensureSnapFor(plr)
+	local data = ensureSnapFor(plr)
 
-local shouldRender, isTeammate = shouldRenderFor(plr)
-
-if shouldRender then
-	-- set color based on team
-	if isTeammate then
-		data.ad.Color3 = Color3.fromRGB(80, 170, 255)
+	if isEnemy(plr) then
+		updateSnapFor(plr, data, originWorld)
 	else
-		data.ad.Color3 = Color3.fromRGB(255, 0, 0)
+		setSnapEnabled(data, false)
 	end
-
-	updateSnapFor(plr, data, originWorld)
-else
-	setSnapEnabled(data, false)
-end
 end
 		end)
 	end)
@@ -953,6 +889,7 @@ local function ensureBoxFor(plr: Player): BoxData
 		return existing
 	end
 
+	-- Invisible holder part that we move to the boundingbox CFrame
 	local p = Instance.new("Part")
 	p.Name = ("ESP_Box3D_%d"):format(plr.UserId)
 	p.Anchored = true
@@ -969,9 +906,18 @@ local function ensureBoxFor(plr: Player): BoxData
 	ad.Adornee = p
 	ad.AlwaysOnTop = true
 	ad.ZIndex = 10
+
+	-- This is the line thickness
+	ad.SizeRelativeOffset = Vector3.new(0, 0, 0)
 	ad.Transparency = 0.6
+	ad.Color3 = Color3.fromRGB(253, 55, 0)
+
+	-- Wireframe look
+	ad.AlwaysOnTop = true
+
+	-- You can swap to Enum.AdornCullingMode.Never if you want it to never cull
 	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
-	ad.Visible = true
+
 	ad.Parent = workspace
 
 	local data: BoxData = {
@@ -1005,19 +951,23 @@ local function computeHitboxOBB(char: Model): (CFrame?, Vector3?)
 		if inst:IsA("BasePart") then
 			local part = inst :: BasePart
 
+			-- Skip obvious accessory handles
 			if part.Name == "Handle" and part.Parent and part.Parent:IsA("Accessory") then
 				continue
 			end
 
+			-- Use CanQuery as “can be hit by raycasts”
 			if not part.CanQuery then
 				continue
 			end
 
+			-- Transform the part into root-local space so the box is oriented with the character
 			local rel = rootCF:ToObjectSpace(part.CFrame)
 			local sx = part.Size.X * 0.5
 			local sy = part.Size.Y * 0.5
 			local sz = part.Size.Z * 0.5
 
+			-- 8 corners of the part in root-local space
 			local corners = {
 				(rel * CFrame.new(-sx, -sy, -sz)).Position,
 				(rel * CFrame.new(-sx, -sy,  sz)).Position,
@@ -1053,6 +1003,7 @@ local function computeHitboxOBB(char: Model): (CFrame?, Vector3?)
 	local size = maxV - minV
 	local centerLocal = (minV + maxV) * 0.5
 
+	-- World-space oriented box aligned to HumanoidRootPart
 	local cf = rootCF * CFrame.new(centerLocal)
 	return cf, size
 end
@@ -1061,13 +1012,10 @@ local function updateBoxFor(plr: Player, data: BoxData)
 	local char = plr.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-	local shouldRender, isTeammate = shouldRenderFor(plr)
-
-	if not shouldRender then
+	if not isEnemy(plr) then
 		setBoxEnabled(data, false)
 		return
 	end
-
 	if not char or not hum or hum.Health <= 0 then
 		setBoxEnabled(data, false)
 		return
@@ -1077,13 +1025,6 @@ local function updateBoxFor(plr: Player, data: BoxData)
 	if not cf or not size then
 		setBoxEnabled(data, false)
 		return
-	end
-
-	-- Team-based color
-	if isTeammate then
-		data.ad.Color3 = Color3.fromRGB(80, 170, 255)
-	else
-		data.ad.Color3 = Color3.fromRGB(255, 60, 60)
 	end
 
 	data.part.CFrame = cf
@@ -1114,19 +1055,15 @@ local function enableBoxes()
 		end
 
 		boxConn = RunService.RenderStepped:Connect(function()
-			for _, plr in ipairs(Players:GetPlayers()) do
-				if plr ~= LocalPlayer then
-					local data = ensureBoxFor(plr)
+for _, plr in ipairs(Players:GetPlayers()) do
+	local data = ensureBoxFor(plr)
 
-					local shouldRender = select(1, shouldRenderFor(plr))
-
-					if shouldRender then
-						updateBoxFor(plr, data)
-					else
-						setBoxEnabled(data, false)
-					end
-				end
-			end
+	if isEnemy(plr) then
+		updateBoxFor(plr, data)
+	else
+		setBoxEnabled(data, false)
+	end
+end
 		end)
 	end)
 end
@@ -1177,9 +1114,6 @@ local function bind(feature: string, key: string)
 	Toggles.Subscribe(key, function(state: boolean)
 		featureState[feature] = state
 
-		------------------------------------------------------------------
-		-- SNAPLINES
-		------------------------------------------------------------------
 		if feature == "Snaplines" then
 			if state then
 				enableSnaplines()
@@ -1189,9 +1123,6 @@ local function bind(feature: string, key: string)
 			return
 		end
 
-		------------------------------------------------------------------
-		-- 3D BOXES
-		------------------------------------------------------------------
 		if feature == "Box3D" then
 			if state then
 				enableBoxes()
@@ -1201,15 +1132,9 @@ local function bind(feature: string, key: string)
 			return
 		end
 
-		------------------------------------------------------------------
-		-- ALL OTHER FEATURES
-		------------------------------------------------------------------
 		refresh()
 	end)
 
-	------------------------------------------------------------------
-	-- INITIAL STATE APPLY (ON SCRIPT LOAD)
-	------------------------------------------------------------------
 	if Toggles.GetState(key, false) then
 		featureState[feature] = true
 
@@ -1223,32 +1148,10 @@ local function bind(feature: string, key: string)
 	end
 end
 
-------------------------------------------------------------------
--- STANDARD FEATURE BINDS
-------------------------------------------------------------------
-
 bind("Name", KEYS.Name)
 bind("Health", KEYS.Health)
 bind("Player", KEYS.Player)
 bind("Snaplines", KEYS.Snaplines)
 bind("Box3D", KEYS.Box3D)
-
-------------------------------------------------------------------
--- TEAM ESP BIND (GLOBAL COLOR / FILTER CONTROL)
-------------------------------------------------------------------
-
-Toggles.Subscribe("visuals_team", function()
-	-- team toggle affects ALL features rendering logic
-	refresh()
-end)
-
--- apply initial team state on load
-if Toggles.GetState("visuals_team", false) then
-	refresh()
-end
-
-------------------------------------------------------------------
--- INITIAL RENDER PASS
-------------------------------------------------------------------
 
 refresh()
