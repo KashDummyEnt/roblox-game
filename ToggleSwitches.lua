@@ -1012,7 +1012,7 @@ function ToggleSwitches.AddSliderCard(
 	------------------------------------------------
 	-- SLIDER BAR (right aligned like toggle switch)
 	------------------------------------------------
-	local SLIDER_WIDTH = 230
+	local SLIDER_WIDTH = 200
 	local SLIDER_HEIGHT = 8
 
 	local sliderBar = make("Frame", {
