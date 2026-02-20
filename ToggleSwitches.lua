@@ -938,7 +938,7 @@ end
 
 
 --============================================================
--- Slider UI card (toggle-aligned layout)
+-- Slider UI card (right-aligned like toggle)
 --============================================================
 function ToggleSwitches.AddSliderCard(
 	parent,
@@ -961,7 +961,7 @@ function ToggleSwitches.AddSliderCard(
 	local UserInputService = services.UserInputService
 
 	------------------------------------------------
-	-- Card (same as toggle)
+	-- Card (same size as toggle)
 	------------------------------------------------
 	local card = make("Frame", {
 		Name = "SliderCard_" .. tostring(valueKey),
@@ -975,9 +975,9 @@ function ToggleSwitches.AddSliderCard(
 	addStroke(card, 1, config.Stroke, 0.35)
 
 	------------------------------------------------
-	-- LEFT LABEL (like toggle title)
+	-- LEFT TITLE
 	------------------------------------------------
-	local titleLbl = make("TextLabel", {
+	make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = title,
 		TextColor3 = config.Text,
@@ -985,14 +985,14 @@ function ToggleSwitches.AddSliderCard(
 		Font = Enum.Font.GothamSemibold,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Center,
-		Size = UDim2.new(0.4, -10, 1, 0),
-		Position = UDim2.new(0, 12, 0, 0),
+		Size = UDim2.new(0.4, 0, 1, 0),
+		Position = UDim2.new(0, 14, 0, 0),
 		ZIndex = 44,
 		Parent = card,
 	})
 
 	------------------------------------------------
-	-- VALUE LABEL (right side small)
+	-- VALUE LABEL (far right)
 	------------------------------------------------
 	local valueLabel = make("TextLabel", {
 		BackgroundTransparency = 1,
@@ -1003,23 +1003,25 @@ function ToggleSwitches.AddSliderCard(
 		TextXAlignment = Enum.TextXAlignment.Right,
 		TextYAlignment = Enum.TextYAlignment.Center,
 		Size = UDim2.new(0, 60, 1, 0),
-		Position = UDim2.new(1, -12 - 60, 0, 0),
+		Position = UDim2.new(1, -14, 0, 0),
+		AnchorPoint = Vector2.new(1, 0),
 		ZIndex = 44,
 		Parent = card,
 	})
 
 	------------------------------------------------
-	-- SLIDER AREA (where toggle would be)
+	-- SLIDER BAR (right aligned like toggle switch)
 	------------------------------------------------
-	local SLIDER_WIDTH = 180
+	local SLIDER_WIDTH = 230
 	local SLIDER_HEIGHT = 8
-	local RIGHT_PADDING = 14
 
 	local sliderBar = make("Frame", {
 		BackgroundColor3 = config.Bg3,
 		Size = UDim2.fromOffset(SLIDER_WIDTH, SLIDER_HEIGHT),
-		Position = UDim2.new(1, -(RIGHT_PADDING + SLIDER_WIDTH + 60), 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
+
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -80, 0.5, 0),
+
 		ZIndex = 46,
 		Parent = card,
 	})
@@ -1046,7 +1048,7 @@ function ToggleSwitches.AddSliderCard(
 	addStroke(knob, 1, Color3.fromRGB(0,0,0), 0.4)
 
 	------------------------------------------------
-	-- Slider Logic
+	-- Logic
 	------------------------------------------------
 	local function setFromAlpha(alpha)
 		alpha = math.clamp(alpha, 0, 1)
