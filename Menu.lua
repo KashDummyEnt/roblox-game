@@ -1,1219 +1,1157 @@
 --!strict
--- Menu.lua
--- PopupMenu client UI + 5 left tabs + toggle switch cards (REMOTE MODULE)
--- Load in Roblox with:
--- loadstring(game:HttpGet("https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Menu.lua"))()
+-- AdminESP.lua
+-- Multi-toggle ESP with proper distance scaling + snaplines from local feet
+-- + 3D Beam Boxes
 
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local GuiService = game:GetService("GuiService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
 
+------------------------------------------------------------------
+-- GLOBAL TOGGLE API ACCESS
+------------------------------------------------------------------
 
-local SKY_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ClientSky.lua"
-local TOGGLES_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/ToggleSwitches.lua"
-local FULLBRIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Fullbright.lua"
-local NOFOG_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/NoFog.lua"
-local ADMINESP_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/AdminESP.lua"
-local FLIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Flight.lua"
-local TWEEN_NPC_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/TweenToNPC.lua"
-local FASTMODE_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/FastMode.lua"
-local SPEED_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/PlayerSpeed.lua"
-
-
-
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
---// Config
-local CONFIG = {
-	GuiName = "PopupMenuGui",
-	ToggleButtonName = "MenuToggleButton",
-	PopupName = "PopupPanel",
-
-	AnchorCorner = "BottomLeft",
-	Margin = 16,
-
-	ToggleSize = 42,
-	PopupSize = Vector2.new(520, 330),
-
-	OpenTweenTime = 0.18,
-	CloseTweenTime = 0.14,
-
-	Accent = Color3.fromRGB(255, 0, 0),
-	Bg = Color3.fromRGB(14, 14, 16),
-	Bg2 = Color3.fromRGB(20, 20, 24),
-	Bg3 = Color3.fromRGB(26, 26, 32),
-	Text = Color3.fromRGB(240, 240, 244),
-	SubText = Color3.fromRGB(170, 170, 180),
-	Stroke = Color3.fromRGB(55, 55, 65),
-}
-
-local SIDEBAR_WIDTH = 140
-
---// Global shared toggle access (so other remote scripts can read/subscribe)
 local function getGlobal(): any
 	local gg = (typeof(getgenv) == "function") and getgenv() or nil
-	if gg then
-		return gg
-	end
+	if gg then return gg end
 	return _G
 end
 
 local G = getGlobal()
 
---// Utilities
-local function make(instanceType: string, props: {[string]: any}?): Instance
-	local inst = Instance.new(instanceType)
-	if props then
-		for k, v in pairs(props) do
-			(inst :: any)[k] = v
+local function waitForTogglesApi(timeout: number): any?
+	local start = os.clock()
+	while os.clock() - start < timeout do
+		local api = G.__HIGGI_TOGGLES_API
+		if type(api) == "table" and type(api.Subscribe) == "function" then
+			return api
+		end
+		task.wait(0.05)
+	end
+	return nil
+end
+
+local Toggles = waitForTogglesApi(6)
+if not Toggles then
+	warn("[AdminESP] Toggle API missing")
+	return
+end
+
+------------------------------------------------------------------
+-- TOGGLE KEYS
+------------------------------------------------------------------
+
+local KEYS = {
+	Name = "visuals_name",
+	Health = "visuals_health",
+	Player = "visuals_player",
+	Snaplines = "visuals_snaplines",
+	Box3D = "visuals_box3d",
+}
+
+------------------------------------------------------------------
+-- CONFIG
+------------------------------------------------------------------
+
+local NAME_TAG = "ESP_Name"
+local HEALTH_TAG = "ESP_Health"
+local GLOW_TAG = "ESP_Glow"
+
+local NAME_BASE_W, NAME_BASE_H = 90, 22
+local HP_BASE_W, HP_BASE_H = 70, 8
+local NAME_MIN_W, NAME_MIN_H = 50, 14
+local HP_MIN_W, HP_MIN_H = 40, 6
+
+local MAX_DISTANCE = 99999
+
+------------------------------------------------------------------
+-- STATE
+------------------------------------------------------------------
+
+local featureState = {
+	Name = false,
+	Health = false,
+	Player = false,
+	Snaplines = false,
+	Box3D = false,
+}
+
+------------------------------------------------------------------
+-- TEAM CHECK
+------------------------------------------------------------------
+
+local TEAM_CHECK_ENABLED = true -- flip false if you ever want FFA mode
+
+local function isEnemy(plr: Player): boolean
+	if plr == LocalPlayer then
+		return false
+	end
+	
+	if not TEAM_CHECK_ENABLED then
+		return true
+	end
+	
+	if not LocalPlayer.Team or not plr.Team then
+		return true -- no team info = treat as enemy
+	end
+	
+	return plr.Team ~= LocalPlayer.Team
+end
+
+local playerConns: {[number]: {RBXScriptConnection}} = {}
+local charWatchConns: {[number]: RBXScriptConnection} = {}
+
+local scalerConn: RBXScriptConnection? = nil
+local snaplineConn: RBXScriptConnection? = nil
+local boxConn: RBXScriptConnection? = nil
+
+------------------------------------------------------------------
+-- STREAMING SAFE HELPERS (NEW)
+------------------------------------------------------------------
+
+local function waitForNamedChild(parent: Instance, name: string, timeout: number): Instance?
+	local start = os.clock()
+	while os.clock() - start < timeout do
+		local f = parent:FindFirstChild(name)
+		if f then return f end
+		task.wait(0.03)
+	end
+	return nil
+end
+
+local function waitForChildOfClass(parent: Instance, className: string, timeout: number): Instance?
+	local start = os.clock()
+	while os.clock() - start < timeout do
+		local f = parent:FindFirstChildOfClass(className)
+		if f then return f end
+		task.wait(0.03)
+	end
+	return nil
+end
+
+local function setDefaultNameVisible(plr: Player, visible: boolean)
+	if not plr.Character then return end
+
+	local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+
+	if visible then
+		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+	else
+		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	end
+end
+
+------------------------------------------------------------------
+-- CLEANUP
+------------------------------------------------------------------
+
+local function disconnectUser(userId: number)
+	local bucket = playerConns[userId]
+	if bucket then
+		for _, c in ipairs(bucket) do
+			c:Disconnect()
+		end
+		playerConns[userId] = nil
+	end
+end
+
+local function cleanupCharacter(char: Model)
+	for _, inst in ipairs(char:GetDescendants()) do
+		if inst.Name == NAME_TAG
+		or inst.Name == HEALTH_TAG
+		or inst.Name == GLOW_TAG then
+			inst:Destroy()
 		end
 	end
-	return inst
 end
 
-local function addCorner(parent: Instance, radius: number)
-	make("UICorner", {
-		CornerRadius = UDim.new(0, radius),
-		Parent = parent,
-	})
-end
+local function cleanupPlayer(plr: Player)
+	disconnectUser(plr.UserId)
 
-local function addStroke(parent: Instance, thickness: number, color: Color3, transparency: number?)
-	make("UIStroke", {
-		Thickness = thickness,
-		Color = color,
-		Transparency = transparency or 0,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Parent = parent,
-	})
-end
+	-- Restore default Roblox name
+	setDefaultNameVisible(plr, true)
 
-local function isTouchDevice(): boolean
-	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-end
-
-local function getViewportSize(): Vector2
-	local cam = workspace.CurrentCamera
-	if cam then
-		return cam.ViewportSize
-	end
-	return Vector2.new(1920, 1080)
-end
-
-local function clampPopupPos(pos: Vector2, popupSize: Vector2, anchor: Vector2, viewport: Vector2): Vector2
-	local w, h = popupSize.X, popupSize.Y
-
-	local topLeftX = pos.X - (anchor.X * w)
-	local topLeftY = pos.Y - (anchor.Y * h)
-
-	topLeftX = math.clamp(topLeftX, 0, viewport.X - w)
-	topLeftY = math.clamp(topLeftY, 0, viewport.Y - h)
-
-	return Vector2.new(
-		topLeftX + (anchor.X * w),
-		topLeftY + (anchor.Y * h)
-	)
-end
-
-local function runRemote(url: string)
-	local ok, code = pcall(function()
-		return game:HttpGet(url)
-	end)
-	if not ok then
-		warn("HttpGet failed:", code)
-		return
+	local cw = charWatchConns[plr.UserId]
+	if cw then
+		cw:Disconnect()
+		charWatchConns[plr.UserId] = nil
 	end
 
-	local fn, compileErr = loadstring(code)
-	if not fn then
-		warn("loadstring failed:", compileErr)
-		return
-	end
-
-	local ok2, runErr = pcall(fn)
-	if not ok2 then
-		warn("remote runtime error:", runErr)
+	if plr.Character then
+		cleanupCharacter(plr.Character)
 	end
 end
 
-local function loadRemoteModule(url: string): any
-	local ok, code = pcall(function()
-		return game:HttpGet(url)
-	end)
-	if not ok then
-		warn("Remote module HttpGet failed:", code)
-		return nil
-	end
 
-	local chunk, compileErr = loadstring(code)
-	if not chunk then
-		warn("Remote module compile failed:", compileErr)
-		warn("Remote module first 200 chars:\n" .. string.sub(code, 1, 200))
-		return nil
+local function cleanupAll()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			cleanupPlayer(plr)
+		end
 	end
-
-	local ok2, result = pcall(chunk)
-	if not ok2 then
-		warn("Remote module runtime failed:", result)
-		return nil
-	end
-
-	if type(result) ~= "table" then
-		warn("Remote module did not return a table. Got:", typeof(result))
-		return nil
-	end
-
-	return result
 end
 
-local Toggles = loadRemoteModule(TOGGLES_URL)
-if not Toggles then
-	error("Failed to load ToggleSwitches module from GitHub")
+------------------------------------------------------------------
+-- BUILDERS (FIXED)
+------------------------------------------------------------------
+
+local function buildName(plr: Player)
+	local char = plr.Character
+	if not char then return end
+
+	local head = waitForNamedChild(char, "Head", 2.5)
+	if not head then return end
+	if head:FindFirstChild(NAME_TAG) then return end
+
+	local bill = Instance.new("BillboardGui")
+	bill.Name = NAME_TAG
+	bill.AlwaysOnTop = true
+	bill.MaxDistance = MAX_DISTANCE
+	bill.StudsOffset = Vector3.new(0, 2.9, 0)
+	bill.Size = UDim2.new(0, NAME_BASE_W, 0, NAME_BASE_H)
+	bill.Parent = head
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.fromRGB(255, 70, 70)
+	label.TextStrokeTransparency = 0.5
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamSemibold
+	label.Text = plr.DisplayName
+	label.Parent = bill
 end
 
--- expose module API globally so feature scripts can Subscribe without re-fetching
-G.__HIGGI_TOGGLES_API = Toggles
+local TweenService = game:GetService("TweenService")
 
-local TOGGLE_SERVICES = {
-	TweenService = TweenService,
-	UserInputService = UserInputService,
-}
+local function buildHealth(plr: Player)
+	local char = plr.Character
+	if not char then return end
 
+	local root = waitForNamedChild(char, "HumanoidRootPart", 2.5)
+	local hum = waitForChildOfClass(char, "Humanoid", 2.5)
+	if not root or not hum then return end
+	if root:FindFirstChild(HEALTH_TAG) then return end
 
---================================================================================
--- Toggle-driven lazy feature loading (MOVED HERE)
---================================================================================
-local featureLoaded: {[string]: boolean} = {}
+	local bill = Instance.new("BillboardGui")
+	bill.Name = HEALTH_TAG
+	bill.AlwaysOnTop = true
+	bill.MaxDistance = MAX_DISTANCE
+	bill.StudsOffset = Vector3.new(0, -3.2, 0)
+	bill.Size = UDim2.new(0, HP_BASE_W, 0, HP_BASE_H)
+	bill.Parent = root
 
-local function ensureFeatureLoaded(key: string, url: string)
-	if featureLoaded[key] then
-		return
+	------------------------------------------------------------------
+	-- BACK FRAME
+	------------------------------------------------------------------
+
+	local back = Instance.new("Frame")
+	back.Size = UDim2.new(1, 0, 1, 0)
+	back.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+	back.BorderSizePixel = 0
+	back.Parent = bill
+
+	local backCorner = Instance.new("UICorner")
+	backCorner.CornerRadius = UDim.new(1, 0)
+	backCorner.Parent = back
+
+	local backStroke = Instance.new("UIStroke")
+	backStroke.Thickness = 1
+	backStroke.Color = Color3.fromRGB(60, 60, 60)
+	backStroke.Transparency = 0.3
+	backStroke.Parent = back
+
+	------------------------------------------------------------------
+	-- PADDING
+	------------------------------------------------------------------
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0, 1)
+	padding.PaddingRight = UDim.new(0, 1)
+	padding.PaddingTop = UDim.new(0, 1)
+	padding.PaddingBottom = UDim.new(0, 1)
+	padding.Parent = back
+
+	------------------------------------------------------------------
+	-- FILL
+	------------------------------------------------------------------
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.new(1, 0, 1, 0)
+	fill.BorderSizePixel = 0
+	fill.Parent = back
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(1, 0)
+	fillCorner.Parent = fill
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = 0
+	gradient.Parent = fill
+
+	local function getColor(pct: number)
+		return Color3.fromRGB(
+			math.floor(255 * (1 - pct)),
+			math.floor(255 * pct),
+			70
+		)
 	end
-	featureLoaded[key] = true
-	runRemote(url)
-end
 
+	local function update()
+		local pct = 0
+		if hum.MaxHealth > 0 then
+			pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+		end
 
---================================================================================
--- NPC Registry (reliable list + last-known positions)
---================================================================================
+		local targetSize = UDim2.new(pct, 0, 1, 0)
 
-G.__HIGGI_NPC_REGISTRY = G.__HIGGI_NPC_REGISTRY or {
-	byName = {},      -- [name] = {model: Model?, lastCFrame: CFrame?}
-	namesSeen = {},   -- [name] = true (never removed from dropdown)
-}
+		TweenService:Create(
+			fill,
+			TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = targetSize }
+		):Play()
 
-local Registry = G.__HIGGI_NPC_REGISTRY
+		local baseColor = getColor(pct)
 
-local function registryUpsertModel(m: Model)
-	local name = m.Name
-
-	-- permanently track name
-	Registry.namesSeen[name] = true
-
-	local entry = Registry.byName[name]
-	if not entry then
-		entry = {
-			model = nil,
-			lastCFrame = nil,
+		gradient.Color = ColorSequence.new{
+			ColorSequenceKeypoint.new(0, baseColor),
+			ColorSequenceKeypoint.new(1, baseColor:Lerp(Color3.new(1,1,1), 0.25))
 		}
-		Registry.byName[name] = entry
 	end
 
-	entry.model = m
+	update()
 
-	local pp =
-		m.PrimaryPart
-		or m:FindFirstChild("HumanoidRootPart")
-		or m:FindFirstChildWhichIsA("BasePart")
+	playerConns[plr.UserId] = playerConns[plr.UserId] or {}
+	table.insert(playerConns[plr.UserId], hum.HealthChanged:Connect(update))
+end
 
-	if pp and pp:IsA("BasePart") then
-		entry.lastCFrame = pp.CFrame
+
+local function buildGlow(plr: Player)
+	local char = plr.Character
+	if not char then return end
+	if char:FindFirstChild(GLOW_TAG) then return end
+
+	local h = Instance.new("Highlight")
+	h.Name = GLOW_TAG
+	h.FillColor = Color3.fromRGB(255, 40, 40)
+	h.FillTransparency = 0.7
+	h.OutlineColor = Color3.fromRGB(255, 255, 255)
+	h.OutlineTransparency = 0.1
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	h.Parent = char
+end
+
+------------------------------------------------------------------
+-- LIFECYCLE FIX
+------------------------------------------------------------------
+
+local function applyForPlayer(plr: Player)
+	if plr == LocalPlayer then return end
+
+	if not isEnemy(plr) then
+	cleanupPlayer(plr)
+	return
+    end
+
+	disconnectUser(plr.UserId)
+	if not plr.Character then return end
+
+	cleanupCharacter(plr.Character)
+
+	------------------------------------------------------------------
+	-- TOGGLE DEFAULT ROBLOX NAME
+	------------------------------------------------------------------
+
+	if featureState.Name then
+		setDefaultNameVisible(plr, false)
+	else
+		setDefaultNameVisible(plr, true)
+	end
+
+	------------------------------------------------------------------
+	-- BUILD ESP FEATURES
+	------------------------------------------------------------------
+
+	if featureState.Name then buildName(plr) end
+	if featureState.Health then buildHealth(plr) end
+	if featureState.Player then buildGlow(plr) end
+
+	-- retry safety (streaming delay protection)
+	task.delay(0.4, function()
+		if plr.Character then
+			if featureState.Name then buildName(plr) end
+			if featureState.Health then buildHealth(plr) end
+		end
+	end)
+
+	task.delay(1, function()
+		if plr.Character then
+			if featureState.Name then buildName(plr) end
+			if featureState.Health then buildHealth(plr) end
+		end
+	end)
+end
+
+
+------------------------------------------------------------------
+-- CHARACTER WATCHER
+------------------------------------------------------------------
+
+local function ensureCharWatcher(plr: Player)
+	if plr == LocalPlayer then return end
+	if charWatchConns[plr.UserId] then return end
+
+	-- ensure bucket exists for this player
+	playerConns[plr.UserId] = playerConns[plr.UserId] or {}
+
+	------------------------------------------------------------------
+	-- TEAM CHANGE LISTENER
+	------------------------------------------------------------------
+
+	table.insert(
+		playerConns[plr.UserId],
+		plr:GetPropertyChangedSignal("Team"):Connect(function()
+			refresh()
+		end)
+	)
+
+	------------------------------------------------------------------
+	-- RESPAWN LISTENER
+	------------------------------------------------------------------
+
+	charWatchConns[plr.UserId] = plr.CharacterAdded:Connect(function(char)
+		task.wait(0.2)
+
+		setDefaultNameVisible(plr, not featureState.Name)
+		applyForPlayer(plr)
+	end)
+
+	------------------------------------------------------------------
+	-- APPLY IMMEDIATELY IF CHARACTER EXISTS
+	------------------------------------------------------------------
+
+	if plr.Character then
+		applyForPlayer(plr)
 	end
 end
 
-local function registryMarkRemoved(name: string)
-	local entry = Registry.byName[name]
-	if entry then
-		entry.model = nil
+
+------------------------------------------------------------------
+-- GLOBAL PLAYER WATCHERS
+------------------------------------------------------------------
+
+local playerAddedConn: RBXScriptConnection? = nil
+local playerRemovingConn: RBXScriptConnection? = nil
+
+local function ensureGlobalWatchers()
+
+	-- Handle future joins
+	if not playerAddedConn then
+		playerAddedConn = Players.PlayerAdded:Connect(function(plr)
+			if plr ~= LocalPlayer then
+				ensureCharWatcher(plr)
+				task.defer(function()
+					applyForPlayer(plr)
+				end)
+			end
+		end)
 	end
-	-- DO NOT remove from namesSeen
-	-- DO NOT delete entry
+
+	-- Handle leaves
+	if not playerRemovingConn then
+		playerRemovingConn = Players.PlayerRemoving:Connect(function(plr)
+			if plr ~= LocalPlayer then
+				cleanupPlayer(plr)
+			end
+		end)
+	end
+
+	-- Handle players already in server
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			ensureCharWatcher(plr)
+			applyForPlayer(plr)
+		end
+	end
 end
 
-local function startNpcWatcher()
+------------------------------------------------------------------
+-- DISTANCE SCALING (WITH HARD TEAM ENFORCEMENT)
+------------------------------------------------------------------
 
-	task.spawn(function()
+local function startScaler()
+	if scalerConn then return end
 
-		local folder = ReplicatedStorage:WaitForChild("NPCs")
+	scalerConn = RunService.RenderStepped:Connect(function()
+		local cam = workspace.CurrentCamera
+		if not cam then return end
 
-		local function register(inst: Instance)
-			if inst:IsA("Model") then
-				registryUpsertModel(inst)
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr == LocalPlayer then
+				continue
+			end
+
+			local char = plr.Character
+			if not char then
+				continue
+			end
+
+			local head = char:FindFirstChild("Head")
+			local root = char:FindFirstChild("HumanoidRootPart")
+
+			if not head or not root then
+				continue
+			end
+
+			------------------------------------------------------------------
+			-- HARD TEAM CHECK ENFORCEMENT
+			------------------------------------------------------------------
+
+			if not isEnemy(plr) then
+				-- Remove Name
+				local nameGui = head:FindFirstChild(NAME_TAG)
+				if nameGui then
+					nameGui:Destroy()
+				end
+
+				-- Remove Health
+				local hpGui = root:FindFirstChild(HEALTH_TAG)
+				if hpGui then
+					hpGui:Destroy()
+				end
+
+				-- Remove Glow
+				local glow = char:FindFirstChild(GLOW_TAG)
+				if glow then
+					glow:Destroy()
+				end
+
+				continue
+			end
+
+			------------------------------------------------------------------
+			-- DISTANCE SCALING
+			------------------------------------------------------------------
+
+			local dist = (cam.CFrame.Position - root.Position).Magnitude
+			local scale = math.clamp(70 / dist, 0, 1)
+
+			local nameHeightPixels = NAME_MIN_H
+
+			------------------------------------------------------------------
+			-- NAME (SELF-HEALING)
+			------------------------------------------------------------------
+
+			if featureState.Name then
+				local nameGui = head:FindFirstChild(NAME_TAG)
+
+				if not nameGui then
+					buildName(plr)
+					nameGui = head:FindFirstChild(NAME_TAG)
+				end
+
+				if nameGui then
+					local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
+					local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
+
+					nameGui.Size = UDim2.new(0, w, 0, h)
+					nameHeightPixels = h
+				end
+			else
+				local nameGui = head:FindFirstChild(NAME_TAG)
+				if nameGui then
+					nameGui:Destroy()
+				end
+			end
+
+			------------------------------------------------------------------
+			-- HEALTH (SELF-HEALING)
+			------------------------------------------------------------------
+
+			if featureState.Health then
+				local hpGui = root:FindFirstChild(HEALTH_TAG)
+
+				if not hpGui then
+					buildHealth(plr)
+					hpGui = root:FindFirstChild(HEALTH_TAG)
+				end
+
+				if hpGui then
+					local w = math.max(math.floor(HP_BASE_W * scale), HP_MIN_W)
+					local h = math.max(math.floor(HP_BASE_H * scale), HP_MIN_H)
+
+					hpGui.Size = UDim2.new(0, w, 0, h)
+					hpGui.StudsOffset = Vector3.new(0, -3.2, 0)
+				end
+			else
+				local hpGui = root:FindFirstChild(HEALTH_TAG)
+				if hpGui then
+					hpGui:Destroy()
+				end
+			end
+
+			------------------------------------------------------------------
+			-- GLOW ENFORCEMENT
+			------------------------------------------------------------------
+
+			if featureState.Player then
+				if not char:FindFirstChild(GLOW_TAG) then
+					buildGlow(plr)
+				end
+			else
+				local glow = char:FindFirstChild(GLOW_TAG)
+				if glow then
+					glow:Destroy()
+				end
 			end
 		end
-
-		-- seed existing
-		for _, inst in ipairs(folder:GetDescendants()) do
-			register(inst)
-		end
-
-		-- future NPCs
-		folder.DescendantAdded:Connect(register)
-
 	end)
 end
 
-
-
-startNpcWatcher()
-
-local function getNpcNames(): {string}
-	local names: {string} = {}
-
-	-- IMPORTANT: use namesSeen so names never disappear
-	for name, _ in pairs(Registry.namesSeen) do
-		table.insert(names, name)
+local function stopScaler()
+	if scalerConn then
+		scalerConn:Disconnect()
+		scalerConn = nil
 	end
-
-	table.sort(names, function(a, b)
-		return a:lower() < b:lower()
-	end)
-
-	return names
 end
 
+------------------------------------------------------------------
+-- SNAPLINES (BOXHANDLEADORNMENT "RODS" - FEET TO FEET, THROUGH WALLS)
+------------------------------------------------------------------
 
---================================================================================
--- Pin toggle under Roblox top-left UI (Roblox button row)
---================================================================================
-local TOPLEFT_X = 16
-local GAP_UNDER_ROW = 8
-
-local lastInset: Vector2? = nil
-local lastViewport: Vector2? = nil
-local pinnedConn: RBXScriptConnection? = nil
-
-local function placeToggleUnderRobloxUI(btn: GuiObject)
-	local insetTL, _ = GuiService:GetGuiInset()
-
-	btn.AnchorPoint = Vector2.new(0, 0)
-
-	-- keep size synced to config (so changing CONFIG.ToggleSize works everywhere)
-	btn.Size = UDim2.fromOffset(CONFIG.ToggleSize, CONFIG.ToggleSize)
-
-	-- place directly under the Roblox topbar area (no guessed row height)
-	btn.Position = UDim2.new(
-		0,
-		TOPLEFT_X,
-		0,
-		insetTL.Y + GAP_UNDER_ROW
-	)
-end
-
-local function startPinnedToggle(btn: GuiObject)
-	placeToggleUnderRobloxUI(btn)
-
-	if pinnedConn then
-		pinnedConn:Disconnect()
-		pinnedConn = nil
-	end
-
-	pinnedConn = RunService.RenderStepped:Connect(function()
-		local insetTL, _ = GuiService:GetGuiInset()
-		local vp = getViewportSize()
-
-		if (not lastInset) or (not lastViewport) or insetTL ~= lastInset or vp ~= lastViewport then
-			lastInset = insetTL
-			lastViewport = vp
-			placeToggleUnderRobloxUI(btn)
-		end
-	end)
-end
-
---================================================================================
--- Drag helper (RenderStepped, sync-safe)
---================================================================================
-type DragSync = {
-	Target: GuiObject,
-	StartPos: UDim2,
+type SnapData = {
+	part: BasePart,
+	ad: BoxHandleAdornment,
 }
 
-local function enableDrag(dragHandle: GuiObject, mainTarget: GuiObject, onDragStart: (() -> ())?, getSyncTargets: (() -> {DragSync})?)
-	dragHandle.Active = true
+local snapDataByUserId: {[number]: SnapData} = {}
+local snapOriginPart: BasePart? = nil
 
-	local dragging = false
-	local dragStart: Vector2? = nil
-	local mainStartPos: UDim2? = nil
-	local sync: {DragSync} = {}
-	local dragConn: RBXScriptConnection? = nil
+local FP_FORWARD_PUSH = 0.75
+local FP_MIN_CAM_DIST = 1.35
 
-	local function stopDrag()
-		dragging = false
-		dragStart = nil
-		mainStartPos = nil
-		sync = {}
-		if dragConn then
-			dragConn:Disconnect()
-			dragConn = nil
-		end
+local SNAP_THICKNESS = 0.10
+local SNAP_TRANSPARENCY = 0.15
+
+local snapRemoveConn: RBXScriptConnection? = nil
+
+local function destroySnapForUserId(userId: number)
+	local data = snapDataByUserId[userId]
+	if not data then return end
+
+	if data.ad then data.ad:Destroy() end
+	if data.part then data.part:Destroy() end
+
+	snapDataByUserId[userId] = nil
+end
+
+local function clearSnaplines()
+	for userId, _ in pairs(snapDataByUserId) do
+		destroySnapForUserId(userId)
+	end
+	table.clear(snapDataByUserId)
+
+	if snapOriginPart then
+		snapOriginPart:Destroy()
+		snapOriginPart = nil
+	end
+end
+
+local function getLocalRootAndHum(): (BasePart?, Humanoid?)
+	local char = LocalPlayer.Character
+	if not char then return nil, nil end
+	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	return root, hum
+end
+
+local function getFeetWorld(root: BasePart, hum: Humanoid): Vector3
+	return root.Position - Vector3.new(0, hum.HipHeight + (root.Size.Y / 2), 0)
+end
+
+local function ensureOrigin()
+	if snapOriginPart then
+		return
 	end
 
-	dragHandle.InputBegan:Connect(function(input: InputObject)
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+	local p = Instance.new("Part")
+	p.Name = "SnapOrigin"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Transparency = 1
+	p.Size = Vector3.new(0.2, 0.2, 0.2)
+	p.Parent = workspace
+
+	snapOriginPart = p
+end
+
+local function ensureSnapFor(plr: Player): SnapData
+	local existing = snapDataByUserId[plr.UserId]
+	if existing then
+		return existing
+	end
+
+	local p = Instance.new("Part")
+	p.Name = ("ESP_SnapRod_%d"):format(plr.UserId)
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Transparency = 1
+	p.Size = Vector3.new(0.2, 0.2, 0.2)
+	p.Parent = workspace
+
+	local ad = Instance.new("BoxHandleAdornment")
+	ad.Name = "ESP_SnapAdornment"
+	ad.Adornee = p
+	ad.AlwaysOnTop = true
+	ad.ZIndex = 10
+
+	ad.Color3 = Color3.fromRGB(255, 0, 0)
+	ad.Transparency = SNAP_TRANSPARENCY
+	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
+	ad.Visible = true
+
+	ad.Parent = workspace
+
+	local data: SnapData = {
+		part = p,
+		ad = ad,
+	}
+
+	snapDataByUserId[plr.UserId] = data
+	return data
+end
+
+local function setSnapEnabled(data: SnapData, enabled: boolean)
+	data.ad.Visible = enabled
+end
+
+local function updateSnapFor(plr: Player, data: SnapData, originWorld: Vector3)
+	local char = plr.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
+
+	if not isEnemy(plr) then
+		setSnapEnabled(data, false)
+		return
+	end
+
+	if not root or not hum or hum.Health <= 0 then
+		setSnapEnabled(data, false)
+		return
+	end
+
+	-- feet-to-feet target
+	local targetFeet = getFeetWorld(root, hum)
+
+	-- build a "rod" from origin to target
+	local dir = targetFeet - originWorld
+	local len = dir.Magnitude
+	if len < 0.05 then
+		setSnapEnabled(data, false)
+		return
+	end
+
+	local mid = originWorld + (dir * 0.5)
+
+	-- orient so Z axis points toward target
+	data.part.CFrame = CFrame.lookAt(mid, targetFeet)
+
+	-- thin box stretched along Z
+	data.ad.Size = Vector3.new(SNAP_THICKNESS, SNAP_THICKNESS, len)
+	setSnapEnabled(data, true)
+end
+
+local function enableSnaplines()
+	clearSnaplines()
+
+	if snaplineConn then
+		snaplineConn:Disconnect()
+		snaplineConn = nil
+	end
+
+	if snapRemoveConn then
+		snapRemoveConn:Disconnect()
+		snapRemoveConn = nil
+	end
+
+	snapRemoveConn = Players.PlayerRemoving:Connect(function(plr: Player)
+		destroySnapForUserId(plr.UserId)
+	end)
+
+	task.defer(function()
+		if not featureState.Snaplines then
 			return
 		end
 
-		if onDragStart then
-			onDragStart()
-		end
+		ensureOrigin()
 
-		dragging = true
-		mainStartPos = mainTarget.Position
-
-		if getSyncTargets then
-			sync = getSyncTargets()
-		else
-			sync = {}
-		end
-
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragStart = UserInputService:GetMouseLocation()
-		else
-			dragStart = input.Position
-		end
-
-		dragConn = RunService.RenderStepped:Connect(function()
-			if not dragging or not dragStart or not mainStartPos then
+		snaplineConn = RunService.RenderStepped:Connect(function()
+			local cam = workspace.CurrentCamera
+			if not cam then
 				return
 			end
 
-			local currentPos = (input.UserInputType == Enum.UserInputType.MouseButton1) and UserInputService:GetMouseLocation() or input.Position
-			local delta = currentPos - dragStart
+			if not snapOriginPart then
+				return
+			end
 
-			mainTarget.Position = UDim2.new(
-				mainStartPos.X.Scale,
-				mainStartPos.X.Offset + delta.X,
-				mainStartPos.Y.Scale,
-				mainStartPos.Y.Offset + delta.Y
-			)
+			local localRoot, localHum = getLocalRootAndHum()
+			if not localRoot or not localHum then
+				for _, data in pairs(snapDataByUserId) do
+					setSnapEnabled(data, false)
+				end
+				return
+			end
 
-			for _, s in ipairs(sync) do
-				s.Target.Position = UDim2.new(
-					s.StartPos.X.Scale,
-					s.StartPos.X.Offset + delta.X,
-					s.StartPos.Y.Scale,
-					s.StartPos.Y.Offset + delta.Y
+			-- local feet origin
+			local feetWorld = getFeetWorld(localRoot, localHum)
+
+			-- anti-clip in true first-person
+			local camPos = cam.CFrame.Position
+			local distToFeet = (feetWorld - camPos).Magnitude
+
+			local originWorld = feetWorld
+			if distToFeet < FP_MIN_CAM_DIST then
+				originWorld = feetWorld + (cam.CFrame.LookVector * FP_FORWARD_PUSH)
+			end
+
+			snapOriginPart.CFrame = CFrame.new(originWorld)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+	local data = ensureSnapFor(plr)
+
+	if isEnemy(plr) then
+		updateSnapFor(plr, data, originWorld)
+	else
+		setSnapEnabled(data, false)
+	end
+end
+		end)
+	end)
+end
+
+local function disableSnaplines()
+	if snaplineConn then
+		snaplineConn:Disconnect()
+		snaplineConn = nil
+	end
+
+	if snapRemoveConn then
+		snapRemoveConn:Disconnect()
+		snapRemoveConn = nil
+	end
+
+	clearSnaplines()
+end
+
+------------------------------------------------------------------
+-- 3D BOXES (BOXHANDLEADORNMENT AROUND MODEL:GetBoundingBox())
+-- Through-walls via AlwaysOnTop
+------------------------------------------------------------------
+
+type BoxData = {
+	part: BasePart,
+	ad: BoxHandleAdornment,
+}
+
+local boxDataByUserId: {[number]: BoxData} = {}
+
+local boxRemoveConn: RBXScriptConnection? = nil
+
+local function destroyBoxForUserId(userId: number)
+	local data = boxDataByUserId[userId]
+	if not data then return end
+
+	if data.ad then data.ad:Destroy() end
+	if data.part then data.part:Destroy() end
+
+	boxDataByUserId[userId] = nil
+end
+
+local function clearBoxes()
+	for userId, _ in pairs(boxDataByUserId) do
+		destroyBoxForUserId(userId)
+	end
+	table.clear(boxDataByUserId)
+end
+
+local function ensureBoxFor(plr: Player): BoxData
+	local existing = boxDataByUserId[plr.UserId]
+	if existing then
+		return existing
+	end
+
+	-- Invisible holder part that we move to the boundingbox CFrame
+	local p = Instance.new("Part")
+	p.Name = ("ESP_Box3D_%d"):format(plr.UserId)
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Transparency = 1
+	p.Size = Vector3.new(0.2, 0.2, 0.2)
+	p.Parent = workspace
+
+	local ad = Instance.new("BoxHandleAdornment")
+	ad.Name = "ESP_BoxAdornment"
+	ad.Adornee = p
+	ad.AlwaysOnTop = true
+	ad.ZIndex = 10
+
+	-- This is the line thickness
+	ad.SizeRelativeOffset = Vector3.new(0, 0, 0)
+	ad.Transparency = 0.6
+	ad.Color3 = Color3.fromRGB(253, 55, 0)
+
+	-- Wireframe look
+	ad.AlwaysOnTop = true
+
+	-- You can swap to Enum.AdornCullingMode.Never if you want it to never cull
+	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
+
+	ad.Parent = workspace
+
+	local data: BoxData = {
+		part = p,
+		ad = ad,
+	}
+
+	boxDataByUserId[plr.UserId] = data
+	return data
+end
+
+local function setBoxEnabled(data: BoxData, enabled: boolean)
+	if data.ad then
+		data.ad.Visible = enabled
+	end
+end
+
+local function computeHitboxOBB(char: Model): (CFrame?, Vector3?)
+	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return nil, nil
+	end
+
+	local minV = Vector3.new(math.huge, math.huge, math.huge)
+	local maxV = Vector3.new(-math.huge, -math.huge, -math.huge)
+
+	local found = false
+	local rootCF = root.CFrame
+
+	for _, inst in ipairs(char:GetDescendants()) do
+		if inst:IsA("BasePart") then
+			local part = inst :: BasePart
+
+			-- Skip obvious accessory handles
+			if part.Name == "Handle" and part.Parent and part.Parent:IsA("Accessory") then
+				continue
+			end
+
+			-- Use CanQuery as “can be hit by raycasts”
+			if not part.CanQuery then
+				continue
+			end
+
+			-- Transform the part into root-local space so the box is oriented with the character
+			local rel = rootCF:ToObjectSpace(part.CFrame)
+			local sx = part.Size.X * 0.5
+			local sy = part.Size.Y * 0.5
+			local sz = part.Size.Z * 0.5
+
+			-- 8 corners of the part in root-local space
+			local corners = {
+				(rel * CFrame.new(-sx, -sy, -sz)).Position,
+				(rel * CFrame.new(-sx, -sy,  sz)).Position,
+				(rel * CFrame.new(-sx,  sy, -sz)).Position,
+				(rel * CFrame.new(-sx,  sy,  sz)).Position,
+				(rel * CFrame.new( sx, -sy, -sz)).Position,
+				(rel * CFrame.new( sx, -sy,  sz)).Position,
+				(rel * CFrame.new( sx,  sy, -sz)).Position,
+				(rel * CFrame.new( sx,  sy,  sz)).Position,
+			}
+
+			for _, p in ipairs(corners) do
+				minV = Vector3.new(
+					math.min(minV.X, p.X),
+					math.min(minV.Y, p.Y),
+					math.min(minV.Z, p.Z)
+				)
+				maxV = Vector3.new(
+					math.max(maxV.X, p.X),
+					math.max(maxV.Y, p.Y),
+					math.max(maxV.Z, p.Z)
 				)
 			end
-		end)
 
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				stopDrag()
-			end
-		end)
-	end)
-
-	dragHandle.InputEnded:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			stopDrag()
-		end
-	end)
-end
-
---================================================================================
--- Build GUI
---================================================================================
-local existing = playerGui:FindFirstChild(CONFIG.GuiName)
-if existing then
-	existing:Destroy()
-end
-
-local screenGui = make("ScreenGui", {
-	Name = CONFIG.GuiName,
-	ResetOnSpawn = false,
-	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-	IgnoreGuiInset = true,
-	Parent = playerGui,
-})
-
-local overlay = make("Frame", {
-	Name = "OverlayLayer",
-	BackgroundTransparency = 1,
-	Size = UDim2.fromScale(1, 1),
-	Position = UDim2.fromScale(0, 0),
-	ZIndex = 999,
-	ClipsDescendants = false,
-	Parent = screenGui,
-})
-
-
-make("UIScale", {
-	Scale = isTouchDevice() and 1.05 or 1,
-	Parent = screenGui,
-})
-
-TOGGLE_SERVICES = {
-	TweenService = TweenService,
-	UserInputService = UserInputService,
-	Overlay = overlay,
-}
-
-
--- Toggle button (background circle)
-local toggleButton = make("ImageButton", {
-	Name = CONFIG.ToggleButtonName,
-	AutoButtonColor = false,
-	BackgroundColor3 = CONFIG.Bg2,
-	Size = UDim2.fromOffset(CONFIG.ToggleSize, CONFIG.ToggleSize),
-	ZIndex = 50,
-	Parent = screenGui,
-})
-addCorner(toggleButton, math.floor(CONFIG.ToggleSize / 2))
-addStroke(toggleButton, 1, CONFIG.Stroke, 0.15)
-
-toggleButton.Image = "" -- make sure button itself has no image
-
-local CLOSED_ICON = "rbxassetid://70596288325600"
-local OPEN_ICON = "rbxassetid://70596288325600"
-
-local toggleIcon = make("ImageLabel", {
-	Name = "Icon",
-	BackgroundTransparency = 1,
-	Image = CLOSED_ICON,
-	ImageTransparency = 0,
-	ScaleType = Enum.ScaleType.Fit,
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.new(0.5, 0, 0.5, 0),
-	Size = UDim2.new(1, 1, 1, 1),
-	ZIndex = 51,
-	Parent = toggleButton,
-})
-
--- pin it under Roblox top-left UI
-startPinnedToggle(toggleButton)
-
--- Popup panel
-local popup = make("Frame", {
-	Name = CONFIG.PopupName,
-	BackgroundColor3 = CONFIG.Bg,
-	Size = UDim2.fromOffset(CONFIG.PopupSize.X, CONFIG.PopupSize.Y),
-	Visible = true,
-	ZIndex = 40,
-	Parent = screenGui,
-})
-popup.ClipsDescendants = true
-popup.AnchorPoint = Vector2.new(0, 0)
-addCorner(popup, 14)
-addStroke(popup, 1, CONFIG.Stroke, 0.15)
-
-local popupGradient = make("UIGradient", {
-	Rotation = 90,
-	Parent = popup,
-})
-popupGradient.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, CONFIG.Bg2),
-	ColorSequenceKeypoint.new(1, CONFIG.Bg),
-})
-
--- Header (ONLY drag handle for menu)
-local header = make("Frame", {
-	Name = "Header",
-	BackgroundTransparency = 1,
-	Size = UDim2.new(1, 0, 0, 44),
-	ZIndex = 41,
-	Parent = popup,
-})
-
-make("TextLabel", {
-	Name = "Title",
-	BackgroundTransparency = 1,
-	Text = "Higgi's EBT Menu",
-	TextColor3 = CONFIG.Text,
-	TextSize = 18,
-	Font = Enum.Font.GothamSemibold,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	Size = UDim2.new(1, -88, 1, 0),
-	Position = UDim2.new(0, 20, 0, 0),
-	ZIndex = 42,
-	Parent = header,
-})
-
-local closeBtn = make("TextButton", {
-	Name = "Close",
-	AutoButtonColor = false,
-	BackgroundColor3 = CONFIG.Bg2,
-	Text = "X",
-	TextColor3 = CONFIG.Text,
-	TextSize = 14,
-	Font = Enum.Font.GothamBold,
-	Size = UDim2.fromOffset(34, 28),
-	Position = UDim2.new(1, -14 - 34, 0, 8),
-	ZIndex = 42,
-	Parent = header,
-})
-addCorner(closeBtn, 10)
-addStroke(closeBtn, 1, CONFIG.Stroke, 0.25)
-
--- Divider under header
-make("Frame", {
-	Name = "Divider",
-	BackgroundColor3 = CONFIG.Stroke,
-	BackgroundTransparency = 0.65,
-	Size = UDim2.new(1, -20, 0, 1),
-	Position = UDim2.new(0, 10, 0, 44),
-	ZIndex = 41,
-	Parent = popup,
-})
-
--- Body area (sidebar + pages)
-local body = make("Frame", {
-	Name = "Body",
-	BackgroundTransparency = 1,
-	Size = UDim2.new(1, -20, 1, -56),
-	Position = UDim2.new(0, 10, 0, 52),
-	ZIndex = 41,
-	Parent = popup,
-})
--- Clicking anywhere inside the menu closes dropdowns
-body.Active = true
-body.InputBegan:Connect(function(input: InputObject)
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-	or input.UserInputType == Enum.UserInputType.Touch then
-		Toggles.CloseAllDropdowns()
-	end
-end)
-
-
--- Sidebar
-local sidebar = make("Frame", {
-	Name = "Sidebar",
-	BackgroundColor3 = CONFIG.Bg2,
-	Size = UDim2.new(0, SIDEBAR_WIDTH, 1, -16),
-	Position = UDim2.new(0, 0, 0, 8),
-	ZIndex = 42,
-	Parent = body,
-})
-addCorner(sidebar, 12)
-addStroke(sidebar, 1, CONFIG.Stroke, 0.25)
-
--- Sidebar clicks close any open dropdown
-sidebar.Active = true
-sidebar.InputBegan:Connect(function(input: InputObject)
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-	or input.UserInputType == Enum.UserInputType.Touch then
-		Toggles.CloseAllDropdowns()
-	end
-end)
-
-
-make("UIGradient", {
-	Rotation = 90,
-	Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, CONFIG.Bg3),
-		ColorSequenceKeypoint.new(1, CONFIG.Bg2),
-	}),
-	Parent = sidebar,
-})
-
-make("UIListLayout", {
-	Padding = UDim.new(0, 8),
-	SortOrder = Enum.SortOrder.LayoutOrder,
-	Parent = sidebar,
-})
-
-make("UIPadding", {
-	PaddingTop = UDim.new(0, 10),
-	PaddingBottom = UDim.new(0, 10),
-	PaddingLeft = UDim.new(0, 10),
-	PaddingRight = UDim.new(0, 10),
-	Parent = sidebar,
-})
-
--- Pages container
-local pages = make("Frame", {
-	Name = "Pages",
-	BackgroundTransparency = 1,
-	Size = UDim2.new(1, -(SIDEBAR_WIDTH + 10), 1, -20),
-	Position = UDim2.new(0, SIDEBAR_WIDTH + 10, 0, 10),
-	ZIndex = 42,
-	Parent = body,
-})
-
-local function makePage(name: string): ScrollingFrame
-	local page = make("ScrollingFrame", {
-		Name = name,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-
-		ScrollingDirection = Enum.ScrollingDirection.Y,
-		ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
-		ScrollBarThickness = 4,
-		ScrollBarImageTransparency = 0.25,
-
-		CanvasSize = UDim2.new(0, 0, 0, 0),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-
-		Size = UDim2.new(1, 0, 1, 0),
-		Position = UDim2.new(0, 0, 0, 0),
-		ZIndex = 42,
-		Visible = false,
-		Parent = pages,
-	}) :: ScrollingFrame
-
-	local layout = make("UIListLayout", {
-		Padding = UDim.new(0, 10),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = page,
-	}) :: UIListLayout
-
-	make("UIPadding", {
-		PaddingTop = UDim.new(0, 4),
-		PaddingBottom = UDim.new(0, 8),
-		PaddingLeft = UDim.new(0, 4),
-		PaddingRight = UDim.new(0, 6),
-		Parent = page,
-	})
-
-	local function refreshCanvas()
-		local contentY = layout.AbsoluteContentSize.Y
-		page.CanvasSize = UDim2.new(0, 0, 0, contentY + 12)
-	end
-
-	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refreshCanvas)
-	task.defer(refreshCanvas)
-
-	return page
-end
-
--- Optional: simple action card
-local function addCard(parent: Instance, textTop: string, textBottom: string, order: number, onClick: (() -> ())?)
-	local card = make("TextButton", {
-		Name = "Card",
-		AutoButtonColor = false,
-		BackgroundColor3 = CONFIG.Bg2,
-		Size = UDim2.new(1, 0, 0, 64),
-		ZIndex = 43,
-		LayoutOrder = order,
-		Text = "",
-		Parent = parent,
-	}) :: TextButton
-	addCorner(card, 12)
-	addStroke(card, 1, CONFIG.Stroke, 0.35)
-
-	make("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = textTop,
-		TextColor3 = CONFIG.Text,
-		TextSize = 15,
-		Font = Enum.Font.GothamSemibold,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -16, 0, 22),
-		Position = UDim2.new(0, 10, 0, 8),
-		ZIndex = 44,
-		Parent = card,
-	})
-
-	make("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = textBottom,
-		TextColor3 = CONFIG.SubText,
-		TextSize = 13,
-		Font = Enum.Font.Gotham,
-		TextWrapped = true,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-		Size = UDim2.new(1, -16, 0, 28),
-		Position = UDim2.new(0, 10, 0, 30),
-		ZIndex = 44,
-		Parent = card,
-	})
-
-	if onClick then
-		card.MouseButton1Click:Connect(onClick)
-
-		card.MouseEnter:Connect(function()
-			card.BackgroundColor3 = CONFIG.Bg3
-		end)
-		card.MouseLeave:Connect(function()
-			card.BackgroundColor3 = CONFIG.Bg2
-		end)
-	end
-end
-
-local function addPlaceholders(page: ScrollingFrame, tabName: string, startOrder: number)
-	for i = 1, 5 do
-		addCard(page,
-			tabName .. " Placeholder " .. tostring(i),
-			"Add an action/toggle here later.",
-			startOrder + i - 1,
-			function()
-				print(tabName .. " placeholder " .. tostring(i))
-			end
-		)
-	end
-end
-
--- Create pages
-local pageMain = makePage("Main")
-local pageVisuals = makePage("Visuals")
-local pageWorld = makePage("World")
-local pageMisc = makePage("Misc")
-local pageSettings = makePage("Settings")
-
--- Main tab (keep placeholders for now)
-
-Toggles.AddToggleDropDownCard(
-	pageMain,
-	"world_tween_to_npc",      -- toggle key
-	"npc_dropdown",            -- value key
-	"NPC Teleport",   -- title
-	"Moves Player to Selected NPC",
-	1,                         -- layout order
-	false,                     -- default toggle state
-	"Select NPC",              -- default dropdown value
-	getNpcNames,               -- options provider
-	CONFIG,
-	TOGGLE_SERVICES,
-	function(state)
-		if state then
-			ensureFeatureLoaded("world_tween_to_npc", TWEEN_NPC_URL)
-		end
-	end,
-	function(selectedName)
-		G.__HIGGI_SELECTED_NPC = selectedName
-	end
-)
-
-
--- Visuals tab (EXAMPLE TOGGLES)
-Toggles.AddToggleCard(pageVisuals, "visuals_player", "Chams", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
-	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
-end)
-
-Toggles.AddToggleCard(pageVisuals, "visuals_name", "Name ESP", "Show player names.", 1, false, CONFIG, TOGGLE_SERVICES, function(state)
-	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
-end)
-
-Toggles.AddToggleCard(pageVisuals, "visuals_health", "Health ESP", "Show player health bars.", 2, false, CONFIG, TOGGLE_SERVICES, function(state)
-	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
-end)
-
-Toggles.AddToggleCard(pageVisuals, "visuals_snaplines", "Snaplines", "Lines to players.", 4, false, CONFIG, TOGGLE_SERVICES, function(state)
-	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
-end)
-
-Toggles.AddToggleCard(pageVisuals, "visuals_box3d", "Boxes", "3D wireframe player boxes.", 5, false, CONFIG, TOGGLE_SERVICES, function(state)
-	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
-end)
-
-Toggles.AddToggleCard(
-	pageVisuals,
-	"visuals_team",
-	"Show Teammates",
-	"Render ESP for teammates too.",
-	6,
-	false,
-	CONFIG,
-	TOGGLE_SERVICES,
-	function(state)
-		if state then
-			ensureFeatureLoaded("adminesp", ADMINESP_URL)
+			found = true
 		end
 	end
-)
 
--- World tab: action + toggles + placeholders
--- World tab: Skybox toggle + dropdown (REPLACES the old "Apply Skybox" card)
+	if not found then
+		return nil, nil
+	end
 
-local function getSkyboxNames(): {string}
-	return {
-		"Aurora",
-		"Battlerock",
-		"Chromatic Horizon",
-		"Corrupted",
-		"Crimson Despair",
-		"Cyan Planet",
-		"Cyan Space",
-		"Cyberpunk",
-		"Dark Matter",
-		"Dreamy",
-		"Emerald Borealis",
-		"Emerald Oblivion",
-		"Error",
-		"Eyes",
-		"Ghost",
-		"Grid",
-		"Minecraft",
-		"Molten",
-		"Neon Borealis",
-		"Nuke",
-		"Purple Space",
-		"Red Moon",
-		"Red Planet",
-		"Space Rocks",
-		"Stellar",
-		"Storm",
-		"Sunset",
-		"Toon Moon",
-		"Violet Moon",
-		"War",
-	}
+	local size = maxV - minV
+	local centerLocal = (minV + maxV) * 0.5
+
+	-- World-space oriented box aligned to HumanoidRootPart
+	local cf = rootCF * CFrame.new(centerLocal)
+	return cf, size
 end
 
+local function updateBoxFor(plr: Player, data: BoxData)
+	local char = plr.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-
-Toggles.AddToggleDropDownCard(
-	pageWorld,
-	"world_skybox",					-- toggle key
-	"world_skybox_dropdown",		-- value key
-	"Skybox Changer",				-- title
-	"Toggle + pick a skybox preset",
-	1,								-- layout order
-	false,							-- default toggle state
-	"Eyes",					-- default dropdown value
-	getSkyboxNames,					-- options provider
-	CONFIG,
-	TOGGLE_SERVICES,
-	function(state)
-		if state then
-			-- load the script once; it subscribes to toggle + dropdown changes
-			ensureFeatureLoaded("world_skybox", SKY_URL)
-		end
-	end,
-	function(selectedName)
-		-- optional: mirror what you did for NPC selection
-		-- ClientSky.lua will also read from Toggles.GetValue, so this is just convenience.
-		G.__HIGGI_SELECTED_SKYBOX = selectedName
-	end
-)
-
-
-Toggles.AddToggleCard(pageWorld, "world_fullbright", "Fullbright", "Force maximum brightness locally.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	if state then
-		ensureFeatureLoaded("world_fullbright", FULLBRIGHT_URL)
-	end
-end)
-
-Toggles.AddToggleCard(pageWorld, "world_nofog", "No Fog", "Reduce fog for clearer view.", 3, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	if state then
-		ensureFeatureLoaded("world_nofog", NOFOG_URL)
-	end
-end)
-
-Toggles.AddToggleCard(pageWorld, "world_fastmode", "Fast Mode", "Disable world textures & shadows for FPS boost.", 5, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	if state then
-		ensureFeatureLoaded("world_fastmode", FASTMODE_URL)
-	end
-end)
-
-
--- Settings tab (EXAMPLE TOGGLES)
-Toggles.AddToggleCard(pageSettings, "settings_keybinds", "Keybind Hints", "Show keybind tips in UI.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	print("Keybind Hints:", state)
-end)
-
-Toggles.AddToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI click sounds.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	print("UI Sounds:", state)
-end)
-
-Toggles.AddToggleCard(pageMisc, "world_flight", "Flight / Noclip", "Free flight with noclip enabled.", 1, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	if state then
-		ensureFeatureLoaded("world_flight", FLIGHT_URL)
-	end
-end)
-
-Toggles.AddToggleCard(
-	pageMisc,
-	"misc_speed",
-	"Speed Boost",
-	"Increase local WalkSpeed.",
-	2,
-	false,
-	CONFIG,
-	TOGGLE_SERVICES,
-	function(state: boolean)
-		if state then
-			ensureFeatureLoaded("misc_speed", SPEED_URL)
-		end
-	end
-)
-
---================================================================================
--- Tab system
---================================================================================
-type TabDef = {
-	Name: string,
-	Page: ScrollingFrame,
-	Icon: string?,
-}
-
-local tabs: {TabDef} = {
-	{Name = "Main", Page = pageMain, Icon = "■"},
-	{Name = "Visuals", Page = pageVisuals, Icon = "◈"},
-	{Name = "World", Page = pageWorld, Icon = "◉"},
-	{Name = "Misc", Page = pageMisc, Icon = "✦"},
-	{Name = "Settings", Page = pageSettings, Icon = "⚙"},
-}
-
-local currentTabName = ""
-
-local function setActivePage(name: string)
-	if currentTabName == name then
+	if not isEnemy(plr) then
+		setBoxEnabled(data, false)
 		return
 	end
-	currentTabName = name
-
-	for _, t in ipairs(tabs) do
-		t.Page.Visible = (t.Name == name)
+	if not char or not hum or hum.Health <= 0 then
+		setBoxEnabled(data, false)
+		return
 	end
+
+	local cf, size = computeHitboxOBB(char)
+	if not cf or not size then
+		setBoxEnabled(data, false)
+		return
+	end
+
+	data.part.CFrame = cf
+	data.ad.Size = size
+	setBoxEnabled(data, true)
 end
 
-local tabButtons: {[string]: TextButton} = {}
+local function enableBoxes()
+	clearBoxes()
 
-local function setTabVisuals(activeName: string)
-	for _, t in ipairs(tabs) do
-		local btn = tabButtons[t.Name]
-		if btn then
-			local isActive = (t.Name == activeName)
-			btn.BackgroundColor3 = isActive and CONFIG.Bg or CONFIG.Bg2
-			local stroke = btn:FindFirstChildOfClass("UIStroke")
-			if stroke then
-				(stroke :: UIStroke).Color = isActive and CONFIG.Accent or CONFIG.Stroke ;
-				(stroke :: UIStroke).Transparency = isActive and 0.05 or 0.25
-			end
-			local accent = btn:FindFirstChild("AccentBar")
-			if accent and accent:IsA("Frame") then
-				accent.BackgroundTransparency = isActive and 0 or 1
-			end
-		end
+	if boxConn then
+		boxConn:Disconnect()
+		boxConn = nil
 	end
-end
 
-local function makeTabButton(tab: TabDef, order: number)
-	local btn = make("TextButton", {
-		Name = tab.Name,
-		AutoButtonColor = false,
-		BackgroundColor3 = CONFIG.Bg2,
-		Size = UDim2.new(1, 0, 0, 40),
-		Text = "",
-		ZIndex = 43,
-		LayoutOrder = order,
-		Parent = sidebar,
-	}) :: TextButton
-	addCorner(btn, 10)
-	addStroke(btn, 1, CONFIG.Stroke, 0.25)
+	if boxRemoveConn then
+		boxRemoveConn:Disconnect()
+		boxRemoveConn = nil
+	end
 
-	local accentBar = make("Frame", {
-		Name = "AccentBar",
-		BackgroundColor3 = CONFIG.Accent,
-		BackgroundTransparency = 1,
-		Size = UDim2.new(0, 3, 1, -14),
-		Position = UDim2.new(0, 8, 0, 7),
-		ZIndex = 44,
-		Parent = btn,
-	})
-	addCorner(accentBar, 2)
-
-	make("TextLabel", {
-		Name = "Icon",
-		BackgroundTransparency = 1,
-		Text = tab.Icon or "",
-		TextColor3 = CONFIG.SubText,
-		TextSize = 14,
-		Font = Enum.Font.GothamSemibold,
-		Size = UDim2.new(0, 18, 1, 0),
-		Position = UDim2.new(0, 18, 0, 0),
-		ZIndex = 44,
-		Parent = btn,
-	})
-
-	make("TextLabel", {
-		Name = "Label",
-		BackgroundTransparency = 1,
-		Text = tab.Name,
-		TextColor3 = CONFIG.Text,
-		TextSize = 14,
-		Font = Enum.Font.GothamSemibold,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -48, 1, 0),
-		Position = UDim2.new(0, 42, 0, 0),
-		ZIndex = 44,
-		Parent = btn,
-	})
-
-	btn.MouseEnter:Connect(function()
-		if currentTabName ~= tab.Name then
-			btn.BackgroundColor3 = CONFIG.Bg3
-		end
+	boxRemoveConn = Players.PlayerRemoving:Connect(function(plr: Player)
+		destroyBoxForUserId(plr.UserId)
 	end)
 
-btn.MouseLeave:Connect(function()
-	if currentTabName ~= tab.Name then
-		btn.BackgroundColor3 = CONFIG.Bg2
-	end
-end)
-
-btn.MouseButton1Click:Connect(function()
-	-- switching pages closes dropdowns
-	Toggles.CloseAllDropdowns()
-
-	setActivePage(tab.Name)
-	setTabVisuals(tab.Name)
-end)
-
-tabButtons[tab.Name] = btn
-
-end
-
-for i, t in ipairs(tabs) do
-	makeTabButton(t, i)
-end
-
---================================================================================
--- Positions / animation states (FIXED: no downward drift, remembers last pos)
---================================================================================
-local isOpen = false
-popup.Visible = false
-popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
-body.Visible = false
-
-local openTween: Tween? = nil
-local closeTween: Tween? = nil
-
-local freeMenuPositioning = false
-local lastPopupPos: UDim2? = nil
-local lastPopupAnchor: Vector2? = nil
-
-local function placePopupCentered()
-	local viewport = getViewportSize()
-	local pos = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
-	local anchor = Vector2.new(0.5, 0.5)
-	local clamped = clampPopupPos(pos, CONFIG.PopupSize, anchor, viewport)
-
-	popup.AnchorPoint = anchor
-	popup.Position = UDim2.fromOffset(clamped.X, clamped.Y)
-end
-
-local function placePopupClampedToViewport()
-	local viewport = getViewportSize()
-	local anchor = popup.AnchorPoint
-
-	-- IMPORTANT: use popup.Position offsets, NOT AbsolutePosition (prevents drift)
-	local desired = Vector2.new(popup.Position.X.Offset, popup.Position.Y.Offset)
-	local clamped = clampPopupPos(desired, CONFIG.PopupSize, anchor, viewport)
-
-	popup.Position = UDim2.fromOffset(clamped.X, clamped.Y)
-end
-
--- save position whenever user drags it
-popup:GetPropertyChangedSignal("Position"):Connect(function()
-	if freeMenuPositioning then
-		lastPopupPos = popup.Position
-		lastPopupAnchor = popup.AnchorPoint
-	end
-end)
-
-local function tweenPopup(open: boolean)
-	if openTween then
-		openTween:Cancel()
-	end
-	if closeTween then
-		closeTween:Cancel()
-	end
-
-	if open then
-		popup.Visible = true
-
-		-- reopen where it last was (or center once)
-		if lastPopupPos and lastPopupAnchor then
-			popup.AnchorPoint = lastPopupAnchor
-			popup.Position = lastPopupPos
-			placePopupClampedToViewport()
-		else
-			placePopupCentered()
-			lastPopupPos = popup.Position
-			lastPopupAnchor = popup.AnchorPoint
+	task.defer(function()
+		if not featureState.Box3D then
+			return
 		end
 
-		popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
-		body.Visible = false
+		boxConn = RunService.RenderStepped:Connect(function()
+for _, plr in ipairs(Players:GetPlayers()) do
+	local data = ensureBoxFor(plr)
 
-		local tInfo = TweenInfo.new(CONFIG.OpenTweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		openTween = TweenService:Create(popup, tInfo, {
-			Size = UDim2.fromOffset(CONFIG.PopupSize.X, CONFIG.PopupSize.Y),
-		})
-		openTween.Completed:Once(function()
-			if isOpen then
-				body.Visible = true
-			end
-		end)
-		openTween:Play()
+	if isEnemy(plr) then
+		updateBoxFor(plr, data)
 	else
-		body.Visible = false
-
-		local tInfo = TweenInfo.new(CONFIG.CloseTweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-		closeTween = TweenService:Create(popup, tInfo, {
-			Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0),
-		})
-		closeTween.Completed:Once(function()
-			popup.Visible = false
+		setBoxEnabled(data, false)
+	end
+end
 		end)
-		closeTween:Play()
+	end)
+end
+
+local function disableBoxes()
+	if boxConn then
+		boxConn:Disconnect()
+		boxConn = nil
+	end
+
+	if boxRemoveConn then
+		boxRemoveConn:Disconnect()
+		boxRemoveConn = nil
+	end
+
+	clearBoxes()
+end
+
+------------------------------------------------------------------
+-- APPLY LOGIC
+------------------------------------------------------------------
+
+local function refresh()
+	-- Make sure lifecycle watchers exist so join/respawn works even after toggles change
+	ensureGlobalWatchers()
+
+	-- remove current ESP instances + old health conns, then re-apply to active chars
+	cleanupAll()
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			applyForPlayer(plr)
+		end
+	end
+
+	if featureState.Name or featureState.Health then
+		startScaler()
+	else
+		stopScaler()
 	end
 end
 
-local function setOpen(nextOpen: boolean)
-	if isOpen == nextOpen then
-		return
-	end
-	isOpen = nextOpen
+------------------------------------------------------------------
+-- BIND TOGGLES
+------------------------------------------------------------------
 
-	-- save where it was when closing
-	if not isOpen then
-		lastPopupPos = popup.Position
-		lastPopupAnchor = popup.AnchorPoint
-		Toggles.CloseAllDropdowns()
-	end
+local function bind(feature: string, key: string)
+	Toggles.Subscribe(key, function(state: boolean)
+		featureState[feature] = state
 
-	toggleIcon.Image = isOpen and OPEN_ICON or CLOSED_ICON
-	tweenPopup(isOpen)
+		if feature == "Snaplines" then
+			if state then
+				enableSnaplines()
+			else
+				disableSnaplines()
+			end
+			return
+		end
+
+		if feature == "Box3D" then
+			if state then
+				enableBoxes()
+			else
+				disableBoxes()
+			end
+			return
+		end
+
+		refresh()
+	end)
+
+	if Toggles.GetState(key, false) then
+		featureState[feature] = true
+
+		if feature == "Snaplines" then
+			enableSnaplines()
+		elseif feature == "Box3D" then
+			enableBoxes()
+		else
+			refresh()
+		end
+	end
 end
 
--- DRAGGING (SEPARATE)
--- toggleButton drag removed so it stays pinned under Roblox UI
-enableDrag(header, popup, function()
-	freeMenuPositioning = true
-end, nil)
+bind("Name", KEYS.Name)
+bind("Health", KEYS.Health)
+bind("Player", KEYS.Player)
+bind("Snaplines", KEYS.Snaplines)
+bind("Box3D", KEYS.Box3D)
 
-toggleButton.MouseButton1Click:Connect(function()
-	setOpen(not isOpen)
-end)
-
-closeBtn.MouseButton1Click:Connect(function()
-	setOpen(false)
-end)
-
-UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
-	if gameProcessed then
-		return
-	end
-	if input.KeyCode == Enum.KeyCode.Escape then
-		setOpen(false)
-	end
-end)
-
--- Default tab
-setActivePage("Main")
-setTabVisuals("Main")
-setOpen(false)
-
--- If you ever need to read a toggle anywhere in this file:
--- print("ESP Boxes currently:", Toggles.GetState("visuals_boxes", false))
--- If you ever need to force-load a feature:
--- ensureFeatureLoaded("world_fullbright", FULLBRIGHT_URL)
+refresh()
