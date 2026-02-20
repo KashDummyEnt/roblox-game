@@ -478,7 +478,7 @@ local function ensureGlobalWatchers()
 end
 
 ------------------------------------------------------------------
--- DISTANCE SCALING
+-- DISTANCE SCALING (WITH HARD TEAM ENFORCEMENT)
 ------------------------------------------------------------------
 
 local function startScaler()
@@ -489,64 +489,121 @@ local function startScaler()
 		if not cam then return end
 
 		for _, plr in ipairs(Players:GetPlayers()) do
-			if isEnemy(plr) then
-				local char = plr.Character
-				if char then
-					local head = char:FindFirstChild("Head")
-					local root = char:FindFirstChild("HumanoidRootPart")
+			if plr == LocalPlayer then
+				continue
+			end
 
-					if head and root then
-						local dist = (cam.CFrame.Position - root.Position).Magnitude
-						local scale = math.clamp(70 / dist, 0, 1)
+			local char = plr.Character
+			if not char then
+				continue
+			end
 
-						local nameHeightPixels = NAME_MIN_H
+			local head = char:FindFirstChild("Head")
+			local root = char:FindFirstChild("HumanoidRootPart")
 
-------------------------------------------------------------------
--- NAME (SELF-HEALING)
-------------------------------------------------------------------
-if featureState.Name then
-	local nameGui = head:FindFirstChild(NAME_TAG)
+			if not head or not root then
+				continue
+			end
 
-	-- Auto-build if missing
-	if not nameGui then
-		buildName(plr)
-		nameGui = head:FindFirstChild(NAME_TAG)
-	end
+			------------------------------------------------------------------
+			-- HARD TEAM CHECK ENFORCEMENT
+			------------------------------------------------------------------
 
-	if nameGui then
-		local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
-		local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
+			if not isEnemy(plr) then
+				-- Remove Name
+				local nameGui = head:FindFirstChild(NAME_TAG)
+				if nameGui then
+					nameGui:Destroy()
+				end
 
-		nameGui.Size = UDim2.new(0, w, 0, h)
-		nameHeightPixels = h
-	end
-end
+				-- Remove Health
+				local hpGui = root:FindFirstChild(HEALTH_TAG)
+				if hpGui then
+					hpGui:Destroy()
+				end
 
-------------------------------------------------------------------
--- HEALTH (SELF-HEALING)
-------------------------------------------------------------------
-if featureState.Health then
-	local hpGui = root:FindFirstChild(HEALTH_TAG)
+				-- Remove Glow
+				local glow = char:FindFirstChild(GLOW_TAG)
+				if glow then
+					glow:Destroy()
+				end
 
-	-- Auto-build if missing
-	if not hpGui then
-		buildHealth(plr)
-		hpGui = root:FindFirstChild(HEALTH_TAG)
-	end
+				continue
+			end
 
-	if hpGui then
-		local w = math.max(math.floor(HP_BASE_W * scale), HP_MIN_W)
-		local h = math.max(math.floor(HP_BASE_H * scale), HP_MIN_H)
+			------------------------------------------------------------------
+			-- DISTANCE SCALING
+			------------------------------------------------------------------
 
-		hpGui.Size = UDim2.new(0, w, 0, h)
+			local dist = (cam.CFrame.Position - root.Position).Magnitude
+			local scale = math.clamp(70 / dist, 0, 1)
 
-		-- Keep healthbar below the player (classic style)
-		hpGui.StudsOffset = Vector3.new(0, -3.2, 0)
-	end
-end
+			local nameHeightPixels = NAME_MIN_H
 
+			------------------------------------------------------------------
+			-- NAME (SELF-HEALING)
+			------------------------------------------------------------------
 
-					end
+			if featureState.Name then
+				local nameGui = head:FindFirstChild(NAME_TAG)
+
+				if not nameGui then
+					buildName(plr)
+					nameGui = head:FindFirstChild(NAME_TAG)
+				end
+
+				if nameGui then
+					local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
+					local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
+
+					nameGui.Size = UDim2.new(0, w, 0, h)
+					nameHeightPixels = h
+				end
+			else
+				local nameGui = head:FindFirstChild(NAME_TAG)
+				if nameGui then
+					nameGui:Destroy()
+				end
+			end
+
+			------------------------------------------------------------------
+			-- HEALTH (SELF-HEALING)
+			------------------------------------------------------------------
+
+			if featureState.Health then
+				local hpGui = root:FindFirstChild(HEALTH_TAG)
+
+				if not hpGui then
+					buildHealth(plr)
+					hpGui = root:FindFirstChild(HEALTH_TAG)
+				end
+
+				if hpGui then
+					local w = math.max(math.floor(HP_BASE_W * scale), HP_MIN_W)
+					local h = math.max(math.floor(HP_BASE_H * scale), HP_MIN_H)
+
+					hpGui.Size = UDim2.new(0, w, 0, h)
+					hpGui.StudsOffset = Vector3.new(0, -3.2, 0)
+				end
+			else
+				local hpGui = root:FindFirstChild(HEALTH_TAG)
+				if hpGui then
+					hpGui:Destroy()
+				end
+			end
+
+			------------------------------------------------------------------
+			-- GLOW ENFORCEMENT
+			------------------------------------------------------------------
+
+			if featureState.Player then
+				if not char:FindFirstChild(GLOW_TAG) then
+					buildGlow(plr)
+				end
+			else
+				local glow = char:FindFirstChild(GLOW_TAG)
+				if glow then
+					glow:Destroy()
 				end
 			end
 		end
