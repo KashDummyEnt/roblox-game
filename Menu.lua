@@ -403,6 +403,10 @@ local function enableDrag(dragHandle: GuiObject, mainTarget: GuiObject, onDragSt
 				mainStartPos.Y.Offset + delta.Y
 			)
 
+			if sidePanel.Visible then
+				layoutSidePanel()
+			end
+
 			for _, s in ipairs(sync) do
 				s.Target.Position = UDim2.new(
 					s.StartPos.X.Scale,
@@ -1253,35 +1257,33 @@ local function layoutSidePanel()
 		return
 	end
 
-	-- use Absolute* so it doesn't care about popup anchorpoint math
 	local vp = getViewportSize()
-	local px = popup.AbsolutePosition.X
-	local py = popup.AbsolutePosition.Y
-	local pw = popup.AbsoluteSize.X
-	local ph = popup.AbsoluteSize.Y
 
-	local xRight = px + pw + SIDE_GAP
-	local xLeft = px - SIDE_GAP - SIDE_WIDTH
+	-- Prefer offset space (you position popup with offsets already)
+	local px = popup.Position.X.Offset
+	local py = popup.Position.Y.Offset
 
-	local x = xRight
-	if (xRight + SIDE_WIDTH) > vp.X then
-		x = xLeft
+	-- Width/height (use current size, not absolute position)
+	local pw = popup.Size.X.Offset
+	local ph = popup.Size.Y.Offset
+
+	-- If during tween you temporarily have 0 height, still follow
+	if ph <= 0 then
+		ph = popup.AbsoluteSize.Y
+	end
+	if pw <= 0 then
+		pw = popup.AbsoluteSize.X
 	end
 
-	-- clamp into viewport
-	if x < 0 then
-		x = 0
-	end
-	if (x + SIDE_WIDTH) > vp.X then
-		x = vp.X - SIDE_WIDTH
-	end
+	-- Always to the RIGHT of popup
+	local x = px + pw + SIDE_GAP
+
+	-- Clamp so it stays on screen (but still "right-side" behavior)
+	x = math.clamp(x, 0, vp.X - SIDE_WIDTH)
 
 	sidePanel.Position = UDim2.fromOffset(x, py)
 	sidePanel.Size = UDim2.fromOffset(SIDE_WIDTH, ph)
 end
-
-popup:GetPropertyChangedSignal("Position"):Connect(layoutSidePanel)
-popup:GetPropertyChangedSignal("Size"):Connect(layoutSidePanel)
 
 -- save position whenever user drags it
 popup:GetPropertyChangedSignal("Position"):Connect(function()
@@ -1323,11 +1325,12 @@ local function tweenPopup(open: boolean)
 		openTween = TweenService:Create(popup, tInfo, {
 			Size = UDim2.fromOffset(CONFIG.PopupSize.X, CONFIG.PopupSize.Y),
 		})
-		openTween.Completed:Once(function()
-			if isOpen then
-				body.Visible = true
-			end
-		end)
+openTween.Completed:Once(function()
+	if isOpen then
+		body.Visible = true
+		layoutSidePanel()
+	end
+end)
 		openTween:Play()
 	else
 		body.Visible = false
@@ -1365,11 +1368,7 @@ end
 -- toggleButton drag removed so it stays pinned under Roblox UI
 enableDrag(header, popup, function()
 	freeMenuPositioning = true
-end, function()
-	return {
-		{Target = sidePanel, StartPos = sidePanel.Position},
-	}
-end)
+end, nil)
 
 toggleButton.MouseButton1Click:Connect(function()
 	setOpen(not isOpen)
