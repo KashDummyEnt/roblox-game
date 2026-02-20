@@ -1,6 +1,6 @@
 --!strict
 -- Rage.lua
--- Toggle-based Rage Aimbot (HIGGI SYSTEM)
+-- Toggle-based Rage Aimbot (HIGGI SYSTEM - ALIGNED WITH ESP)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -41,16 +41,17 @@ end
 -- CONFIG
 ----------------------------------------------------
 
-local AIM_AT = "Head"
+local AIM_AT = "Head" -- "Head" or "HumanoidRootPart"
 local FOV_RADIUS = 250
-local TEAM_CHECK = true
 local ALIVE_ONLY = true
+
+-- EXACT same style as AdminESP
+local TEAM_CHECK_ENABLED = true
 
 ----------------------------------------------------
 -- STATE
 ----------------------------------------------------
 
-local enabled = false
 local connection: RBXScriptConnection? = nil
 local fovGui: ScreenGui? = nil
 
@@ -104,7 +105,7 @@ local function destroyFov()
 end
 
 ----------------------------------------------------
--- TARGETING
+-- TARGETING (ALIGNED WITH ESP STYLE)
 ----------------------------------------------------
 
 local function isAlive(plr: Player): boolean
@@ -117,21 +118,28 @@ end
 local function getAimPart(plr: Player): BasePart?
 	local char = plr.Character
 	if not char then return nil end
+
 	if AIM_AT == "HumanoidRootPart" then
 		return char:FindFirstChild("HumanoidRootPart") :: BasePart?
 	end
+
 	return char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
 end
 
+-- IDENTICAL STRUCTURE TO ADMINESP
 local function isEnemy(plr: Player): boolean
-	if plr == LocalPlayer then return false end
-
-	if not TEAM_CHECK then return true end
-
+	if plr == LocalPlayer then
+		return false
+	end
+	
+	if not TEAM_CHECK_ENABLED then
+		return true
+	end
+	
 	if not LocalPlayer.Team or not plr.Team then
 		return true
 	end
-
+	
 	return plr.Team ~= LocalPlayer.Team
 end
 
@@ -204,8 +212,6 @@ end
 ----------------------------------------------------
 
 Toggles.Subscribe("combat_rage", function(state)
-	enabled = state
-
 	if state then
 		start()
 	else
@@ -213,7 +219,7 @@ Toggles.Subscribe("combat_rage", function(state)
 	end
 end)
 
--- handle case where toggle was already on before script loads
+-- If toggle was already enabled before load
 if Toggles.GetState("combat_rage", false) then
 	start()
 end
