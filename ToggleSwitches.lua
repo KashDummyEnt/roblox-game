@@ -937,7 +937,7 @@ function ToggleSwitches.AddToggleDropDownCard(
 end
 
 --============================================================
--- Slider UI card (number value)
+-- Slider UI card (compact – matches toggle card size)
 --============================================================
 function ToggleSwitches.AddSliderCard(
 	parent,
@@ -960,12 +960,12 @@ function ToggleSwitches.AddSliderCard(
 	local UserInputService = services.UserInputService
 
 	------------------------------------------------
-	-- Card
+	-- Card (same size as toggle card)
 	------------------------------------------------
 	local card = make("Frame", {
 		Name = "SliderCard_" .. tostring(valueKey),
 		BackgroundColor3 = config.Bg2,
-		Size = UDim2.new(1, 0, 0, 90),
+		Size = UDim2.new(1, 0, 0, 64), -- MATCHES TOGGLE HEIGHT
 		ZIndex = 43,
 		LayoutOrder = order,
 		Parent = parent,
@@ -973,6 +973,9 @@ function ToggleSwitches.AddSliderCard(
 	addCorner(card, 12)
 	addStroke(card, 1, config.Stroke, 0.35)
 
+	------------------------------------------------
+	-- Title
+	------------------------------------------------
 	make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = title,
@@ -980,12 +983,15 @@ function ToggleSwitches.AddSliderCard(
 		TextSize = 15,
 		Font = Enum.Font.GothamSemibold,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -16, 0, 22),
+		Size = UDim2.new(1, -118, 0, 22),
 		Position = UDim2.new(0, 10, 0, 8),
 		ZIndex = 44,
 		Parent = card,
 	})
 
+	------------------------------------------------
+	-- Description
+	------------------------------------------------
 	make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = desc,
@@ -995,20 +1001,24 @@ function ToggleSwitches.AddSliderCard(
 		TextWrapped = true,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Top,
-		Size = UDim2.new(1, -16, 0, 20),
+		Size = UDim2.new(1, -118, 0, 28),
 		Position = UDim2.new(0, 10, 0, 30),
 		ZIndex = 44,
 		Parent = card,
 	})
 
 	------------------------------------------------
-	-- Slider bar
+	-- Slider track (same vertical alignment as toggle switch)
 	------------------------------------------------
+	local SLIDER_WIDTH = 140
+	local SLIDER_HEIGHT = 6
+	local RIGHT_PADDING = 14
+
 	local sliderBar = make("Frame", {
 		BackgroundColor3 = config.Bg3,
-		Size = UDim2.new(1, -20, 0, 6),
-		Position = UDim2.new(0, 10, 0, 65),
-		ZIndex = 45,
+		Size = UDim2.fromOffset(SLIDER_WIDTH, SLIDER_HEIGHT),
+		Position = UDim2.new(1, -(RIGHT_PADDING + SLIDER_WIDTH), 0.5, -3),
+		ZIndex = 46,
 		Parent = card,
 	})
 	addCorner(sliderBar, 3)
@@ -1016,39 +1026,39 @@ function ToggleSwitches.AddSliderCard(
 	local fill = make("Frame", {
 		BackgroundColor3 = config.Accent,
 		Size = UDim2.new(0, 0, 1, 0),
-		ZIndex = 46,
+		ZIndex = 47,
 		Parent = sliderBar,
 	})
 	addCorner(fill, 3)
 
 	------------------------------------------------
-	-- Knob (the draggable circle)
+	-- Knob (accent circle)
 	------------------------------------------------
 	local KNOB_SIZE = 14
 
 	local knob = make("Frame", {
 		BackgroundColor3 = config.Accent,
 		Size = UDim2.fromOffset(KNOB_SIZE, KNOB_SIZE),
-		AnchorPoint = Vector2.new(0.5,0.5),
-		ZIndex = 47,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		ZIndex = 48,
 		Parent = sliderBar,
 	})
 	addCorner(knob, 999)
-	addStroke(knob, 1, Color3.fromRGB(0,0,0), 0.6)
+	addStroke(knob, 1, Color3.fromRGB(0,0,0), 0.5)
 
 	------------------------------------------------
-	-- Value label
+	-- Value display (small number next to slider)
 	------------------------------------------------
 	local valueLabel = make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = tostring(Store.values[valueKey]),
 		TextColor3 = config.Text,
-		TextSize = 13,
+		TextSize = 12,
 		Font = Enum.Font.GothamSemibold,
 		TextXAlignment = Enum.TextXAlignment.Right,
-		Size = UDim2.new(1, -16, 0, 20),
-		Position = UDim2.new(0, 10, 0, 70),
-		ZIndex = 47,
+		Size = UDim2.new(0, 40, 0, 16),
+		Position = UDim2.new(1, -(RIGHT_PADDING + SLIDER_WIDTH + 45), 0.5, -8),
+		ZIndex = 49,
 		Parent = card,
 	})
 
@@ -1118,6 +1128,5 @@ function ToggleSwitches.AddSliderCard(
 	local initialAlpha = (Store.values[valueKey] - minValue) / (maxValue - minValue)
 	setFromAlpha(initialAlpha)
 end
-
 
 return ToggleSwitches
