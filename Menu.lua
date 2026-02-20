@@ -513,6 +513,68 @@ popup.AnchorPoint = Vector2.new(0, 0)
 addCorner(popup, 14)
 addStroke(popup, 1, CONFIG.Stroke, 0.15)
 
+--================================================================================
+-- Right-side panel (follows popup)
+--================================================================================
+local SIDE_GAP = 18
+local SIDE_WIDTH = 320
+
+local sidePanel = make("Frame", {
+	Name = "SidePanel",
+	BackgroundColor3 = CONFIG.Bg,
+	Visible = false,
+	ZIndex = 39, -- slightly behind popup (popup is 40)
+	Parent = screenGui,
+})
+sidePanel.ClipsDescendants = true
+addCorner(sidePanel, 14)
+addStroke(sidePanel, 1, CONFIG.Stroke, 0.15)
+
+make("UIGradient", {
+	Rotation = 90,
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, CONFIG.Bg2),
+		ColorSequenceKeypoint.new(1, CONFIG.Bg),
+	}),
+	Parent = sidePanel,
+})
+
+-- inner content (placeholder)
+local sideInner = make("Frame", {
+	Name = "Inner",
+	BackgroundColor3 = CONFIG.Bg2,
+	Size = UDim2.new(1, -20, 1, -20),
+	Position = UDim2.new(0, 10, 0, 10),
+	ZIndex = 40,
+	Parent = sidePanel,
+})
+addCorner(sideInner, 12)
+addStroke(sideInner, 1, CONFIG.Stroke, 0.25)
+
+make("TextLabel", {
+	Name = "SideTitle",
+	BackgroundTransparency = 1,
+	Text = "Preview",
+	TextColor3 = CONFIG.Text,
+	TextSize = 16,
+	Font = Enum.Font.GothamSemibold,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Size = UDim2.new(1, -20, 0, 28),
+	Position = UDim2.new(0, 12, 0, 10),
+	ZIndex = 41,
+	Parent = sideInner,
+})
+
+make("Frame", {
+	Name = "PreviewBox",
+	BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+	BackgroundTransparency = 0,
+	Size = UDim2.new(1, -24, 1, -54),
+	Position = UDim2.new(0, 12, 0, 42),
+	ZIndex = 41,
+	Parent = sideInner,
+})
+
 local popupGradient = make("UIGradient", {
 	Rotation = 90,
 	Parent = popup,
@@ -1186,6 +1248,41 @@ local function placePopupClampedToViewport()
 	popup.Position = UDim2.fromOffset(clamped.X, clamped.Y)
 end
 
+local function layoutSidePanel()
+	if not sidePanel.Visible then
+		return
+	end
+
+	-- use Absolute* so it doesn't care about popup anchorpoint math
+	local vp = getViewportSize()
+	local px = popup.AbsolutePosition.X
+	local py = popup.AbsolutePosition.Y
+	local pw = popup.AbsoluteSize.X
+	local ph = popup.AbsoluteSize.Y
+
+	local xRight = px + pw + SIDE_GAP
+	local xLeft = px - SIDE_GAP - SIDE_WIDTH
+
+	local x = xRight
+	if (xRight + SIDE_WIDTH) > vp.X then
+		x = xLeft
+	end
+
+	-- clamp into viewport
+	if x < 0 then
+		x = 0
+	end
+	if (x + SIDE_WIDTH) > vp.X then
+		x = vp.X - SIDE_WIDTH
+	end
+
+	sidePanel.Position = UDim2.fromOffset(x, py)
+	sidePanel.Size = UDim2.fromOffset(SIDE_WIDTH, ph)
+end
+
+popup:GetPropertyChangedSignal("Position"):Connect(layoutSidePanel)
+popup:GetPropertyChangedSignal("Size"):Connect(layoutSidePanel)
+
 -- save position whenever user drags it
 popup:GetPropertyChangedSignal("Position"):Connect(function()
 	if freeMenuPositioning then
@@ -1204,6 +1301,9 @@ local function tweenPopup(open: boolean)
 
 	if open then
 		popup.Visible = true
+
+		sidePanel.Visible = true
+		layoutSidePanel()
 
 		-- reopen where it last was (or center once)
 		if lastPopupPos and lastPopupAnchor then
@@ -1238,6 +1338,7 @@ local function tweenPopup(open: boolean)
 		})
 		closeTween.Completed:Once(function()
 			popup.Visible = false
+			sidePanel.Visible = false
 		end)
 		closeTween:Play()
 	end
@@ -1264,7 +1365,11 @@ end
 -- toggleButton drag removed so it stays pinned under Roblox UI
 enableDrag(header, popup, function()
 	freeMenuPositioning = true
-end, nil)
+end, function()
+	return {
+		{Target = sidePanel, StartPos = sidePanel.Position},
+	}
+end)
 
 toggleButton.MouseButton1Click:Connect(function()
 	setOpen(not isOpen)
