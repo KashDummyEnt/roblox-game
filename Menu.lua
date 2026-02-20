@@ -768,6 +768,25 @@ local pageSettings = makePage("Settings")
 
 -- Main tab (keep placeholders for now)
 
+Toggles.AddToggleCard(
+	pageMain,
+	"combat_rage",                 -- toggle key
+	"Rage Aimbot",                 -- title
+	"Snaps camera to closest target in FOV.",
+	2,                             -- layout order (adjust if needed)
+	false,                         -- default off
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state)
+		if state then
+			ensureFeatureLoaded(
+				"rage",
+				"https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Rage.lua"
+			)
+		end
+	end
+)
+
 Toggles.AddToggleDropDownCard(
 	pageMain,
 	"world_tween_to_npc",      -- toggle key
