@@ -957,9 +957,11 @@ function ToggleSwitches.AddSliderCard(
 		Store.values[valueKey] = defaultValue
 	end
 
-	local TweenService = services.TweenService
 	local UserInputService = services.UserInputService
 
+	------------------------------------------------
+	-- Card
+	------------------------------------------------
 	local card = make("Frame", {
 		Name = "SliderCard_" .. tostring(valueKey),
 		BackgroundColor3 = config.Bg2,
@@ -999,6 +1001,9 @@ function ToggleSwitches.AddSliderCard(
 		Parent = card,
 	})
 
+	------------------------------------------------
+	-- Slider bar
+	------------------------------------------------
 	local sliderBar = make("Frame", {
 		BackgroundColor3 = config.Bg3,
 		Size = UDim2.new(1, -20, 0, 6),
@@ -1016,6 +1021,24 @@ function ToggleSwitches.AddSliderCard(
 	})
 	addCorner(fill, 3)
 
+	------------------------------------------------
+	-- Knob (the draggable circle)
+	------------------------------------------------
+	local KNOB_SIZE = 14
+
+	local knob = make("Frame", {
+		BackgroundColor3 = Color3.fromRGB(245,245,248),
+		Size = UDim2.fromOffset(KNOB_SIZE, KNOB_SIZE),
+		AnchorPoint = Vector2.new(0.5,0.5),
+		ZIndex = 47,
+		Parent = sliderBar,
+	})
+	addCorner(knob, 999)
+	addStroke(knob, 1, Color3.fromRGB(0,0,0), 0.6)
+
+	------------------------------------------------
+	-- Value label
+	------------------------------------------------
 	local valueLabel = make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = tostring(Store.values[valueKey]),
@@ -1029,8 +1052,12 @@ function ToggleSwitches.AddSliderCard(
 		Parent = card,
 	})
 
-	local function setValueFromAlpha(alpha)
+	------------------------------------------------
+	-- Logic
+	------------------------------------------------
+	local function setFromAlpha(alpha)
 		alpha = math.clamp(alpha, 0, 1)
+
 		local raw = minValue + (maxValue - minValue) * alpha
 
 		if step then
@@ -1042,43 +1069,54 @@ function ToggleSwitches.AddSliderCard(
 		Store.values[valueKey] = raw
 		valueLabel.Text = tostring(raw)
 
-		fill.Size = UDim2.new(
-			(raw - minValue) / (maxValue - minValue),
-			0,
-			1,
-			0
-		)
+		local percent = (raw - minValue) / (maxValue - minValue)
+
+		fill.Size = UDim2.new(percent, 0, 1, 0)
+		knob.Position = UDim2.new(percent, 0, 0.5, 0)
 
 		notifyValue(valueKey, raw)
 	end
 
+	------------------------------------------------
+	-- Drag handling
+	------------------------------------------------
 	local dragging = false
 
+	local function updateFromInput(input)
+		local relativeX = input.Position.X - sliderBar.AbsolutePosition.X
+		local alpha = relativeX / sliderBar.AbsoluteSize.X
+		setFromAlpha(alpha)
+	end
+
 	sliderBar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
-			local alpha = (input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X
-			setValueFromAlpha(alpha)
+			updateFromInput(input)
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
-		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-			local alpha = (input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X
-			setValueFromAlpha(alpha)
+		if dragging and (
+			input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		) then
+			updateFromInput(input)
 		end
 	end)
 
 	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = false
 		end
 	end)
 
-	-- initialize
-	setValueFromAlpha(
-		(Store.values[valueKey] - minValue) / (maxValue - minValue)
-	)
+	------------------------------------------------
+	-- Initialize
+	------------------------------------------------
+	local initialAlpha = (Store.values[valueKey] - minValue) / (maxValue - minValue)
+	setFromAlpha(initialAlpha)
 end
 
 
