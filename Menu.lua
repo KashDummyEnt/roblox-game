@@ -1232,7 +1232,7 @@ local freeMenuPositioning = false
 local lastPopupPos: UDim2? = nil
 local lastPopupAnchor: Vector2? = nil
 
-local POPUP_Y_OFFSET = 28 -- tweak 20–40 until it looks perfect
+local POPUP_Y_OFFSET = 40 -- tweak 20–40 until it looks perfect
 
 local function placePopupCentered()
 	local viewport = getViewportSize()
