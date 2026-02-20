@@ -1027,7 +1027,7 @@ function ToggleSwitches.AddSliderCard(
 	local KNOB_SIZE = 14
 
 	local knob = make("Frame", {
-		BackgroundColor3 = Color3.fromRGB(245,245,248),
+		BackgroundColor3 = config.Accent,
 		Size = UDim2.fromOffset(KNOB_SIZE, KNOB_SIZE),
 		AnchorPoint = Vector2.new(0.5,0.5),
 		ZIndex = 47,
