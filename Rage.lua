@@ -1,14 +1,15 @@
 --!strict
 -- Rage.lua
--- Toggle-based Rage Aimbot (HIGGI SYSTEM - ALIGNED WITH ESP)
+-- Toggle-based Rage Aimbot (VISIBLE ONLY VERSION)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 
 ----------------------------------------------------
--- GLOBAL TOGGLE ACCESS (same pattern as AdminESP)
+-- GLOBAL TOGGLE ACCESS
 ----------------------------------------------------
 
 local function getGlobal(): any
@@ -41,12 +42,11 @@ end
 -- CONFIG
 ----------------------------------------------------
 
-local AIM_AT = "Head" -- "Head" or "HumanoidRootPart"
+local AIM_AT = "Head"
 local FOV_RADIUS = 250
 local ALIVE_ONLY = true
-
--- EXACT same style as AdminESP
 local TEAM_CHECK_ENABLED = true
+local VISIBLE_ONLY = true
 
 ----------------------------------------------------
 -- STATE
@@ -56,7 +56,7 @@ local connection: RBXScriptConnection? = nil
 local fovGui: ScreenGui? = nil
 
 ----------------------------------------------------
--- CAMERA HANDLING
+-- CAMERA
 ----------------------------------------------------
 
 local Camera = workspace.CurrentCamera or workspace:WaitForChild("Camera")
@@ -105,7 +105,7 @@ local function destroyFov()
 end
 
 ----------------------------------------------------
--- TARGETING (ALIGNED WITH ESP STYLE)
+-- TARGET HELPERS
 ----------------------------------------------------
 
 local function isAlive(plr: Player): boolean
@@ -126,15 +126,10 @@ local function getAimPart(plr: Player): BasePart?
 	return char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
 end
 
--- IDENTICAL STRUCTURE TO ADMINESP
 local function isEnemy(plr: Player): boolean
-	if plr == LocalPlayer then
-		return false
-	end
+	if plr == LocalPlayer then return false end
 	
-	if not TEAM_CHECK_ENABLED then
-		return true
-	end
+	if not TEAM_CHECK_ENABLED then return true end
 	
 	if not LocalPlayer.Team or not plr.Team then
 		return true
@@ -142,6 +137,41 @@ local function isEnemy(plr: Player): boolean
 	
 	return plr.Team ~= LocalPlayer.Team
 end
+
+----------------------------------------------------
+-- VISIBILITY CHECK
+----------------------------------------------------
+
+local function isVisible(targetPart: BasePart): boolean
+	if not VISIBLE_ONLY then
+		return true
+	end
+
+	local origin = Camera.CFrame.Position
+	local direction = targetPart.Position - origin
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+	rayParams.FilterDescendantsInstances = { LocalPlayer.Character }
+	rayParams.IgnoreWater = true
+
+	local result = Workspace:Raycast(origin, direction, rayParams)
+
+	if not result then
+		return true
+	end
+
+	-- if first hit is inside the target character, it's visible
+	if result.Instance:IsDescendantOf(targetPart.Parent) then
+		return true
+	end
+
+	return false
+end
+
+----------------------------------------------------
+-- TARGETING
+----------------------------------------------------
 
 local function getClosestTargetInFov(): BasePart?
 	if not Camera then return nil end
@@ -153,19 +183,16 @@ local function getClosestTargetInFov(): BasePart?
 	local bestDist2 = FOV_RADIUS * FOV_RADIUS
 
 	for _, plr in ipairs(Players:GetPlayers()) do
-		if not isEnemy(plr) then
-			continue
-		end
-
-		if ALIVE_ONLY and not isAlive(plr) then
-			continue
-		end
+		if not isEnemy(plr) then continue end
+		if ALIVE_ONLY and not isAlive(plr) then continue end
 
 		local part = getAimPart(plr)
 		if not part then continue end
 
 		local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
 		if not onScreen or screenPos.Z <= 0 then continue end
+
+		if not isVisible(part) then continue end
 
 		local dx = screenPos.X - center.X
 		local dy = screenPos.Y - center.Y
@@ -208,7 +235,7 @@ local function stop()
 end
 
 ----------------------------------------------------
--- TOGGLE SUBSCRIPTION
+-- TOGGLE SUBSCRIBE
 ----------------------------------------------------
 
 Toggles.Subscribe("combat_rage", function(state)
@@ -219,7 +246,6 @@ Toggles.Subscribe("combat_rage", function(state)
 	end
 end)
 
--- If toggle was already enabled before load
 if Toggles.GetState("combat_rage", false) then
 	start()
 end
