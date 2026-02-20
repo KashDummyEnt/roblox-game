@@ -771,7 +771,7 @@ local pageSettings = makePage("Settings")
 
 Toggles.AddToggleCard(
 	pageMain,
-	"combat_rage",
+	"combat_",
 	"Rage Aimbot",
 	"Auto-aim at nearest enemy inside FOV.",
 	1,
@@ -798,7 +798,9 @@ Toggles.AddSliderCard(
 	5,
 	CONFIG,
 	TOGGLE_SERVICES,
-	20
+	20,	-- labelOffsetX
+	nil,	-- valueOffsetX (keep default)
+	nil	-- barOffsetX (keep default)
 )
 
 Toggles.AddSliderCard(
@@ -813,7 +815,9 @@ Toggles.AddSliderCard(
 	0.01,
 	CONFIG,
 	TOGGLE_SERVICES,
-	5
+	5,	-- labelOffsetX
+	nil,	-- valueOffsetX (keep default)
+	nil	-- barOffsetX (keep default)
 )
 
 Toggles.AddToggleCard(
