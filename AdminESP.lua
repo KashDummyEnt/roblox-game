@@ -76,6 +76,28 @@ local featureState = {
 	Box3D = false,
 }
 
+------------------------------------------------------------------
+-- TEAM CHECK
+------------------------------------------------------------------
+
+local TEAM_CHECK_ENABLED = true -- flip false if you ever want FFA mode
+
+local function isEnemy(plr: Player): boolean
+	if plr == LocalPlayer then
+		return false
+	end
+	
+	if not TEAM_CHECK_ENABLED then
+		return true
+	end
+	
+	if not LocalPlayer.Team or not plr.Team then
+		return true -- no team info = treat as enemy
+	end
+	
+	return plr.Team ~= LocalPlayer.Team
+end
+
 local playerConns: {[number]: {RBXScriptConnection}} = {}
 local charWatchConns: {[number]: RBXScriptConnection} = {}
 
@@ -328,6 +350,11 @@ end
 local function applyForPlayer(plr: Player)
 	if plr == LocalPlayer then return end
 
+	if not isEnemy(plr) then
+	cleanupPlayer(plr)
+	return
+    end
+
 	disconnectUser(plr.UserId)
 	if not plr.Character then return end
 
@@ -368,24 +395,52 @@ local function applyForPlayer(plr: Player)
 end
 
 
+------------------------------------------------------------------
+-- CHARACTER WATCHER
+------------------------------------------------------------------
+
 local function ensureCharWatcher(plr: Player)
 	if plr == LocalPlayer then return end
 	if charWatchConns[plr.UserId] then return end
 
-charWatchConns[plr.UserId] = plr.CharacterAdded:Connect(function(char)
-	task.wait(0.2)
+	-- ensure bucket exists for this player
+	playerConns[plr.UserId] = playerConns[plr.UserId] or {}
 
-	-- Re-apply default name visibility on respawn
-	setDefaultNameVisible(plr, not featureState.Name)
+	------------------------------------------------------------------
+	-- TEAM CHANGE LISTENER
+	------------------------------------------------------------------
 
-	applyForPlayer(plr)
-end)
+	table.insert(
+		playerConns[plr.UserId],
+		plr:GetPropertyChangedSignal("Team"):Connect(function()
+			refresh()
+		end)
+	)
 
+	------------------------------------------------------------------
+	-- RESPAWN LISTENER
+	------------------------------------------------------------------
+
+	charWatchConns[plr.UserId] = plr.CharacterAdded:Connect(function(char)
+		task.wait(0.2)
+
+		setDefaultNameVisible(plr, not featureState.Name)
+		applyForPlayer(plr)
+	end)
+
+	------------------------------------------------------------------
+	-- APPLY IMMEDIATELY IF CHARACTER EXISTS
+	------------------------------------------------------------------
 
 	if plr.Character then
 		applyForPlayer(plr)
 	end
 end
+
+
+------------------------------------------------------------------
+-- GLOBAL PLAYER WATCHERS
+------------------------------------------------------------------
 
 local playerAddedConn: RBXScriptConnection? = nil
 local playerRemovingConn: RBXScriptConnection? = nil
@@ -422,7 +477,6 @@ local function ensureGlobalWatchers()
 	end
 end
 
-
 ------------------------------------------------------------------
 -- DISTANCE SCALING
 ------------------------------------------------------------------
@@ -435,7 +489,7 @@ local function startScaler()
 		if not cam then return end
 
 		for _, plr in ipairs(Players:GetPlayers()) do
-			if plr ~= LocalPlayer then
+			if isEnemy(plr) then
 				local char = plr.Character
 				if char then
 					local head = char:FindFirstChild("Head")
@@ -627,6 +681,11 @@ local function updateSnapFor(plr: Player, data: SnapData, originWorld: Vector3)
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local root = char and (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
 
+	if not isEnemy(plr) then
+		setSnapEnabled(data, false)
+		return
+	end
+
 	if not root or not hum or hum.Health <= 0 then
 		setSnapEnabled(data, false)
 		return
@@ -709,12 +768,15 @@ local function enableSnaplines()
 
 			snapOriginPart.CFrame = CFrame.new(originWorld)
 
-			for _, plr in ipairs(Players:GetPlayers()) do
-				if plr ~= LocalPlayer then
-					local data = ensureSnapFor(plr)
-					updateSnapFor(plr, data, originWorld)
-				end
-			end
+for _, plr in ipairs(Players:GetPlayers()) do
+	local data = ensureSnapFor(plr)
+
+	if isEnemy(plr) then
+		updateSnapFor(plr, data, originWorld)
+	else
+		setSnapEnabled(data, false)
+	end
+end
 		end)
 	end)
 end
@@ -892,6 +954,11 @@ end
 local function updateBoxFor(plr: Player, data: BoxData)
 	local char = plr.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+	if not isEnemy(plr) then
+		setBoxEnabled(data, false)
+		return
+	end
 	if not char or not hum or hum.Health <= 0 then
 		setBoxEnabled(data, false)
 		return
@@ -931,12 +998,15 @@ local function enableBoxes()
 		end
 
 		boxConn = RunService.RenderStepped:Connect(function()
-			for _, plr in ipairs(Players:GetPlayers()) do
-				if plr ~= LocalPlayer then
-					local data = ensureBoxFor(plr)
-					updateBoxFor(plr, data)
-				end
-			end
+for _, plr in ipairs(Players:GetPlayers()) do
+	local data = ensureBoxFor(plr)
+
+	if isEnemy(plr) then
+		updateBoxFor(plr, data)
+	else
+		setBoxEnabled(data, false)
+	end
+end
 		end)
 	end)
 end
