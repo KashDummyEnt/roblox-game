@@ -1232,9 +1232,15 @@ local freeMenuPositioning = false
 local lastPopupPos: UDim2? = nil
 local lastPopupAnchor: Vector2? = nil
 
+local POPUP_Y_OFFSET = 28 -- tweak 20–40 until it looks perfect
+
 local function placePopupCentered()
 	local viewport = getViewportSize()
-	local pos = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
+	local pos = Vector2.new(
+		viewport.X * 0.5,
+		viewport.Y * 0.5 + POPUP_Y_OFFSET
+	)
+
 	local anchor = Vector2.new(0.5, 0.5)
 	local clamped = clampPopupPos(pos, CONFIG.PopupSize, anchor, viewport)
 
@@ -1259,8 +1265,6 @@ end
 --=====================================================
 -- Side Panel Layout (STRICT RIGHT ATTACH + Y NUDGE)
 --=====================================================
-local Y_NUDGE = 25 -- adjust this (try 4–8 if needed)
-
 local function layoutSidePanel()
 	if not sidePanel.Visible then
 		return
@@ -1271,11 +1275,9 @@ local function layoutSidePanel()
 	local pw = popup.AbsoluteSize.X
 	local ph = popup.AbsoluteSize.Y
 
-	-- Always attach to right side
 	local x = px + pw + SIDE_GAP
-	local y = py + Y_NUDGE
 
-	sidePanel.Position = UDim2.fromOffset(x, y)
+	sidePanel.Position = UDim2.fromOffset(x, py)
 	sidePanel.Size = UDim2.fromOffset(SIDE_WIDTH, ph)
 end
 
@@ -1300,8 +1302,9 @@ popup:GetPropertyChangedSignal("Size"):Connect(function()
 end)
 
 --=====================================================
--- Tweening
+-- Tweening (CLEAN + SINGLE DEFINITIONS)
 --=====================================================
+
 local function tweenPopup(open: boolean)
 	if openTween then
 		openTween:Cancel()
@@ -1314,7 +1317,7 @@ local function tweenPopup(open: boolean)
 		popup.Visible = true
 		sidePanel.Visible = true
 
-		-- Restore last position or center
+		-- Restore last position or center once
 		if lastPopupPos and lastPopupAnchor then
 			popup.AnchorPoint = lastPopupAnchor
 			popup.Position = lastPopupPos
@@ -1388,9 +1391,18 @@ local function setOpen(nextOpen: boolean)
 	tweenPopup(isOpen)
 end
 
+--=====================================================
+-- Reactive Follow (ONLY ONCE)
+--=====================================================
+
 popup:GetPropertyChangedSignal("Position"):Connect(function()
 	if sidePanel.Visible then
 		layoutSidePanel()
+	end
+
+	if freeMenuPositioning then
+		lastPopupPos = popup.Position
+		lastPopupAnchor = popup.AnchorPoint
 	end
 end)
 
@@ -1400,93 +1412,17 @@ popup:GetPropertyChangedSignal("Size"):Connect(function()
 	end
 end)
 
-popup:GetPropertyChangedSignal("Position"):Connect(layoutSidePanel)
-popup:GetPropertyChangedSignal("Size"):Connect(layoutSidePanel)
+--=====================================================
+-- Dragging
+--=====================================================
 
--- save position whenever user drags it
-popup:GetPropertyChangedSignal("Position"):Connect(function()
-	if freeMenuPositioning then
-		lastPopupPos = popup.Position
-		lastPopupAnchor = popup.AnchorPoint
-	end
-end)
-
-local function tweenPopup(open: boolean)
-	if openTween then
-		openTween:Cancel()
-	end
-	if closeTween then
-		closeTween:Cancel()
-	end
-
-	if open then
-		popup.Visible = true
-
-		sidePanel.Visible = true
-		layoutSidePanel()
-
-		-- reopen where it last was (or center once)
-		if lastPopupPos and lastPopupAnchor then
-			popup.AnchorPoint = lastPopupAnchor
-			popup.Position = lastPopupPos
-			placePopupClampedToViewport()
-		else
-			placePopupCentered()
-			lastPopupPos = popup.Position
-			lastPopupAnchor = popup.AnchorPoint
-		end
-
-		popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
-		body.Visible = false
-
-		local tInfo = TweenInfo.new(CONFIG.OpenTweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		openTween = TweenService:Create(popup, tInfo, {
-			Size = UDim2.fromOffset(CONFIG.PopupSize.X, CONFIG.PopupSize.Y),
-		})
-openTween.Completed:Once(function()
-	if isOpen then
-		body.Visible = true
-		layoutSidePanel()
-	end
-end)
-		openTween:Play()
-	else
-		body.Visible = false
-
-		local tInfo = TweenInfo.new(CONFIG.CloseTweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-		closeTween = TweenService:Create(popup, tInfo, {
-			Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0),
-		})
-		closeTween.Completed:Once(function()
-			popup.Visible = false
-			sidePanel.Visible = false
-		end)
-		closeTween:Play()
-	end
-end
-
-local function setOpen(nextOpen: boolean)
-	if isOpen == nextOpen then
-		return
-	end
-	isOpen = nextOpen
-
-	-- save where it was when closing
-	if not isOpen then
-		lastPopupPos = popup.Position
-		lastPopupAnchor = popup.AnchorPoint
-		Toggles.CloseAllDropdowns()
-	end
-
-	toggleIcon.Image = isOpen and OPEN_ICON or CLOSED_ICON
-	tweenPopup(isOpen)
-end
-
--- DRAGGING (SEPARATE)
--- toggleButton drag removed so it stays pinned under Roblox UI
 enableDrag(header, popup, function()
 	freeMenuPositioning = true
 end, nil)
+
+--=====================================================
+-- Controls
+--=====================================================
 
 toggleButton.MouseButton1Click:Connect(function()
 	setOpen(not isOpen)
@@ -1505,7 +1441,10 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 	end
 end)
 
--- Default tab
+--=====================================================
+-- Default State
+--=====================================================
+
 setActivePage("Main")
 setTabVisuals("Main")
 setOpen(false)
