@@ -785,24 +785,13 @@ Toggles.AddToggleCard(
 	end
 )
 
-Toggles.AddToggleCard(
-	pageMain,
-	"combat_rage_teamcheck",
-	"Team Check",
-	"Ignore teammates when targeting.",
-	2,
-	true,
-	CONFIG,
-	TOGGLE_SERVICES,
-	nil
-)
 
 Toggles.AddSliderCard(
 	pageMain,
 	"combat_rage_fov",
 	"Rage FOV",
 	"Target radius in pixels.",
-	3,
+	2,
 	20,
 	400,
 	120,
@@ -816,7 +805,7 @@ Toggles.AddSliderCard(
 	"combat_rage_smooth",
 	"Rage Smooth",
 	"Aim smoothness. Lower = faster snap.",
-	4,
+	3,
 	0,
 	1,
 	0.18,
@@ -825,28 +814,17 @@ Toggles.AddSliderCard(
 	TOGGLE_SERVICES
 )
 
-Toggles.AddToggleDropDownCard(
+Toggles.AddToggleCard(
 	pageMain,
-	"world_tween_to_npc",      -- toggle key
-	"npc_dropdown",            -- value key
-	"NPC Teleport",   -- title
-	"Moves Player to Selected NPC",
-	3,                         -- layout order
-	false,                     -- default toggle state
-	"Select NPC",              -- default dropdown value
-	getNpcNames,               -- options provider
+	"combat_rage_teamcheck",
+	"Team Check",
+	"Ignore teammates when targeting.",
+	4,
+	true,
 	CONFIG,
 	TOGGLE_SERVICES,
-	function(state)
-		if state then
-			ensureFeatureLoaded("world_tween_to_npc", TWEEN_NPC_URL)
-		end
-	end,
-	function(selectedName)
-		G.__HIGGI_SELECTED_NPC = selectedName
-	end
+	nil
 )
-
 
 -- Visuals tab (EXAMPLE TOGGLES)
 Toggles.AddToggleCard(pageVisuals, "visuals_player", "Chams", "Highlight players.", 3, false, CONFIG, TOGGLE_SERVICES, function(state)
@@ -998,6 +976,28 @@ Toggles.AddToggleCard(
 		if state then
 			ensureFeatureLoaded("misc_speed", SPEED_URL)
 		end
+	end
+)
+
+Toggles.AddToggleDropDownCard(
+	pageMisc,
+	"world_tween_to_npc",
+	"npc_dropdown",
+	"NPC Teleport",
+	"Moves Player to Selected NPC",
+	3, -- adjust order if needed
+	false,
+	"Select NPC",
+	getNpcNames,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state)
+		if state then
+			ensureFeatureLoaded("world_tween_to_npc", TWEEN_NPC_URL)
+		end
+	end,
+	function(selectedName)
+		G.__HIGGI_SELECTED_NPC = selectedName
 	end
 )
 
