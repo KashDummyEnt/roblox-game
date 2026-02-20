@@ -812,6 +812,22 @@ Toggles.AddToggleCard(pageVisuals, "visuals_box3d", "Boxes", "3D wireframe playe
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
 
+Toggles.AddToggleCard(
+	pageVisuals,
+	"visuals_team",
+	"Team ESP",
+	"Apply active ESP features to teammates (blue).",
+	6,
+	false,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state)
+		if state then
+			ensureFeatureLoaded("adminesp", ADMINESP_URL)
+		end
+	end
+)
+
 -- World tab: action + toggles + placeholders
 -- World tab: Skybox toggle + dropdown (REPLACES the old "Apply Skybox" card)
 
