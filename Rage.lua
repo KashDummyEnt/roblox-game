@@ -1,6 +1,9 @@
 --!strict
 -- Rage.lua
 -- Toggle-based Rage Aimbot (HIGGI SYSTEM)
+-- Menu-linked sliders:
+--		combat_rage_fov (number)
+--		combat_rage_smooth (number)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -8,11 +11,11 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 ----------------------------------------------------
--- EASY CONFIG
+-- DEFAULTS (will be overwritten by slider values)
 ----------------------------------------------------
 
-local fov = 120           -- FOV radius in pixels
-local smoothness = 0.18   -- 0 = instant snap | 0.1–0.3 = smooth | 1 = no movement
+local fov = 120			-- FOV radius in pixels
+local smoothness = 0.18	-- 0 = instant snap | 0.1–0.3 = smooth | 1 = no movement
 
 ----------------------------------------------------
 -- GLOBAL TOGGLE ACCESS
@@ -70,31 +73,31 @@ local function isEnemy(plr: Player): boolean
 	if plr == LocalPlayer then
 		return false
 	end
-	
+
 	if not teamCheckEnabled then
 		return true
 	end
-	
+
 	if LocalPlayer.Team and plr.Team then
 		return plr.Team ~= LocalPlayer.Team
 	end
-	
+
 	if LocalPlayer.TeamColor and plr.TeamColor then
 		return plr.TeamColor ~= LocalPlayer.TeamColor
 	end
-	
+
 	local localAttrTeam = LocalPlayer:GetAttribute("Team")
 	local plrAttrTeam = plr:GetAttribute("Team")
 	if localAttrTeam ~= nil and plrAttrTeam ~= nil then
 		return localAttrTeam ~= plrAttrTeam
 	end
-	
+
 	local localFaction = LocalPlayer:GetAttribute("Faction")
 	local plrFaction = plr:GetAttribute("Faction")
 	if localFaction ~= nil and plrFaction ~= nil then
 		return localFaction ~= plrFaction
 	end
-	
+
 	return true
 end
 
@@ -102,31 +105,47 @@ end
 -- FOV CIRCLE
 ----------------------------------------------------
 
+local function getFovCircleFrame(): Frame?
+	if not fovGui then return nil end
+	local circle = fovGui:FindFirstChild("Circle")
+	if circle and circle:IsA("Frame") then
+		return circle
+	end
+	return nil
+end
+
+local function applyFovToCircle()
+	local circle = getFovCircleFrame()
+	if not circle then return end
+	circle.Size = UDim2.fromOffset(fov * 2, fov * 2)
+end
+
 local function createFov()
 	if fovGui then return end
-	
+
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "RageFovGui"
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
 	gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-	
+
 	local circle = Instance.new("Frame")
+	circle.Name = "Circle"
 	circle.AnchorPoint = Vector2.new(0.5, 0.5)
 	circle.Position = UDim2.new(0.5, 0, 0.5, 0)
 	circle.Size = UDim2.fromOffset(fov * 2, fov * 2)
 	circle.BackgroundTransparency = 1
 	circle.Parent = gui
-	
+
 	local stroke = Instance.new("UIStroke")
 	stroke.Thickness = 2
 	stroke.Color = Color3.fromRGB(255, 255, 255)
 	stroke.Parent = circle
-	
+
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(1, 0)
 	corner.Parent = circle
-	
+
 	fovGui = gui
 end
 
@@ -156,33 +175,33 @@ end
 
 local function getClosestTarget(): BasePart?
 	if not Camera then return nil end
-	
+
 	local viewport = Camera.ViewportSize
 	local center = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
-	
+
 	local bestPart: BasePart? = nil
 	local bestDist2 = fov * fov
-	
+
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if not isEnemy(plr) then continue end
 		if not isAlive(plr) then continue end
-		
+
 		local part = getAimPart(plr)
 		if not part then continue end
-		
+
 		local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
 		if not onScreen or screenPos.Z <= 0 then continue end
-		
+
 		local dx = screenPos.X - center.X
 		local dy = screenPos.Y - center.Y
 		local dist2 = dx * dx + dy * dy
-		
+
 		if dist2 <= bestDist2 then
 			bestDist2 = dist2
 			bestPart = part
 		end
 	end
-	
+
 	return bestPart
 end
 
@@ -203,7 +222,8 @@ end
 local function start()
 	if connection then return end
 	createFov()
-	
+	applyFovToCircle()
+
 	connection = RunService.RenderStepped:Connect(function()
 		local target = getClosestTarget()
 		if not target then return end
@@ -218,6 +238,27 @@ local function stop()
 	end
 	destroyFov()
 end
+
+----------------------------------------------------
+-- VALUE LINKS (SLIDERS)
+----------------------------------------------------
+
+local function applyFromStore()
+	fov = Toggles.GetValue("combat_rage_fov", 120)
+	smoothness = Toggles.GetValue("combat_rage_smooth", 0.18)
+	applyFovToCircle()
+end
+
+Toggles.SubscribeValue("combat_rage_fov", function(v)
+	fov = v
+	applyFovToCircle()
+end)
+
+Toggles.SubscribeValue("combat_rage_smooth", function(v)
+	smoothness = v
+end)
+
+applyFromStore()
 
 ----------------------------------------------------
 -- TOGGLES
