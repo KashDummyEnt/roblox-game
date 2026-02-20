@@ -1257,40 +1257,28 @@ local function placePopupClampedToViewport()
 end
 
 --=====================================================
--- Side Panel Layout (SMART ATTACH + AUTO FLIP)
+-- Side Panel Layout (STRICT RIGHT ATTACH, NO CLAMP)
 --=====================================================
 local function layoutSidePanel()
 	if not sidePanel.Visible then
 		return
 	end
 
-	local vp = getViewportSize()
-
 	local px = popup.AbsolutePosition.X
 	local py = popup.AbsolutePosition.Y
 	local pw = popup.AbsoluteSize.X
 	local ph = popup.AbsoluteSize.Y
 
-	-- Prefer right side
-	local xRight = px + pw + SIDE_GAP
-	local xLeft = px - SIDE_GAP - SIDE_WIDTH
+	-- Always attach to right side
+	local x = px + pw + SIDE_GAP
 
-	local x = xRight
-
-	-- If it would overflow right side, flip to left
-	if (xRight + SIDE_WIDTH) > vp.X then
-		x = xLeft
-	end
-
-	-- Final safety clamp
-	x = math.clamp(x, 0, vp.X - SIDE_WIDTH)
-	local y = math.clamp(py, 0, vp.Y - ph)
-
-	sidePanel.Position = UDim2.fromOffset(x, y)
+	sidePanel.Position = UDim2.fromOffset(x, py)
 	sidePanel.Size = UDim2.fromOffset(SIDE_WIDTH, ph)
 end
 
--- Reactively follow popup
+--=====================================================
+-- Reactive Follow
+--=====================================================
 popup:GetPropertyChangedSignal("Position"):Connect(function()
 	if sidePanel.Visible then
 		layoutSidePanel()
