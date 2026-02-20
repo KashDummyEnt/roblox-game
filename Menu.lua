@@ -1257,19 +1257,18 @@ local function placePopupClampedToViewport()
 end
 
 --=====================================================
--- Side Panel Layout (STRICT RIGHT ATTACH, NO CLAMP)
+-- Side Panel Layout (STRICT RIGHT ATTACH, OFFSET SAFE)
 --=====================================================
 local function layoutSidePanel()
 	if not sidePanel.Visible then
 		return
 	end
 
-	local px = popup.AbsolutePosition.X
-	local py = popup.AbsolutePosition.Y
-	local pw = popup.AbsoluteSize.X
-	local ph = popup.AbsoluteSize.Y
+	local px = popup.Position.X.Offset
+	local py = popup.Position.Y.Offset
+	local pw = popup.Size.X.Offset
+	local ph = popup.Size.Y.Offset
 
-	-- Always attach to right side
 	local x = px + pw + SIDE_GAP
 
 	sidePanel.Position = UDim2.fromOffset(x, py)
