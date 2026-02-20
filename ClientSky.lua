@@ -409,6 +409,18 @@ local PRESETS = {
 		ClockTime = 14.5,
 		SkyboxOrientation = Vector3.new(0, 0, 0),
 	},
+
+		["Minecraft"] = {
+		SkyboxBk = "rbxassetid://8735166756",
+		SkyboxDn = "rbxassetid://8735166707",
+		SkyboxFt = "rbxassetid://8735231668",
+		SkyboxLf = "rbxassetid://8735166755",
+		SkyboxRt = "rbxassetid://8735166751",
+		SkyboxUp = "rbxassetid://8735166729",
+		CelestialBodiesShown = false,
+		ClockTime = 14.5,
+		SkyboxOrientation = Vector3.new(0, 0, 0),
+	},
 	
 }
 
