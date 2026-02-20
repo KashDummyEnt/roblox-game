@@ -912,6 +912,21 @@ Toggles.AddToggleCard(pageMisc, "world_flight", "Flight / Noclip", "Free flight 
 	end
 end)
 
+Toggles.AddToggleCard(
+	pageMisc,
+	"misc_speed",
+	"Speed Boost",
+	"Increase local WalkSpeed.",
+	2,
+	false,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state: boolean)
+		if state then
+			ensureFeatureLoaded("misc_speed", SPEED_URL)
+		end
+	end
+)
 
 --================================================================================
 -- Tab system
