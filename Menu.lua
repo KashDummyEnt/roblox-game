@@ -525,6 +525,7 @@ local previewPanel = make("Frame", {
 	BackgroundColor3 = CONFIG.Bg2,
 	Size = UDim2.fromOffset(PREVIEW_WIDTH, CONFIG.PopupSize.Y),
 	ZIndex = 39,
+	Visible = false, -- ADD THIS
 	Parent = screenGui,
 })
 
