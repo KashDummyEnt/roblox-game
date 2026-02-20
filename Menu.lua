@@ -832,6 +832,7 @@ local function getSkyboxNames(): {string}
 		"Eyes",
 		"Ghost",
 		"Grid",
+		"Minecraft",
 		"Molten",
 		"Neon Borealis",
 		"Nuke",
