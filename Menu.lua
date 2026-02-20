@@ -250,7 +250,7 @@ local function startNpcWatcher()
 
 	task.spawn(function()
 
-		local folder = ReplicatedSto:WaitForChild("NPCs")
+		local folder = ReplicatedStorage:WaitForChild("NPCs")
 
 		local function register(inst: Instance)
 			if inst:IsA("Model") then
@@ -1217,8 +1217,9 @@ for i, t in ipairs(tabs) do
 end
 
 --================================================================================
--- Positions / animation states (FIXED: no downward drift, remembers last pos)
+-- Positions / animation states (FIXED: no downward drift, smart side flip)
 --================================================================================
+
 local isOpen = false
 popup.Visible = false
 popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
@@ -1245,13 +1246,19 @@ local function placePopupClampedToViewport()
 	local viewport = getViewportSize()
 	local anchor = popup.AnchorPoint
 
-	-- IMPORTANT: use popup.Position offsets, NOT AbsolutePosition (prevents drift)
-	local desired = Vector2.new(popup.Position.X.Offset, popup.Position.Y.Offset)
+	local desired = Vector2.new(
+		popup.Position.X.Offset,
+		popup.Position.Y.Offset
+	)
+
 	local clamped = clampPopupPos(desired, CONFIG.PopupSize, anchor, viewport)
 
 	popup.Position = UDim2.fromOffset(clamped.X, clamped.Y)
 end
 
+--=====================================================
+-- Side Panel Layout (SMART ATTACH + AUTO FLIP)
+--=====================================================
 local function layoutSidePanel()
 	if not sidePanel.Visible then
 		return
@@ -1264,21 +1271,130 @@ local function layoutSidePanel()
 	local pw = popup.AbsoluteSize.X
 	local ph = popup.AbsoluteSize.Y
 
-	-- Try right first, fallback left if it would go offscreen
+	-- Prefer right side
 	local xRight = px + pw + SIDE_GAP
 	local xLeft = px - SIDE_GAP - SIDE_WIDTH
 
 	local x = xRight
+
+	-- If it would overflow right side, flip to left
 	if (xRight + SIDE_WIDTH) > vp.X then
 		x = xLeft
 	end
 
-	-- Final clamp just in case
+	-- Final safety clamp
 	x = math.clamp(x, 0, vp.X - SIDE_WIDTH)
 	local y = math.clamp(py, 0, vp.Y - ph)
 
 	sidePanel.Position = UDim2.fromOffset(x, y)
 	sidePanel.Size = UDim2.fromOffset(SIDE_WIDTH, ph)
+end
+
+-- Reactively follow popup
+popup:GetPropertyChangedSignal("Position"):Connect(function()
+	if sidePanel.Visible then
+		layoutSidePanel()
+	end
+
+	if freeMenuPositioning then
+		lastPopupPos = popup.Position
+		lastPopupAnchor = popup.AnchorPoint
+	end
+end)
+
+popup:GetPropertyChangedSignal("Size"):Connect(function()
+	if sidePanel.Visible then
+		layoutSidePanel()
+	end
+end)
+
+--=====================================================
+-- Tweening
+--=====================================================
+local function tweenPopup(open: boolean)
+	if openTween then
+		openTween:Cancel()
+	end
+	if closeTween then
+		closeTween:Cancel()
+	end
+
+	if open then
+		popup.Visible = true
+		sidePanel.Visible = true
+
+		-- Restore last position or center
+		if lastPopupPos and lastPopupAnchor then
+			popup.AnchorPoint = lastPopupAnchor
+			popup.Position = lastPopupPos
+			placePopupClampedToViewport()
+		else
+			placePopupCentered()
+			lastPopupPos = popup.Position
+			lastPopupAnchor = popup.AnchorPoint
+		end
+
+		layoutSidePanel()
+
+		popup.Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0)
+		body.Visible = false
+
+		local tInfo = TweenInfo.new(
+			CONFIG.OpenTweenTime,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		)
+
+		openTween = TweenService:Create(popup, tInfo, {
+			Size = UDim2.fromOffset(CONFIG.PopupSize.X, CONFIG.PopupSize.Y),
+		})
+
+		openTween.Completed:Once(function()
+			if isOpen then
+				body.Visible = true
+				layoutSidePanel()
+			end
+		end)
+
+		openTween:Play()
+
+	else
+		body.Visible = false
+
+		local tInfo = TweenInfo.new(
+			CONFIG.CloseTweenTime,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.In
+		)
+
+		closeTween = TweenService:Create(popup, tInfo, {
+			Size = UDim2.fromOffset(CONFIG.PopupSize.X, 0),
+		})
+
+		closeTween.Completed:Once(function()
+			popup.Visible = false
+			sidePanel.Visible = false
+		end)
+
+		closeTween:Play()
+	end
+end
+
+local function setOpen(nextOpen: boolean)
+	if isOpen == nextOpen then
+		return
+	end
+
+	isOpen = nextOpen
+
+	if not isOpen then
+		lastPopupPos = popup.Position
+		lastPopupAnchor = popup.AnchorPoint
+		Toggles.CloseAllDropdowns()
+	end
+
+	toggleIcon.Image = isOpen and OPEN_ICON or CLOSED_ICON
+	tweenPopup(isOpen)
 end
 
 popup:GetPropertyChangedSignal("Position"):Connect(function()
