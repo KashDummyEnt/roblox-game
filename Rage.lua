@@ -1,9 +1,6 @@
 --!strict
 -- Rage.lua
 -- Toggle-based Rage Aimbot (HIGGI SYSTEM)
--- Menu-linked sliders:
---		combat_rage_fov (number)
---		combat_rage_smooth (number)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -11,11 +8,11 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 ----------------------------------------------------
--- DEFAULTS (will be overwritten by slider values)
+-- DEFAULTS
 ----------------------------------------------------
 
-local fov = 120			-- FOV radius in pixels
-local smoothness = 0.18	-- 0 = instant snap | 0.1–0.3 = smooth | 1 = no movement
+local fov = 120
+local smoothness = 0.18
 
 ----------------------------------------------------
 -- GLOBAL TOGGLE ACCESS
@@ -173,6 +170,38 @@ local function getAimPart(plr: Player): BasePart?
 	return char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
 end
 
+----------------------------------------------------
+-- VISIBILITY CHECK
+----------------------------------------------------
+
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+rayParams.IgnoreWater = true
+
+local function isVisible(part: BasePart): boolean
+	if not Camera then return false end
+	if not LocalPlayer.Character then return false end
+
+	local origin = Camera.CFrame.Position
+	local direction = part.Position - origin
+
+	rayParams.FilterDescendantsInstances = {
+		LocalPlayer.Character
+	}
+
+	local result = workspace:Raycast(origin, direction, rayParams)
+
+	if not result then
+		return true
+	end
+
+	if result.Instance:IsDescendantOf(part.Parent) then
+		return true
+	end
+
+	return false
+end
+
 local function getClosestTarget(): BasePart?
 	if not Camera then return nil end
 
@@ -188,6 +217,7 @@ local function getClosestTarget(): BasePart?
 
 		local part = getAimPart(plr)
 		if not part then continue end
+		if not isVisible(part) then continue end
 
 		local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
 		if not onScreen or screenPos.Z <= 0 then continue end
@@ -240,7 +270,7 @@ local function stop()
 end
 
 ----------------------------------------------------
--- VALUE LINKS (SLIDERS)
+-- VALUE LINKS
 ----------------------------------------------------
 
 local function applyFromStore()
@@ -276,7 +306,6 @@ Toggles.Subscribe("combat_rage_teamcheck", function(state)
 	teamCheckEnabled = state
 end)
 
--- Initialize states if already on
 if Toggles.GetState("combat_rage", false) then
 	start()
 end
