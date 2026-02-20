@@ -784,13 +784,41 @@ Toggles.AddToggleCard(
 		end
 	end
 )
+
+Toggles.AddToggleCard(
+	pageMain,
+	"combat_rage",
+	"Rage Aimbot",
+	"Auto-aim at nearest enemy inside FOV.",
+	1,
+	false,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state: boolean)
+		if state then
+			ensureFeatureLoaded("combat_rage", RAGE_URL)
+		end
+	end
+)
+
+Toggles.AddToggleCard(
+	pageMain,
+	"combat_rage_teamcheck",
+	"Team Check",
+	"Ignore teammates when targeting.",
+	2,
+	true,
+	CONFIG,
+	TOGGLE_SERVICES,
+	nil
+)
 Toggles.AddToggleDropDownCard(
 	pageMain,
 	"world_tween_to_npc",      -- toggle key
 	"npc_dropdown",            -- value key
 	"NPC Teleport",   -- title
 	"Moves Player to Selected NPC",
-	1,                         -- layout order
+	3,                         -- layout order
 	false,                     -- default toggle state
 	"Select NPC",              -- default dropdown value
 	getNpcNames,               -- options provider
