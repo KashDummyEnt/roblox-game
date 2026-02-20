@@ -789,8 +789,8 @@ Toggles.AddToggleCard(
 Toggles.AddSliderCard(
 	pageMain,
 	"combat_rage_fov",
-	"Rage FOV",
-	"Target radius in pixels.",
+	"RAGE FOV",
+	nil, -- no description anymore
 	2,
 	20,
 	400,
@@ -803,8 +803,8 @@ Toggles.AddSliderCard(
 Toggles.AddSliderCard(
 	pageMain,
 	"combat_rage_smooth",
-	"Rage Smooth",
-	"Aim smoothness. Lower = faster snap.",
+	"RAGE SMOOTH",
+	nil, -- no description
 	3,
 	0,
 	1,
