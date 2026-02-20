@@ -21,6 +21,7 @@ local FLIGHT_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/r
 local TWEEN_NPC_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/TweenToNPC.lua"
 local FASTMODE_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/FastMode.lua"
 local SPEED_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/PlayerSpeed.lua"
+local RAGE_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Rage.lua"
 
 
 
@@ -770,23 +771,19 @@ local pageSettings = makePage("Settings")
 
 Toggles.AddToggleCard(
 	pageMain,
-	"combat_rage",                 -- toggle key
-	"Rage Aimbot",                 -- title
+	"combat_rage",
+	"Rage Aimbot",
 	"Snaps camera to closest target in FOV.",
-	2,                             -- layout order (adjust if needed)
-	false,                         -- default off
+	2,
+	false,
 	CONFIG,
 	TOGGLE_SERVICES,
 	function(state)
 		if state then
-			ensureFeatureLoaded(
-				"rage",
-				"https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Rage.lua"
-			)
+			ensureFeatureLoaded("rage", RAGE_URL)
 		end
 	end
 )
-
 Toggles.AddToggleDropDownCard(
 	pageMain,
 	"world_tween_to_npc",      -- toggle key
