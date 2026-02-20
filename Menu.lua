@@ -250,7 +250,7 @@ local function startNpcWatcher()
 
 	task.spawn(function()
 
-		local folder = ReplicatedSto:WaitForChild("NPCs")
+		local folder = ReplicatedStorage:WaitForChild("NPCs")
 
 		local function register(inst: Instance)
 			if inst:IsA("Model") then
