@@ -43,7 +43,7 @@ end
 ----------------------------------------------------
 
 local AIM_AT = "Head"
-local FOV_RADIUS = 250
+local FOV_RADIUS = 60
 local ALIVE_ONLY = true
 local TEAM_CHECK_ENABLED = true
 local VISIBLE_ONLY = true
