@@ -1,6 +1,6 @@
 --!strict
 -- Rage.lua
--- Toggle-based Rage Aimbot (HIGGI SYSTEM)
+-- Distance-Priority Rage Aimbot (HIGGI SYSTEM)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -63,7 +63,7 @@ workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 end)
 
 ----------------------------------------------------
--- TEAM DETECTION (MULTI METHOD)
+-- TEAM DETECTION
 ----------------------------------------------------
 
 local function isEnemy(plr: Player): boolean
@@ -154,7 +154,7 @@ local function destroyFov()
 end
 
 ----------------------------------------------------
--- TARGETING
+-- TARGET HELPERS
 ----------------------------------------------------
 
 local function isAlive(plr: Player): boolean
@@ -171,7 +171,7 @@ local function getAimPart(plr: Player): BasePart?
 end
 
 ----------------------------------------------------
--- VISIBILITY CHECK
+-- VISIBILITY
 ----------------------------------------------------
 
 local rayParams = RaycastParams.new()
@@ -202,14 +202,22 @@ local function isVisible(part: BasePart): boolean
 	return false
 end
 
+----------------------------------------------------
+-- DISTANCE-PRIORITY TARGETING
+----------------------------------------------------
+
 local function getClosestTarget(): BasePart?
 	if not Camera then return nil end
+	if not LocalPlayer.Character then return nil end
+
+	local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return nil end
 
 	local viewport = Camera.ViewportSize
 	local center = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
 
 	local bestPart: BasePart? = nil
-	local bestDist2 = fov * fov
+	local bestWorldDist = math.huge
 
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if not isEnemy(plr) then continue end
@@ -222,12 +230,17 @@ local function getClosestTarget(): BasePart?
 		local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
 		if not onScreen or screenPos.Z <= 0 then continue end
 
+		-- Must still be inside FOV circle
 		local dx = screenPos.X - center.X
 		local dy = screenPos.Y - center.Y
 		local dist2 = dx * dx + dy * dy
+		if dist2 > fov * fov then continue end
 
-		if dist2 <= bestDist2 then
-			bestDist2 = dist2
+		-- Prioritize 3D world distance
+		local worldDist = (part.Position - root.Position).Magnitude
+
+		if worldDist < bestWorldDist then
+			bestWorldDist = worldDist
 			bestPart = part
 		end
 	end
