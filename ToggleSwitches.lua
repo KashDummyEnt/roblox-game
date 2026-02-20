@@ -936,7 +936,150 @@ function ToggleSwitches.AddToggleDropDownCard(
 	}
 end
 
+--============================================================
+-- Slider UI card (number value)
+--============================================================
+function ToggleSwitches.AddSliderCard(
+	parent,
+	valueKey,
+	title,
+	desc,
+	order,
+	minValue,
+	maxValue,
+	defaultValue,
+	step,
+	config,
+	services
+)
 
+	if Store.values[valueKey] == nil then
+		Store.values[valueKey] = defaultValue
+	end
+
+	local TweenService = services.TweenService
+	local UserInputService = services.UserInputService
+
+	local card = make("Frame", {
+		Name = "SliderCard_" .. tostring(valueKey),
+		BackgroundColor3 = config.Bg2,
+		Size = UDim2.new(1, 0, 0, 90),
+		ZIndex = 43,
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	addCorner(card, 12)
+	addStroke(card, 1, config.Stroke, 0.35)
+
+	make("TextLabel", {
+		BackgroundTransparency = 1,
+		Text = title,
+		TextColor3 = config.Text,
+		TextSize = 15,
+		Font = Enum.Font.GothamSemibold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, -16, 0, 22),
+		Position = UDim2.new(0, 10, 0, 8),
+		ZIndex = 44,
+		Parent = card,
+	})
+
+	make("TextLabel", {
+		BackgroundTransparency = 1,
+		Text = desc,
+		TextColor3 = config.SubText,
+		TextSize = 13,
+		Font = Enum.Font.Gotham,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Size = UDim2.new(1, -16, 0, 20),
+		Position = UDim2.new(0, 10, 0, 30),
+		ZIndex = 44,
+		Parent = card,
+	})
+
+	local sliderBar = make("Frame", {
+		BackgroundColor3 = config.Bg3,
+		Size = UDim2.new(1, -20, 0, 6),
+		Position = UDim2.new(0, 10, 0, 65),
+		ZIndex = 45,
+		Parent = card,
+	})
+	addCorner(sliderBar, 3)
+
+	local fill = make("Frame", {
+		BackgroundColor3 = config.Accent,
+		Size = UDim2.new(0, 0, 1, 0),
+		ZIndex = 46,
+		Parent = sliderBar,
+	})
+	addCorner(fill, 3)
+
+	local valueLabel = make("TextLabel", {
+		BackgroundTransparency = 1,
+		Text = tostring(Store.values[valueKey]),
+		TextColor3 = config.Text,
+		TextSize = 13,
+		Font = Enum.Font.GothamSemibold,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Size = UDim2.new(1, -16, 0, 20),
+		Position = UDim2.new(0, 10, 0, 70),
+		ZIndex = 47,
+		Parent = card,
+	})
+
+	local function setValueFromAlpha(alpha)
+		alpha = math.clamp(alpha, 0, 1)
+		local raw = minValue + (maxValue - minValue) * alpha
+
+		if step then
+			raw = math.round(raw / step) * step
+		end
+
+		raw = math.clamp(raw, minValue, maxValue)
+
+		Store.values[valueKey] = raw
+		valueLabel.Text = tostring(raw)
+
+		fill.Size = UDim2.new(
+			(raw - minValue) / (maxValue - minValue),
+			0,
+			1,
+			0
+		)
+
+		notifyValue(valueKey, raw)
+	end
+
+	local dragging = false
+
+	sliderBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			local alpha = (input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X
+			setValueFromAlpha(alpha)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local alpha = (input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X
+			setValueFromAlpha(alpha)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+
+	-- initialize
+	setValueFromAlpha(
+		(Store.values[valueKey] - minValue) / (maxValue - minValue)
+	)
+end
 
 
 return ToggleSwitches
