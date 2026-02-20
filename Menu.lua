@@ -1257,8 +1257,10 @@ local function placePopupClampedToViewport()
 end
 
 --=====================================================
--- Side Panel Layout (STRICT RIGHT ATTACH, OFFSET SAFE)
+-- Side Panel Layout (STRICT RIGHT ATTACH + Y NUDGE)
 --=====================================================
+local Y_NUDGE = 15 -- adjust this (try 4–8 if needed)
+
 local function layoutSidePanel()
 	if not sidePanel.Visible then
 		return
@@ -1271,8 +1273,9 @@ local function layoutSidePanel()
 
 	-- Always attach to right side
 	local x = px + pw + SIDE_GAP
+	local y = py + Y_NUDGE
 
-	sidePanel.Position = UDim2.fromOffset(x, py)
+	sidePanel.Position = UDim2.fromOffset(x, y)
 	sidePanel.Size = UDim2.fromOffset(SIDE_WIDTH, ph)
 end
 
