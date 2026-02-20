@@ -771,8 +771,8 @@ local pageSettings = makePage("Settings")
 
 Toggles.AddToggleCard(
 	pageMain,
-	"combat_rage",
-	"Rage Aimbot",
+	"combat_",
+	" Aimbot",
 	"Auto-aim at nearest enemy inside FOV.",
 	1,
 	false,
@@ -822,10 +822,22 @@ Toggles.AddSliderCard(
 
 Toggles.AddToggleCard(
 	pageMain,
+	"combat_rage_autowall",
+	"AutoWall",
+	"Ignore visibility checks (shoot through walls).",
+	4,
+	false,
+	CONFIG,
+	TOGGLE_SERVICES,
+	nil
+)
+
+Toggles.AddToggleCard(
+	pageMain,
 	"combat_rage_teamcheck",
 	"Team Check",
 	"Ignore teammates when targeting.",
-	4,
+	5,
 	true,
 	CONFIG,
 	TOGGLE_SERVICES,
