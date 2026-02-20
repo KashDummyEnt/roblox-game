@@ -939,6 +939,10 @@ end
 
 --============================================================
 -- Slider UI card (right-aligned like toggle)
+-- Adds optional per-slider label offsets:
+--	labelOffsetX: number? (moves the LEFT title text)
+--	valueOffsetX: number? (moves the RIGHT value text)
+--	barOffsetX: number? (moves the slider bar anchor X, default -45)
 --============================================================
 function ToggleSwitches.AddSliderCard(
 	parent,
@@ -951,12 +955,19 @@ function ToggleSwitches.AddSliderCard(
 	defaultValue,
 	step,
 	config,
-	services
+	services,
+	labelOffsetX,
+	valueOffsetX,
+	barOffsetX
 )
 
 	if Store.values[valueKey] == nil then
 		Store.values[valueKey] = defaultValue
 	end
+
+	labelOffsetX = (labelOffsetX ~= nil) and labelOffsetX or 14
+	valueOffsetX = (valueOffsetX ~= nil) and valueOffsetX or -14
+	barOffsetX = (barOffsetX ~= nil) and barOffsetX or -45
 
 	local UserInputService = services.UserInputService
 
@@ -986,7 +997,7 @@ function ToggleSwitches.AddSliderCard(
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Center,
 		Size = UDim2.new(0.4, 0, 1, 0),
-		Position = UDim2.new(0, 14, 0, 0),
+		Position = UDim2.new(0, labelOffsetX, 0, 0),
 		ZIndex = 44,
 		Parent = card,
 	})
@@ -1003,7 +1014,7 @@ function ToggleSwitches.AddSliderCard(
 		TextXAlignment = Enum.TextXAlignment.Right,
 		TextYAlignment = Enum.TextYAlignment.Center,
 		Size = UDim2.new(0, 60, 1, 0),
-		Position = UDim2.new(1, -14, 0, 0),
+		Position = UDim2.new(1, valueOffsetX, 0, 0),
 		AnchorPoint = Vector2.new(1, 0),
 		ZIndex = 44,
 		Parent = card,
@@ -1020,7 +1031,7 @@ function ToggleSwitches.AddSliderCard(
 		Size = UDim2.fromOffset(SLIDER_WIDTH, SLIDER_HEIGHT),
 
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -45, 0.5, 0),
+		Position = UDim2.new(1, barOffsetX, 0.5, 0),
 
 		ZIndex = 46,
 		Parent = card,
@@ -1045,7 +1056,7 @@ function ToggleSwitches.AddSliderCard(
 		Parent = sliderBar,
 	})
 	addCorner(knob, 999)
-	addStroke(knob, 1, Color3.fromRGB(0,0,0), 0.4)
+	addStroke(knob, 1, Color3.fromRGB(0, 0, 0), 0.4)
 
 	------------------------------------------------
 	-- Logic
