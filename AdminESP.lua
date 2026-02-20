@@ -100,6 +100,21 @@ local function isEnemy(plr: Player): boolean
 	return plr.Team ~= LocalPlayer.Team
 end
 
+------------------------------------------------------------------
+-- COLOR SYSTEM
+------------------------------------------------------------------
+
+local ENEMY_COLOR = Color3.fromRGB(255, 70, 70)
+local TEAM_COLOR  = Color3.fromRGB(70, 140, 255)
+
+local function getESPColor(plr: Player): Color3
+	if isEnemy(plr) then
+		return ENEMY_COLOR
+	else
+		return TEAM_COLOR
+	end
+end
+
 local playerConns: {[number]: {RBXScriptConnection}} = {}
 local charWatchConns: {[number]: RBXScriptConnection} = {}
 
@@ -217,7 +232,7 @@ local function buildName(plr: Player)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.fromRGB(255, 70, 70)
+	label.TextColor3 = getESPColor(plr)
 	label.TextStrokeTransparency = 0.5
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamSemibold
@@ -337,7 +352,7 @@ local function buildGlow(plr: Player)
 
 	local h = Instance.new("Highlight")
 	h.Name = GLOW_TAG
-	h.FillColor = Color3.fromRGB(255, 40, 40)
+	h.FillColor = getESPColor(plr)
 	h.FillTransparency = 0.7
 	h.OutlineColor = Color3.fromRGB(255, 255, 255)
 	h.OutlineTransparency = 0.1
@@ -721,7 +736,7 @@ local function ensureSnapFor(plr: Player): SnapData
 	ad.AlwaysOnTop = true
 	ad.ZIndex = 10
 
-	ad.Color3 = Color3.fromRGB(255, 0, 0)
+	ad.Color3 = getESPColor(plr)
 	ad.Transparency = SNAP_TRANSPARENCY
 	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
 	ad.Visible = true
@@ -746,18 +761,21 @@ local function updateSnapFor(plr: Player, data: SnapData, originWorld: Vector3)
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local root = char and (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
 
-local enemy = isEnemy(plr)
+	local enemy = isEnemy(plr)
 
--- If teammate AND Team ESP disabled → block
-if not enemy and not featureState.Team then
-	setSnapEnabled(data, false)
-	return
-end
+	-- If teammate AND Team ESP disabled → block
+	if not enemy and not featureState.Team then
+		setSnapEnabled(data, false)
+		return
+	end
 
 	if not root or not hum or hum.Health <= 0 then
 		setSnapEnabled(data, false)
 		return
 	end
+
+	-- keep color reactive to team changes
+	data.ad.Color3 = getESPColor(plr)
 
 	-- feet-to-feet target
 	local targetFeet = getFeetWorld(root, hum)
@@ -836,21 +854,21 @@ local function enableSnaplines()
 
 			snapOriginPart.CFrame = CFrame.new(originWorld)
 
-for _, plr in ipairs(Players:GetPlayers()) do
-	if plr == LocalPlayer then
-		continue
-	end
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr == LocalPlayer then
+					continue
+				end
 
-	local data = ensureSnapFor(plr)
+				local data = ensureSnapFor(plr)
 
-	local enemy = isEnemy(plr)
+				local enemy = isEnemy(plr)
 
-	if enemy or featureState.Team then
-		updateSnapFor(plr, data, originWorld)
-	else
-		setSnapEnabled(data, false)
-	end
-end
+				if enemy or featureState.Team then
+					updateSnapFor(plr, data, originWorld)
+				else
+					setSnapEnabled(data, false)
+				end
+			end
 		end)
 	end)
 end
@@ -906,7 +924,6 @@ local function ensureBoxFor(plr: Player): BoxData
 		return existing
 	end
 
-	-- Invisible holder part that we move to the boundingbox CFrame
 	local p = Instance.new("Part")
 	p.Name = ("ESP_Box3D_%d"):format(plr.UserId)
 	p.Anchored = true
@@ -924,15 +941,9 @@ local function ensureBoxFor(plr: Player): BoxData
 	ad.AlwaysOnTop = true
 	ad.ZIndex = 10
 
-	-- This is the line thickness
 	ad.SizeRelativeOffset = Vector3.new(0, 0, 0)
 	ad.Transparency = 0.6
-	ad.Color3 = Color3.fromRGB(253, 55, 0)
-
-	-- Wireframe look
-	ad.AlwaysOnTop = true
-
-	-- You can swap to Enum.AdornCullingMode.Never if you want it to never cull
+	ad.Color3 = getESPColor(plr)
 	ad.AdornCullingMode = Enum.AdornCullingMode.Automatic
 
 	ad.Parent = workspace
@@ -968,23 +979,19 @@ local function computeHitboxOBB(char: Model): (CFrame?, Vector3?)
 		if inst:IsA("BasePart") then
 			local part = inst :: BasePart
 
-			-- Skip obvious accessory handles
 			if part.Name == "Handle" and part.Parent and part.Parent:IsA("Accessory") then
 				continue
 			end
 
-			-- Use CanQuery as “can be hit by raycasts”
 			if not part.CanQuery then
 				continue
 			end
 
-			-- Transform the part into root-local space so the box is oriented with the character
 			local rel = rootCF:ToObjectSpace(part.CFrame)
 			local sx = part.Size.X * 0.5
 			local sy = part.Size.Y * 0.5
 			local sz = part.Size.Z * 0.5
 
-			-- 8 corners of the part in root-local space
 			local corners = {
 				(rel * CFrame.new(-sx, -sy, -sz)).Position,
 				(rel * CFrame.new(-sx, -sy,  sz)).Position,
@@ -1019,9 +1026,8 @@ local function computeHitboxOBB(char: Model): (CFrame?, Vector3?)
 
 	local size = maxV - minV
 	local centerLocal = (minV + maxV) * 0.5
-
-	-- World-space oriented box aligned to HumanoidRootPart
 	local cf = rootCF * CFrame.new(centerLocal)
+
 	return cf, size
 end
 
@@ -1029,13 +1035,13 @@ local function updateBoxFor(plr: Player, data: BoxData)
 	local char = plr.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-local enemy = isEnemy(plr)
+	local enemy = isEnemy(plr)
 
--- If teammate AND Team ESP disabled → block
-if not enemy and not featureState.Team then
-	setBoxEnabled(data, false)
-	return
-end
+	if not enemy and not featureState.Team then
+		setBoxEnabled(data, false)
+		return
+	end
+
 	if not char or not hum or hum.Health <= 0 then
 		setBoxEnabled(data, false)
 		return
@@ -1046,6 +1052,9 @@ end
 		setBoxEnabled(data, false)
 		return
 	end
+
+	-- reactive color update
+	data.ad.Color3 = getESPColor(plr)
 
 	data.part.CFrame = cf
 	data.ad.Size = size
@@ -1075,21 +1084,20 @@ local function enableBoxes()
 		end
 
 		boxConn = RunService.RenderStepped:Connect(function()
-for _, plr in ipairs(Players:GetPlayers()) do
-	if plr == LocalPlayer then
-		continue
-	end
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr == LocalPlayer then
+					continue
+				end
 
-	local data = ensureBoxFor(plr)
+				local data = ensureBoxFor(plr)
+				local enemy = isEnemy(plr)
 
-	local enemy = isEnemy(plr)
-
-	if enemy or featureState.Team then
-		updateBoxFor(plr, data)
-	else
-		setBoxEnabled(data, false)
-	end
-end
+				if enemy or featureState.Team then
+					updateBoxFor(plr, data)
+				else
+					setBoxEnabled(data, false)
+				end
+			end
 		end)
 	end)
 end
@@ -1107,7 +1115,6 @@ local function disableBoxes()
 
 	clearBoxes()
 end
-
 ------------------------------------------------------------------
 -- APPLY LOGIC
 ------------------------------------------------------------------
