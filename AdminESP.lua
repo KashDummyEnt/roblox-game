@@ -746,10 +746,13 @@ local function updateSnapFor(plr: Player, data: SnapData, originWorld: Vector3)
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local root = char and (char:FindFirstChild("HumanoidRootPart") :: BasePart?)
 
-	if not isEnemy(plr) then
-		setSnapEnabled(data, false)
-		return
-	end
+local enemy = isEnemy(plr)
+
+-- If teammate AND Team ESP disabled → block
+if not enemy and not featureState.Team then
+	setSnapEnabled(data, false)
+	return
+end
 
 	if not root or not hum or hum.Health <= 0 then
 		setSnapEnabled(data, false)
@@ -1022,10 +1025,13 @@ local function updateBoxFor(plr: Player, data: BoxData)
 	local char = plr.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-	if not isEnemy(plr) then
-		setBoxEnabled(data, false)
-		return
-	end
+local enemy = isEnemy(plr)
+
+-- If teammate AND Team ESP disabled → block
+if not enemy and not featureState.Team then
+	setBoxEnabled(data, false)
+	return
+end
 	if not char or not hum or hum.Health <= 0 then
 		setBoxEnabled(data, false)
 		return
