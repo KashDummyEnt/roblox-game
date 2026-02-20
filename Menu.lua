@@ -42,7 +42,7 @@ local CONFIG = {
 	OpenTweenTime = 0.18,
 	CloseTweenTime = 0.14,
 
-	Accent = Color3.fromRGB(255, 0, 255),
+	Accent = Color3.fromRGB(255, 0, 0),
 	Bg = Color3.fromRGB(14, 14, 16),
 	Bg2 = Color3.fromRGB(20, 20, 24),
 	Bg3 = Color3.fromRGB(26, 26, 32),
@@ -811,6 +811,22 @@ end)
 Toggles.AddToggleCard(pageVisuals, "visuals_box3d", "Boxes", "3D wireframe player boxes.", 5, false, CONFIG, TOGGLE_SERVICES, function(state)
 	if state then ensureFeatureLoaded("adminesp", ADMINESP_URL) end
 end)
+
+Toggles.AddToggleCard(
+	pageVisuals,
+	"visuals_team",
+	"Show Teammates",
+	"Render ESP for teammates too.",
+	6,
+	false,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state)
+		if state then
+			ensureFeatureLoaded("adminesp", ADMINESP_URL)
+		end
+	end
+)
 
 -- World tab: action + toggles + placeholders
 -- World tab: Skybox toggle + dropdown (REPLACES the old "Apply Skybox" card)
