@@ -17,7 +17,7 @@ end
 local G = getGlobal()
 
 local TOGGLE_KEY = "misc_speed"
-local SPEED_VALUE = 32 -- change this to whatever you want
+local SPEED_VALUE = 80 -- change this to whatever you want
 
 --------------------------------------------------------------------------------
 -- WAIT FOR TOGGLES API
