@@ -1259,7 +1259,7 @@ end
 --=====================================================
 -- Side Panel Layout (STRICT RIGHT ATTACH + Y NUDGE)
 --=====================================================
-local Y_NUDGE = 15 -- adjust this (try 4–8 if needed)
+local Y_NUDGE = 25 -- adjust this (try 4–8 if needed)
 
 local function layoutSidePanel()
 	if not sidePanel.Visible then
