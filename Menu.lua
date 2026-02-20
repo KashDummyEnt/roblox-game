@@ -513,113 +513,6 @@ popup.AnchorPoint = Vector2.new(0, 0)
 addCorner(popup, 14)
 addStroke(popup, 1, CONFIG.Stroke, 0.15)
 
---========================================================
--- ESP PREVIEW PANEL (RIGHT SIDE)
---========================================================
-
-local PREVIEW_WIDTH = 260
-local PREVIEW_PADDING = 12
-
-local previewPanel = make("Frame", {
-	Name = "ESPPreviewPanel",
-	BackgroundColor3 = CONFIG.Bg2,
-	Size = UDim2.fromOffset(PREVIEW_WIDTH, CONFIG.PopupSize.Y),
-	ZIndex = 39,
-	Visible = false, -- ADD THIS
-	Parent = screenGui,
-})
-
-addCorner(previewPanel, 14)
-addStroke(previewPanel, 1, CONFIG.Stroke, 0.15)
-
-local previewTitle = make("TextLabel", {
-	BackgroundTransparency = 1,
-	Text = "ESP Preview",
-	TextColor3 = CONFIG.Text,
-	TextSize = 16,
-	Font = Enum.Font.GothamSemibold,
-	Size = UDim2.new(1, 0, 0, 40),
-	Parent = previewPanel,
-})
-
-local viewport = make("ViewportFrame", {
-	Name = "PreviewViewport",
-	BackgroundColor3 = CONFIG.Bg,
-	Size = UDim2.new(1, -16, 1, -56),
-	Position = UDim2.new(0, 8, 0, 48),
-	Parent = previewPanel,
-})
-
-addCorner(viewport, 12)
-
---========================================================
--- VIEWPORT CHARACTER SETUP
---========================================================
-
-local previewCamera = Instance.new("Camera")
-viewport.CurrentCamera = previewCamera
-
--- Add basic lighting so the model isn't dark
-local light = Instance.new("DirectionalLight")
-light.Brightness = 2
-light.Parent = viewport
-
-local function buildPreviewCharacter()
-
-	-- Clear ONLY previous models
-	for _, child in ipairs(viewport:GetChildren()) do
-		if child:IsA("Model") then
-			child:Destroy()
-		end
-	end
-
-	local char = player.Character
-	if not char then return end
-
-	local clone = char:Clone()
-	clone.Parent = viewport
-
-	-- Remove scripts
-	for _, obj in ipairs(clone:GetDescendants()) do
-		if obj:IsA("Script") or obj:IsA("LocalScript") then
-			obj:Destroy()
-		end
-	end
-
-	local root = clone:FindFirstChild("HumanoidRootPart")
-	if root then
-		root.Anchored = true
-		root.CFrame = CFrame.new(0, 0, 0)
-	end
-
-	previewCamera.CFrame = CFrame.new(
-		Vector3.new(0, 2, 6),
-		Vector3.new(0, 2, 0)
-	)
-end
-
-local root = clone:FindFirstChild("HumanoidRootPart")
-if root then
-	root.Anchored = true
-	root.CFrame = CFrame.new(0, 0, 0)
-end
-
-	-- Position camera
-	previewCamera.CFrame = CFrame.new(
-		Vector3.new(0, 2, 6),
-		Vector3.new(0, 2, 0)
-	)
-end
-
--- Rebuild preview if player respawns
-player.CharacterAdded:Connect(function()
-	task.wait(0.5)
-	buildPreviewCharacter()
-end)
-
--- Initial build
-buildPreviewCharacter()
-
 local popupGradient = make("UIGradient", {
 	Rotation = 90,
 	Parent = popup,
@@ -1301,25 +1194,6 @@ popup:GetPropertyChangedSignal("Position"):Connect(function()
 	end
 end)
 
---========================================================
--- KEEP PREVIEW PANEL IN SYNC WITH POPUP
---========================================================
-
-local function updatePreviewPosition()
-	previewPanel.Position = UDim2.new(
-		0,
-		popup.Position.X.Offset + CONFIG.PopupSize.X + PREVIEW_PADDING,
-		0,
-		popup.Position.Y.Offset
-	)
-end
-
--- Initial placement
-updatePreviewPosition()
-
--- Update whenever popup moves
-popup:GetPropertyChangedSignal("Position"):Connect(updatePreviewPosition)
-
 local function tweenPopup(open: boolean)
 	if openTween then
 		openTween:Cancel()
@@ -1374,8 +1248,6 @@ local function setOpen(nextOpen: boolean)
 		return
 	end
 	isOpen = nextOpen
-
-	previewPanel.Visible = isOpen
 
 	-- save where it was when closing
 	if not isOpen then
