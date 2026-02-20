@@ -938,7 +938,14 @@ end
 
 
 --============================================================
--- Slider UI card (stable + right aligned)
+-- Slider UI card (right-aligned like toggle)
+-- Adds optional per-slider label offsets:
+--	labelOffsetX: number? (moves the LEFT title text container start)
+--	valueOffsetX: number? (moves the RIGHT value text)
+--	barOffsetX: number? (moves the slider bar anchor X, default -45)
+--
+-- Title text is AUTO-CENTERED between the left edge of the card and the
+-- start of the slider bar (so FOV/SMOOTH/etc all center perfectly).
 --============================================================
 function ToggleSwitches.AddSliderCard(
 	parent,
@@ -951,17 +958,24 @@ function ToggleSwitches.AddSliderCard(
 	defaultValue,
 	step,
 	config,
-	services
+	services,
+	labelOffsetX,
+	valueOffsetX,
+	barOffsetX
 )
 
 	if Store.values[valueKey] == nil then
 		Store.values[valueKey] = defaultValue
 	end
 
+	labelOffsetX = (labelOffsetX ~= nil) and labelOffsetX or 10
+	valueOffsetX = (valueOffsetX ~= nil) and valueOffsetX or -14
+	barOffsetX = (barOffsetX ~= nil) and barOffsetX or -45
+
 	local UserInputService = services.UserInputService
 
 	------------------------------------------------
-	-- Card
+	-- Card (same size as toggle)
 	------------------------------------------------
 	local card = make("Frame", {
 		Name = "SliderCard_" .. tostring(valueKey),
@@ -975,22 +989,18 @@ function ToggleSwitches.AddSliderCard(
 	addStroke(card, 1, config.Stroke, 0.35)
 
 	------------------------------------------------
-	-- Layout Constants
+	-- SLIDER BAR (right aligned like toggle switch)
 	------------------------------------------------
-	local LEFT_PADDING = 16
-	local RIGHT_PADDING = 16
-	local VALUE_WIDTH = 60
 	local SLIDER_WIDTH = 200
 	local SLIDER_HEIGHT = 8
 
-	------------------------------------------------
-	-- Slider Bar (right side)
-	------------------------------------------------
 	local sliderBar = make("Frame", {
 		BackgroundColor3 = config.Bg3,
 		Size = UDim2.fromOffset(SLIDER_WIDTH, SLIDER_HEIGHT),
+
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -(RIGHT_PADDING + VALUE_WIDTH), 0.5, 0),
+		Position = UDim2.new(1, barOffsetX, 0.5, 0),
+
 		ZIndex = 46,
 		Parent = card,
 	})
@@ -1017,24 +1027,50 @@ function ToggleSwitches.AddSliderCard(
 	addStroke(knob, 1, Color3.fromRGB(0, 0, 0), 0.4)
 
 	------------------------------------------------
-	-- Title (clean left alignment)
+	-- LEFT TITLE (AUTO-CENTERED between card left and slider start)
 	------------------------------------------------
-	make("TextLabel", {
+	local titleContainer = make("Frame", {
+		Name = "TitleContainer",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(0, 0, 1, 0), -- set after we know sizes
+		Position = UDim2.new(0, labelOffsetX, 0, 0),
+		ZIndex = 44,
+		Parent = card,
+	})
+
+	local titleLabel = make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = title,
 		TextColor3 = config.Text,
 		TextSize = 15,
 		Font = Enum.Font.GothamSemibold,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		TextXAlignment = Enum.TextXAlignment.Center,
 		TextYAlignment = Enum.TextYAlignment.Center,
-		Size = UDim2.new(0, sliderBar.Position.X.Offset - LEFT_PADDING - 20, 1, 0),
-		Position = UDim2.new(0, LEFT_PADDING, 0, 0),
-		ZIndex = 44,
-		Parent = card,
+		Size = UDim2.new(1, 0, 1, 0),
+		ZIndex = 45,
+		Parent = titleContainer,
 	})
 
+	local function layoutTitleContainer()
+		-- how much horizontal space exists from left edge to slider start
+		local sliderLeftX = sliderBar.AbsolutePosition.X - card.AbsolutePosition.X
+		local available = sliderLeftX - labelOffsetX
+
+		-- protect against negative widths
+		if available < 0 then
+			available = 0
+		end
+
+		titleContainer.Size = UDim2.new(0, available, 1, 0)
+	end
+
+	-- wait 1 frame for AbsoluteSize/Position to be valid
+	task.defer(layoutTitleContainer)
+
+	-- keep it correct if UI resizes
+	card:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutTitleContainer)
 	------------------------------------------------
-	-- Value Label (right side)
+	-- VALUE LABEL (far right)
 	------------------------------------------------
 	local valueLabel = make("TextLabel", {
 		BackgroundTransparency = 1,
@@ -1044,8 +1080,8 @@ function ToggleSwitches.AddSliderCard(
 		Font = Enum.Font.GothamSemibold,
 		TextXAlignment = Enum.TextXAlignment.Right,
 		TextYAlignment = Enum.TextYAlignment.Center,
-		Size = UDim2.new(0, VALUE_WIDTH, 1, 0),
-		Position = UDim2.new(1, -RIGHT_PADDING, 0, 0),
+		Size = UDim2.new(0, 60, 1, 0),
+		Position = UDim2.new(1, valueOffsetX, 0, 0),
 		AnchorPoint = Vector2.new(1, 0),
 		ZIndex = 44,
 		Parent = card,
