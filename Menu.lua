@@ -773,22 +773,6 @@ Toggles.AddToggleCard(
 	pageMain,
 	"combat_rage",
 	"Rage Aimbot",
-	"Snaps camera to closest target in FOV.",
-	2,
-	false,
-	CONFIG,
-	TOGGLE_SERVICES,
-	function(state)
-		if state then
-			ensureFeatureLoaded("rage", RAGE_URL)
-		end
-	end
-)
-
-Toggles.AddToggleCard(
-	pageMain,
-	"combat_rage",
-	"Rage Aimbot",
 	"Auto-aim at nearest enemy inside FOV.",
 	1,
 	false,
