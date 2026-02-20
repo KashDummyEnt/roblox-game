@@ -1374,6 +1374,7 @@ local function setOpen(nextOpen: boolean)
 		return
 	end
 	isOpen = nextOpen
+
 	previewPanel.Visible = isOpen
 
 	-- save where it was when closing
