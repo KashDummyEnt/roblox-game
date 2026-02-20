@@ -1029,18 +1029,16 @@ function ToggleSwitches.AddSliderCard(
 	------------------------------------------------
 	-- LEFT TITLE (AUTO-CENTERED between card left and slider start)
 	------------------------------------------------
-	local sliderStartOffset = barOffsetX - SLIDER_WIDTH
-	local titleContainerWidth = math.max(0, math.abs(sliderStartOffset) - (labelOffsetX * 2))
-
 	local titleContainer = make("Frame", {
+		Name = "TitleContainer",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(0, titleContainerWidth, 1, 0),
+		Size = UDim2.new(0, 0, 1, 0), -- set after we know sizes
 		Position = UDim2.new(0, labelOffsetX, 0, 0),
 		ZIndex = 44,
 		Parent = card,
 	})
 
-	make("TextLabel", {
+	local titleLabel = make("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = title,
 		TextColor3 = config.Text,
@@ -1053,6 +1051,26 @@ function ToggleSwitches.AddSliderCard(
 		Parent = titleContainer,
 	})
 
+	local function layoutTitleContainer()
+		-- how much horizontal space exists from left edge to slider start
+		local sliderLeftX = sliderBar.AbsolutePosition.X - card.AbsolutePosition.X
+		local available = sliderLeftX - labelOffsetX
+
+		-- protect against negative widths
+		if available < 0 then
+			available = 0
+		end
+
+		titleContainer.Size = UDim2.new(0, available, 1, 0)
+	end
+
+	-- wait 1 frame for AbsoluteSize/Position to be valid
+	task.defer(layoutTitleContainer)
+
+	-- keep it correct if UI resizes
+	card:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutTitleContainer)
+
+	
 	------------------------------------------------
 	-- VALUE LABEL (far right)
 	------------------------------------------------
