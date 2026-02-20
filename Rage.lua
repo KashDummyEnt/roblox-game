@@ -1,12 +1,18 @@
 --!strict
 -- Rage.lua
--- Toggle-based Rage Aimbot (VISIBLE ONLY VERSION)
+-- Toggle-based Rage Aimbot (HIGGI SYSTEM)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
+
+----------------------------------------------------
+-- EASY CONFIG
+----------------------------------------------------
+
+local fov = 120           -- FOV radius in pixels
+local smoothness = 0.18   -- 0 = instant snap | 0.1–0.3 = smooth | 1 = no movement
 
 ----------------------------------------------------
 -- GLOBAL TOGGLE ACCESS
@@ -39,21 +45,12 @@ if not Toggles then
 end
 
 ----------------------------------------------------
--- CONFIG
-----------------------------------------------------
-
-local AIM_AT = "Head"
-local FOV_RADIUS = 120
-local ALIVE_ONLY = true
-local TEAM_CHECK_ENABLED = true
-local VISIBLE_ONLY = true
-
-----------------------------------------------------
 -- STATE
 ----------------------------------------------------
 
 local connection: RBXScriptConnection? = nil
 local fovGui: ScreenGui? = nil
+local teamCheckEnabled = true
 
 ----------------------------------------------------
 -- CAMERA
@@ -66,34 +63,70 @@ workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 end)
 
 ----------------------------------------------------
+-- TEAM DETECTION (MULTI METHOD)
+----------------------------------------------------
+
+local function isEnemy(plr: Player): boolean
+	if plr == LocalPlayer then
+		return false
+	end
+	
+	if not teamCheckEnabled then
+		return true
+	end
+	
+	if LocalPlayer.Team and plr.Team then
+		return plr.Team ~= LocalPlayer.Team
+	end
+	
+	if LocalPlayer.TeamColor and plr.TeamColor then
+		return plr.TeamColor ~= LocalPlayer.TeamColor
+	end
+	
+	local localAttrTeam = LocalPlayer:GetAttribute("Team")
+	local plrAttrTeam = plr:GetAttribute("Team")
+	if localAttrTeam ~= nil and plrAttrTeam ~= nil then
+		return localAttrTeam ~= plrAttrTeam
+	end
+	
+	local localFaction = LocalPlayer:GetAttribute("Faction")
+	local plrFaction = plr:GetAttribute("Faction")
+	if localFaction ~= nil and plrFaction ~= nil then
+		return localFaction ~= plrFaction
+	end
+	
+	return true
+end
+
+----------------------------------------------------
 -- FOV CIRCLE
 ----------------------------------------------------
 
 local function createFov()
 	if fovGui then return end
-
+	
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "RageFovGui"
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
 	gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
+	
 	local circle = Instance.new("Frame")
 	circle.AnchorPoint = Vector2.new(0.5, 0.5)
 	circle.Position = UDim2.new(0.5, 0, 0.5, 0)
-	circle.Size = UDim2.fromOffset(FOV_RADIUS * 2, FOV_RADIUS * 2)
+	circle.Size = UDim2.fromOffset(fov * 2, fov * 2)
 	circle.BackgroundTransparency = 1
 	circle.Parent = gui
-
+	
 	local stroke = Instance.new("UIStroke")
 	stroke.Thickness = 2
 	stroke.Color = Color3.fromRGB(255, 255, 255)
 	stroke.Parent = circle
-
+	
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(1, 0)
 	corner.Parent = circle
-
+	
 	fovGui = gui
 end
 
@@ -105,7 +138,7 @@ local function destroyFov()
 end
 
 ----------------------------------------------------
--- TARGET HELPERS
+-- TARGETING
 ----------------------------------------------------
 
 local function isAlive(plr: Player): boolean
@@ -118,110 +151,63 @@ end
 local function getAimPart(plr: Player): BasePart?
 	local char = plr.Character
 	if not char then return nil end
-
-	if AIM_AT == "HumanoidRootPart" then
-		return char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	end
-
 	return char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
 end
 
-local function isEnemy(plr: Player): boolean
-	if plr == LocalPlayer then return false end
-	
-	if not TEAM_CHECK_ENABLED then return true end
-	
-	if not LocalPlayer.Team or not plr.Team then
-		return true
-	end
-	
-	return plr.Team ~= LocalPlayer.Team
-end
-
-----------------------------------------------------
--- VISIBILITY CHECK
-----------------------------------------------------
-
-local function isVisible(targetPart: BasePart): boolean
-	if not VISIBLE_ONLY then
-		return true
-	end
-
-	local origin = Camera.CFrame.Position
-	local direction = targetPart.Position - origin
-
-	local rayParams = RaycastParams.new()
-	rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-	rayParams.FilterDescendantsInstances = { LocalPlayer.Character }
-	rayParams.IgnoreWater = true
-
-	local result = Workspace:Raycast(origin, direction, rayParams)
-
-	if not result then
-		return true
-	end
-
-	-- if first hit is inside the target character, it's visible
-	if result.Instance:IsDescendantOf(targetPart.Parent) then
-		return true
-	end
-
-	return false
-end
-
-----------------------------------------------------
--- TARGETING
-----------------------------------------------------
-
-local function getClosestTargetInFov(): BasePart?
+local function getClosestTarget(): BasePart?
 	if not Camera then return nil end
-
+	
 	local viewport = Camera.ViewportSize
 	local center = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
-
+	
 	local bestPart: BasePart? = nil
-	local bestDist2 = FOV_RADIUS * FOV_RADIUS
-
+	local bestDist2 = fov * fov
+	
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if not isEnemy(plr) then continue end
-		if ALIVE_ONLY and not isAlive(plr) then continue end
-
+		if not isAlive(plr) then continue end
+		
 		local part = getAimPart(plr)
 		if not part then continue end
-
+		
 		local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
 		if not onScreen or screenPos.Z <= 0 then continue end
-
-		if not isVisible(part) then continue end
-
+		
 		local dx = screenPos.X - center.X
 		local dy = screenPos.Y - center.Y
 		local dist2 = dx * dx + dy * dy
-
+		
 		if dist2 <= bestDist2 then
 			bestDist2 = dist2
 			bestPart = part
 		end
 	end
-
+	
 	return bestPart
 end
 
 ----------------------------------------------------
--- LOOP CONTROL
+-- SMOOTH AIM
+----------------------------------------------------
+
+local function smoothLookAt(targetPos: Vector3)
+	local camCF = Camera.CFrame
+	local desired = CFrame.new(camCF.Position, targetPos)
+	Camera.CFrame = camCF:Lerp(desired, 1 - smoothness)
+end
+
+----------------------------------------------------
+-- CONTROL
 ----------------------------------------------------
 
 local function start()
 	if connection then return end
-
 	createFov()
-
+	
 	connection = RunService.RenderStepped:Connect(function()
-		local targetPart = getClosestTargetInFov()
-		if not targetPart then return end
-
-		local camPos = Camera.CFrame.Position
-		Camera.CFrame = CFrame.new(camPos, targetPart.Position)
+		local target = getClosestTarget()
+		if not target then return end
+		smoothLookAt(target.Position)
 	end)
 end
 
@@ -230,12 +216,11 @@ local function stop()
 		connection:Disconnect()
 		connection = nil
 	end
-
 	destroyFov()
 end
 
 ----------------------------------------------------
--- TOGGLE SUBSCRIBE
+-- TOGGLES
 ----------------------------------------------------
 
 Toggles.Subscribe("combat_rage", function(state)
@@ -246,6 +231,13 @@ Toggles.Subscribe("combat_rage", function(state)
 	end
 end)
 
+Toggles.Subscribe("combat_rage_teamcheck", function(state)
+	teamCheckEnabled = state
+end)
+
+-- Initialize states if already on
 if Toggles.GetState("combat_rage", false) then
 	start()
 end
+
+teamCheckEnabled = Toggles.GetState("combat_rage_teamcheck", true)
