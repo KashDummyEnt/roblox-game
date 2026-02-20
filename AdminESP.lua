@@ -570,12 +570,26 @@ end
 			if featureState.Name then
 				local nameGui = head:FindFirstChild(NAME_TAG)
 
+				-- rebuild if missing
 				if not nameGui then
 					buildName(plr)
 					nameGui = head:FindFirstChild(NAME_TAG)
 				end
 
 				if nameGui then
+					------------------------------------------------------------------
+					-- TEAM COLOR ENFORCEMENT (LIVE UPDATE)
+					------------------------------------------------------------------
+
+					local label = nameGui:FindFirstChildOfClass("TextLabel")
+					if label then
+						label.TextColor3 = getESPColor(plr)
+					end
+
+					------------------------------------------------------------------
+					-- DISTANCE SCALING
+					------------------------------------------------------------------
+
 					local w = math.max(math.floor(NAME_BASE_W * scale), NAME_MIN_W)
 					local h = math.max(math.floor(NAME_BASE_H * scale), NAME_MIN_H)
 
