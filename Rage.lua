@@ -1,6 +1,7 @@
 --!strict
 -- Rage.lua
 -- Distance-Priority Rage Aimbot (HIGGI SYSTEM)
+-- Includes AutoWall toggle support
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -51,6 +52,7 @@ end
 local connection: RBXScriptConnection? = nil
 local fovGui: ScreenGui? = nil
 local teamCheckEnabled = true
+local autoWallEnabled = false
 
 ----------------------------------------------------
 -- CAMERA
@@ -225,18 +227,22 @@ local function getClosestTarget(): BasePart?
 
 		local part = getAimPart(plr)
 		if not part then continue end
-		if not isVisible(part) then continue end
+
+		-- AUTOWALL LOGIC
+		if not autoWallEnabled then
+			if not isVisible(part) then
+				continue
+			end
+		end
 
 		local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
 		if not onScreen or screenPos.Z <= 0 then continue end
 
-		-- Must still be inside FOV circle
 		local dx = screenPos.X - center.X
 		local dy = screenPos.Y - center.Y
 		local dist2 = dx * dx + dy * dy
 		if dist2 > fov * fov then continue end
 
-		-- Prioritize 3D world distance
 		local worldDist = (part.Position - root.Position).Magnitude
 
 		if worldDist < bestWorldDist then
@@ -319,8 +325,13 @@ Toggles.Subscribe("combat_rage_teamcheck", function(state)
 	teamCheckEnabled = state
 end)
 
+Toggles.Subscribe("combat_rage_autowall", function(state)
+	autoWallEnabled = state
+end)
+
 if Toggles.GetState("combat_rage", false) then
 	start()
 end
 
 teamCheckEnabled = Toggles.GetState("combat_rage_teamcheck", true)
+autoWallEnabled = Toggles.GetState("combat_rage_autowall", false)
