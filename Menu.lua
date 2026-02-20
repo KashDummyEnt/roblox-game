@@ -250,7 +250,7 @@ local function startNpcWatcher()
 
 	task.spawn(function()
 
-		local folder = ReplicatedStorage:WaitForChild("NPCs")
+		local folder = ReplicatedSto:WaitForChild("NPCs")
 
 		local function register(inst: Instance)
 			if inst:IsA("Model") then
@@ -790,28 +790,30 @@ Toggles.AddSliderCard(
 	pageMain,
 	"combat_rage_fov",
 	"FOV",
-	nil, -- no description anymore
+	nil,
 	2,
 	20,
 	400,
 	120,
 	5,
 	CONFIG,
-	TOGGLE_SERVICES
+	TOGGLE_SERVICES,
+	20
 )
 
 Toggles.AddSliderCard(
 	pageMain,
 	"combat_rage_smooth",
 	"SMOOTH",
-	nil, -- no description
+	nil,
 	3,
 	0,
 	1,
 	0.18,
 	0.01,
 	CONFIG,
-	TOGGLE_SERVICES
+	TOGGLE_SERVICES,
+	5
 )
 
 Toggles.AddToggleCard(
