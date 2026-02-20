@@ -771,7 +771,7 @@ local pageSettings = makePage("Settings")
 
 Toggles.AddToggleCard(
 	pageMain,
-	"combat_",
+	"combat_rage",
 	"Rage Aimbot",
 	"Auto-aim at nearest enemy inside FOV.",
 	1,
