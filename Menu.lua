@@ -1259,29 +1259,25 @@ local function layoutSidePanel()
 
 	local vp = getViewportSize()
 
-	-- Prefer offset space (you position popup with offsets already)
-	local px = popup.Position.X.Offset
-	local py = popup.Position.Y.Offset
+	local px = popup.AbsolutePosition.X
+	local py = popup.AbsolutePosition.Y
+	local pw = popup.AbsoluteSize.X
+	local ph = popup.AbsoluteSize.Y
 
-	-- Width/height (use current size, not absolute position)
-	local pw = popup.Size.X.Offset
-	local ph = popup.Size.Y.Offset
+	-- Try right first, fallback left if it would go offscreen
+	local xRight = px + pw + SIDE_GAP
+	local xLeft = px - SIDE_GAP - SIDE_WIDTH
 
-	-- If during tween you temporarily have 0 height, still follow
-	if ph <= 0 then
-		ph = popup.AbsoluteSize.Y
-	end
-	if pw <= 0 then
-		pw = popup.AbsoluteSize.X
+	local x = xRight
+	if (xRight + SIDE_WIDTH) > vp.X then
+		x = xLeft
 	end
 
-	-- Always to the RIGHT of popup
-	local x = px + pw + SIDE_GAP
-
-	-- Clamp so it stays on screen (but still "right-side" behavior)
+	-- Final clamp just in case
 	x = math.clamp(x, 0, vp.X - SIDE_WIDTH)
+	local y = math.clamp(py, 0, vp.Y - ph)
 
-	sidePanel.Position = UDim2.fromOffset(x, py)
+	sidePanel.Position = UDim2.fromOffset(x, y)
 	sidePanel.Size = UDim2.fromOffset(SIDE_WIDTH, ph)
 end
 
@@ -1296,6 +1292,9 @@ popup:GetPropertyChangedSignal("Size"):Connect(function()
 		layoutSidePanel()
 	end
 end)
+
+popup:GetPropertyChangedSignal("Position"):Connect(layoutSidePanel)
+popup:GetPropertyChangedSignal("Size"):Connect(layoutSidePanel)
 
 -- save position whenever user drags it
 popup:GetPropertyChangedSignal("Position"):Connect(function()
