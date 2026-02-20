@@ -796,6 +796,35 @@ Toggles.AddToggleCard(
 	TOGGLE_SERVICES,
 	nil
 )
+
+Toggles.AddSliderCard(
+	pageMain,
+	"combat_rage_fov",
+	"Rage FOV",
+	"Target radius in pixels.",
+	3,
+	20,
+	400,
+	120,
+	5,
+	CONFIG,
+	TOGGLE_SERVICES
+)
+
+Toggles.AddSliderCard(
+	pageMain,
+	"combat_rage_smooth",
+	"Rage Smooth",
+	"Aim smoothness. Lower = faster snap.",
+	4,
+	0,
+	1,
+	0.18,
+	0.01,
+	CONFIG,
+	TOGGLE_SERVICES
+)
+
 Toggles.AddToggleDropDownCard(
 	pageMain,
 	"world_tween_to_npc",      -- toggle key
