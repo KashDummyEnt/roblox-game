@@ -79,25 +79,82 @@ local featureState = {
 }
 
 ------------------------------------------------------------------
--- TEAM CHECK
+-- UNIVERSAL TEAM RESOLUTION
 ------------------------------------------------------------------
 
-local TEAM_CHECK_ENABLED = true -- flip false if you ever want FFA mode
+local TEAM_CHECK_ENABLED = true
+
+-- Optional override mode
+-- "Auto" = try everything
+-- "RobloxTeam" = only Player.Team
+-- "Attribute" = only Attributes
+-- "Leaderstat" = only leaderstats
+local TEAM_MODE = "Auto"
+
+local function getRobloxTeam(plr: Player)
+	return plr.Team
+end
+
+local function getAttributeTeam(plr: Player)
+	-- common attribute names used in games
+	return plr:GetAttribute("Team")
+		or plr:GetAttribute("TeamId")
+		or plr:GetAttribute("Faction")
+		or plr:GetAttribute("Side")
+end
+
+local function getLeaderstatTeam(plr: Player)
+	local stats = plr:FindFirstChild("leaderstats")
+	if not stats then return nil end
+
+	local t = stats:FindFirstChild("Team")
+		or stats:FindFirstChild("TeamId")
+		or stats:FindFirstChild("Faction")
+
+	if t and t:IsA("ValueBase") then
+		return t.Value
+	end
+
+	return nil
+end
+
+local function resolveTeam(plr: Player)
+	if TEAM_MODE == "RobloxTeam" then
+		return getRobloxTeam(plr)
+	end
+
+	if TEAM_MODE == "Attribute" then
+		return getAttributeTeam(plr)
+	end
+
+	if TEAM_MODE == "Leaderstat" then
+		return getLeaderstatTeam(plr)
+	end
+
+	-- AUTO MODE (fallback priority order)
+	return getRobloxTeam(plr)
+		or getAttributeTeam(plr)
+		or getLeaderstatTeam(plr)
+end
 
 local function isEnemy(plr: Player): boolean
 	if plr == LocalPlayer then
 		return false
 	end
-	
+
 	if not TEAM_CHECK_ENABLED then
 		return true
 	end
-	
-	if not LocalPlayer.Team or not plr.Team then
-		return true -- no team info = treat as enemy
+
+	local myTeam = resolveTeam(LocalPlayer)
+	local theirTeam = resolveTeam(plr)
+
+	if myTeam == nil or theirTeam == nil then
+		-- if we can't determine, treat as enemy
+		return true
 	end
-	
-	return plr.Team ~= LocalPlayer.Team
+
+	return myTeam ~= theirTeam
 end
 
 ------------------------------------------------------------------
