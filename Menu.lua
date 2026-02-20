@@ -1285,6 +1285,18 @@ local function layoutSidePanel()
 	sidePanel.Size = UDim2.fromOffset(SIDE_WIDTH, ph)
 end
 
+popup:GetPropertyChangedSignal("Position"):Connect(function()
+	if sidePanel.Visible then
+		layoutSidePanel()
+	end
+end)
+
+popup:GetPropertyChangedSignal("Size"):Connect(function()
+	if sidePanel.Visible then
+		layoutSidePanel()
+	end
+end)
+
 -- save position whenever user drags it
 popup:GetPropertyChangedSignal("Position"):Connect(function()
 	if freeMenuPositioning then
