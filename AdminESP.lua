@@ -837,15 +837,19 @@ local function enableSnaplines()
 			snapOriginPart.CFrame = CFrame.new(originWorld)
 
 for _, plr in ipairs(Players:GetPlayers()) do
+	if plr == LocalPlayer then
+		continue
+	end
+
 	local data = ensureSnapFor(plr)
 
-local enemy = isEnemy(plr)
+	local enemy = isEnemy(plr)
 
-if enemy or featureState.Team then
-	updateSnapFor(plr, data, originWorld)
-else
-	setSnapEnabled(data, false)
-end
+	if enemy or featureState.Team then
+		updateSnapFor(plr, data, originWorld)
+	else
+		setSnapEnabled(data, false)
+	end
 end
 		end)
 	end)
@@ -1072,15 +1076,19 @@ local function enableBoxes()
 
 		boxConn = RunService.RenderStepped:Connect(function()
 for _, plr in ipairs(Players:GetPlayers()) do
+	if plr == LocalPlayer then
+		continue
+	end
+
 	local data = ensureBoxFor(plr)
 
-local enemy = isEnemy(plr)
+	local enemy = isEnemy(plr)
 
-if enemy or featureState.Team then
-	updateBoxFor(plr, data)
-else
-	setBoxEnabled(data, false)
-end
+	if enemy or featureState.Team then
+		updateBoxFor(plr, data)
+	else
+		setBoxEnabled(data, false)
+	end
 end
 		end)
 	end)
