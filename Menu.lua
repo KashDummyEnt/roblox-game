@@ -564,8 +564,13 @@ light.Brightness = 2
 light.Parent = viewport
 
 local function buildPreviewCharacter()
-	viewport:ClearAllChildren()
-	viewport.CurrentCamera = previewCamera
+
+	-- Clear ONLY previous models
+	for _, child in ipairs(viewport:GetChildren()) do
+		if child:IsA("Model") then
+			child:Destroy()
+		end
+	end
 
 	local char = player.Character
 	if not char then return end
@@ -573,12 +578,24 @@ local function buildPreviewCharacter()
 	local clone = char:Clone()
 	clone.Parent = viewport
 
-	-- Remove scripts so nothing runs inside the viewport
+	-- Remove scripts
 	for _, obj in ipairs(clone:GetDescendants()) do
 		if obj:IsA("Script") or obj:IsA("LocalScript") then
 			obj:Destroy()
 		end
 	end
+
+	local root = clone:FindFirstChild("HumanoidRootPart")
+	if root then
+		root.Anchored = true
+		root.CFrame = CFrame.new(0, 0, 0)
+	end
+
+	previewCamera.CFrame = CFrame.new(
+		Vector3.new(0, 2, 6),
+		Vector3.new(0, 2, 0)
+	)
+end
 
 local root = clone:FindFirstChild("HumanoidRootPart")
 if root then
@@ -1356,6 +1373,7 @@ local function setOpen(nextOpen: boolean)
 		return
 	end
 	isOpen = nextOpen
+	previewPanel.Visible = isOpen
 
 	-- save where it was when closing
 	if not isOpen then
