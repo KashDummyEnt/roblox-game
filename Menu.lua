@@ -43,7 +43,7 @@ local CONFIG = {
 	OpenTweenTime = 0.18,
 	CloseTweenTime = 0.14,
 
-	Accent = Color3.fromRGB(255, 0, 255),
+	Accent = Color3.fromRGB(255, 0, 0),
 	Bg = Color3.fromRGB(14, 14, 16),
 	Bg2 = Color3.fromRGB(20, 20, 24),
 	Bg3 = Color3.fromRGB(26, 26, 32),
@@ -771,8 +771,8 @@ local pageSettings = makePage("Settings")
 
 Toggles.AddToggleCard(
 	pageMain,
-	"combat_",
-	" Aimbot",
+	"combat_rage",
+	"Rage Aimbot",
 	"Auto-aim at nearest enemy inside FOV.",
 	1,
 	false,
@@ -789,7 +789,7 @@ Toggles.AddToggleCard(
 Toggles.AddSliderCard(
 	pageMain,
 	"combat_rage_fov",
-	"Aim FOV",
+	"FOV",
 	nil,
 	2,
 	20,
@@ -825,7 +825,7 @@ Toggles.AddToggleCard(
 	"combat_rage_autowall",
 	"AutoWall",
 	"Ignore visibility checks (shoot through walls).",
-	4,
+	5,
 	false,
 	CONFIG,
 	TOGGLE_SERVICES,
@@ -837,7 +837,7 @@ Toggles.AddToggleCard(
 	"combat_rage_teamcheck",
 	"Team Check",
 	"Ignore teammates when targeting.",
-	5,
+	4,
 	true,
 	CONFIG,
 	TOGGLE_SERVICES,
