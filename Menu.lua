@@ -789,7 +789,7 @@ Toggles.AddToggleCard(
 Toggles.AddSliderCard(
 	pageMain,
 	"combat_rage_fov",
-	"FOV",
+	"Aim FOV",
 	nil,
 	2,
 	20,
