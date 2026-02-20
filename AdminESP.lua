@@ -47,6 +47,7 @@ local KEYS = {
 	Player = "visuals_player",
 	Snaplines = "visuals_snaplines",
 	Box3D = "visuals_box3d",
+	Team = "visuals_team",
 }
 
 ------------------------------------------------------------------
@@ -74,6 +75,7 @@ local featureState = {
 	Player = false,
 	Snaplines = false,
 	Box3D = false,
+	Team = false,
 }
 
 ------------------------------------------------------------------
@@ -350,10 +352,13 @@ end
 local function applyForPlayer(plr: Player)
 	if plr == LocalPlayer then return end
 
-	if not isEnemy(plr) then
+local enemy = isEnemy(plr)
+
+-- If teammate AND Team ESP disabled → remove
+if not enemy and not featureState.Team then
 	cleanupPlayer(plr)
 	return
-    end
+end
 
 	disconnectUser(plr.UserId)
 	if not plr.Character then return end
@@ -509,27 +514,30 @@ local function startScaler()
 			-- HARD TEAM CHECK ENFORCEMENT
 			------------------------------------------------------------------
 
-			if not isEnemy(plr) then
-				-- Remove Name
-				local nameGui = head:FindFirstChild(NAME_TAG)
-				if nameGui then
-					nameGui:Destroy()
-				end
+local enemy = isEnemy(plr)
 
-				-- Remove Health
-				local hpGui = root:FindFirstChild(HEALTH_TAG)
-				if hpGui then
-					hpGui:Destroy()
-				end
+-- If teammate AND Team ESP disabled → remove
+if not enemy and not featureState.Team then
+	-- Remove Name
+	local nameGui = head:FindFirstChild(NAME_TAG)
+	if nameGui then
+		nameGui:Destroy()
+	end
 
-				-- Remove Glow
-				local glow = char:FindFirstChild(GLOW_TAG)
-				if glow then
-					glow:Destroy()
-				end
+	-- Remove Health
+	local hpGui = root:FindFirstChild(HEALTH_TAG)
+	if hpGui then
+		hpGui:Destroy()
+	end
 
-				continue
-			end
+	-- Remove Glow
+	local glow = char:FindFirstChild(GLOW_TAG)
+	if glow then
+		glow:Destroy()
+	end
+
+	continue
+end
 
 			------------------------------------------------------------------
 			-- DISTANCE SCALING
@@ -828,11 +836,13 @@ local function enableSnaplines()
 for _, plr in ipairs(Players:GetPlayers()) do
 	local data = ensureSnapFor(plr)
 
-	if isEnemy(plr) then
-		updateSnapFor(plr, data, originWorld)
-	else
-		setSnapEnabled(data, false)
-	end
+local enemy = isEnemy(plr)
+
+if enemy or featureState.Team then
+	updateSnapFor(plr, data, originWorld)
+else
+	setSnapEnabled(data, false)
+end
 end
 		end)
 	end)
@@ -1058,11 +1068,13 @@ local function enableBoxes()
 for _, plr in ipairs(Players:GetPlayers()) do
 	local data = ensureBoxFor(plr)
 
-	if isEnemy(plr) then
-		updateBoxFor(plr, data)
-	else
-		setBoxEnabled(data, false)
-	end
+local enemy = isEnemy(plr)
+
+if enemy or featureState.Team then
+	updateBoxFor(plr, data)
+else
+	setBoxEnabled(data, false)
+end
 end
 		end)
 	end)
@@ -1153,5 +1165,6 @@ bind("Health", KEYS.Health)
 bind("Player", KEYS.Player)
 bind("Snaplines", KEYS.Snaplines)
 bind("Box3D", KEYS.Box3D)
+bind("Team", KEYS.Team)
 
 refresh()
