@@ -940,9 +940,12 @@ end
 --============================================================
 -- Slider UI card (right-aligned like toggle)
 -- Adds optional per-slider label offsets:
---	labelOffsetX: number? (moves the LEFT title text)
+--	labelOffsetX: number? (moves the LEFT title text container start)
 --	valueOffsetX: number? (moves the RIGHT value text)
 --	barOffsetX: number? (moves the slider bar anchor X, default -45)
+--
+-- Title text is AUTO-CENTERED between the left edge of the card and the
+-- start of the slider bar (so FOV/SMOOTH/etc all center perfectly).
 --============================================================
 function ToggleSwitches.AddSliderCard(
 	parent,
@@ -965,7 +968,7 @@ function ToggleSwitches.AddSliderCard(
 		Store.values[valueKey] = defaultValue
 	end
 
-	labelOffsetX = (labelOffsetX ~= nil) and labelOffsetX or 14
+	labelOffsetX = (labelOffsetX ~= nil) and labelOffsetX or 10
 	valueOffsetX = (valueOffsetX ~= nil) and valueOffsetX or -14
 	barOffsetX = (barOffsetX ~= nil) and barOffsetX or -45
 
@@ -984,41 +987,6 @@ function ToggleSwitches.AddSliderCard(
 	})
 	addCorner(card, 12)
 	addStroke(card, 1, config.Stroke, 0.35)
-
-	------------------------------------------------
-	-- LEFT TITLE
-	------------------------------------------------
-	make("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = title,
-		TextColor3 = config.Text,
-		TextSize = 15,
-		Font = Enum.Font.GothamSemibold,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Center,
-		Size = UDim2.new(0.4, 0, 1, 0),
-		Position = UDim2.new(0, labelOffsetX, 0, 0),
-		ZIndex = 44,
-		Parent = card,
-	})
-
-	------------------------------------------------
-	-- VALUE LABEL (far right)
-	------------------------------------------------
-	local valueLabel = make("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = tostring(Store.values[valueKey]),
-		TextColor3 = config.SubText,
-		TextSize = 14,
-		Font = Enum.Font.GothamSemibold,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		TextYAlignment = Enum.TextYAlignment.Center,
-		Size = UDim2.new(0, 60, 1, 0),
-		Position = UDim2.new(1, valueOffsetX, 0, 0),
-		AnchorPoint = Vector2.new(1, 0),
-		ZIndex = 44,
-		Parent = card,
-	})
 
 	------------------------------------------------
 	-- SLIDER BAR (right aligned like toggle switch)
@@ -1057,6 +1025,51 @@ function ToggleSwitches.AddSliderCard(
 	})
 	addCorner(knob, 999)
 	addStroke(knob, 1, Color3.fromRGB(0, 0, 0), 0.4)
+
+	------------------------------------------------
+	-- LEFT TITLE (AUTO-CENTERED between card left and slider start)
+	------------------------------------------------
+	local sliderStartOffset = barOffsetX - SLIDER_WIDTH
+	local titleContainerWidth = math.max(0, math.abs(sliderStartOffset) - (labelOffsetX * 2))
+
+	local titleContainer = make("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(0, titleContainerWidth, 1, 0),
+		Position = UDim2.new(0, labelOffsetX, 0, 0),
+		ZIndex = 44,
+		Parent = card,
+	})
+
+	make("TextLabel", {
+		BackgroundTransparency = 1,
+		Text = title,
+		TextColor3 = config.Text,
+		TextSize = 15,
+		Font = Enum.Font.GothamSemibold,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		Size = UDim2.new(1, 0, 1, 0),
+		ZIndex = 45,
+		Parent = titleContainer,
+	})
+
+	------------------------------------------------
+	-- VALUE LABEL (far right)
+	------------------------------------------------
+	local valueLabel = make("TextLabel", {
+		BackgroundTransparency = 1,
+		Text = tostring(Store.values[valueKey]),
+		TextColor3 = config.SubText,
+		TextSize = 14,
+		Font = Enum.Font.GothamSemibold,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		Size = UDim2.new(0, 60, 1, 0),
+		Position = UDim2.new(1, valueOffsetX, 0, 0),
+		AnchorPoint = Vector2.new(1, 0),
+		ZIndex = 44,
+		Parent = card,
+	})
 
 	------------------------------------------------
 	-- Logic
