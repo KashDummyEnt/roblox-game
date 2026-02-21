@@ -74,7 +74,7 @@ local function createEmitter(parent: Instance, rate: number, sizeMin: number, si
 	emitter.Texture = "rbxassetid://118641183"
 
 	emitter.Rate = rate
-	emitter.Lifetime = NumberRange.new(12, 16)
+	emitter.Lifetime = NumberRange.new(6, 10)
 
 	-- Very slow initial downward motion
 	emitter.Speed = NumberRange.new(0.5, 1.2)
@@ -137,7 +137,7 @@ local function createSnow()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		part.Position = cam.CFrame.Position + Vector3.new(0, 60, 0)
+		part.Position = cam.CFrame.Position + Vector3.new(0, 35, 0)
 	end)
 end
 
