@@ -68,6 +68,10 @@ local followConn: RBXScriptConnection? = nil
 -- SNOW (NO WIND, HEAVY LAYERED, SPEED = 1)
 ------------------------------------------------------------
 
+------------------------------------------------------------
+-- SNOW (50 EMITTER STACK, SPEED = 1 LOCKED)
+------------------------------------------------------------
+
 local function createEmitter(parent: Instance, rate: number, sizeMin: number, sizeMax: number, lifetimeMin: number, lifetimeMax: number)
 	local emitter = Instance.new("ParticleEmitter")
 
@@ -108,7 +112,7 @@ local function createSnow()
 	local part = Instance.new("Part")
 	part.Name = "LocalSnowCeiling"
 
-	part.Size = Vector3.new(500, 1, 500) -- bigger coverage
+	part.Size = Vector3.new(600, 1, 600)
 	part.Anchored = true
 	part.CanCollide = false
 	part.CanQuery = false
@@ -117,20 +121,19 @@ local function createSnow()
 	part.CastShadow = false
 	part.Parent = workspace
 
-	-- Layer 1 (micro flakes, heavy density)
-	createEmitter(part, 1800, 0.12, 0.18, 6, 9)
+	-- Generate 50 emitters dynamically
+	for i = 1, 50 do
+		-- Randomize layers slightly so it doesn't look duplicated
+		local rate = math.random(400, 900)
 
-	-- Layer 2 (small flakes)
-	createEmitter(part, 1200, 0.18, 0.24, 7, 10)
+		local sizeMin = math.random(12, 45) / 100
+		local sizeMax = sizeMin + (math.random(5, 20) / 100)
 
-	-- Layer 3 (medium flakes)
-	createEmitter(part, 700, 0.25, 0.32, 8, 12)
+		local lifetimeMin = math.random(6, 9)
+		local lifetimeMax = math.random(10, 15)
 
-	-- Layer 4 (bigger flakes)
-	createEmitter(part, 350, 0.35, 0.45, 9, 14)
-
-	-- Layer 5 (rare chunky flakes)
-	createEmitter(part, 120, 0.5, 0.65, 10, 15)
+		createEmitter(part, rate, sizeMin, sizeMax, lifetimeMin, lifetimeMax)
+	end
 
 	snowPart = part
 
@@ -138,7 +141,7 @@ local function createSnow()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		part.Position = cam.CFrame.Position + Vector3.new(0, 45, 0)
+		part.Position = cam.CFrame.Position + Vector3.new(0, 50, 0)
 	end)
 end
 
@@ -153,7 +156,6 @@ local function removeSnow()
 		snowPart = nil
 	end
 end
-
 ------------------------------------------------------------
 -- APPLY / REVERT
 ------------------------------------------------------------
