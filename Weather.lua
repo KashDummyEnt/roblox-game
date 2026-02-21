@@ -65,36 +65,32 @@ local snowPart: Part? = nil
 local followConn: RBXScriptConnection? = nil
 
 ------------------------------------------------------------
--- SNOW (NO WIND, LAYERED)
+-- SNOW (NO WIND, HEAVY LAYERED, SPEED = 1)
 ------------------------------------------------------------
 
-local function createEmitter(parent: Instance, rate: number, sizeMin: number, sizeMax: number)
+local function createEmitter(parent: Instance, rate: number, sizeMin: number, sizeMax: number, lifetimeMin: number, lifetimeMax: number)
 	local emitter = Instance.new("ParticleEmitter")
 
 	emitter.Texture = "rbxassetid://118641183"
 
 	emitter.Rate = rate
-	emitter.Lifetime = NumberRange.new(6, 10)
+	emitter.Lifetime = NumberRange.new(lifetimeMin, lifetimeMax)
 
-	-- Very slow initial downward motion
-	emitter.Speed = NumberRange.new(0.5, 1.2)
+	-- LOCKED SPEED
+	emitter.Speed = NumberRange.new(1, 1)
 
-	-- Emit straight down
 	emitter.EmissionDirection = Enum.NormalId.Bottom
+	emitter.VelocitySpread = 180
 
-	-- Slight size variation
 	emitter.Size = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, sizeMin),
 		NumberSequenceKeypoint.new(1, sizeMax),
 	})
 
-	-- Straight downward gravity only
-	emitter.Acceleration = Vector3.new(0, -1.5, 0)
-
-	emitter.VelocitySpread = 180
+	emitter.Acceleration = Vector3.new(0, -1.2, 0)
 
 	emitter.Rotation = NumberRange.new(0, 360)
-	emitter.RotSpeed = NumberRange.new(-10, 10)
+	emitter.RotSpeed = NumberRange.new(-8, 8)
 
 	emitter.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0.1),
@@ -112,8 +108,7 @@ local function createSnow()
 	local part = Instance.new("Part")
 	part.Name = "LocalSnowCeiling"
 
-	part.Size = Vector3.new(350, 1, 350)
-
+	part.Size = Vector3.new(500, 1, 500) -- bigger coverage
 	part.Anchored = true
 	part.CanCollide = false
 	part.CanQuery = false
@@ -122,14 +117,20 @@ local function createSnow()
 	part.CastShadow = false
 	part.Parent = workspace
 
-	-- Small flakes (main density)
-	createEmitter(part, 1400, 0.15, 0.2)
+	-- Layer 1 (micro flakes, heavy density)
+	createEmitter(part, 1800, 0.12, 0.18, 6, 9)
 
-	-- Medium flakes
-	createEmitter(part, 500, 0.22, 0.3)
+	-- Layer 2 (small flakes)
+	createEmitter(part, 1200, 0.18, 0.24, 7, 10)
 
-	-- Larger occasional flakes
-	createEmitter(part, 150, 0.32, 0.4)
+	-- Layer 3 (medium flakes)
+	createEmitter(part, 700, 0.25, 0.32, 8, 12)
+
+	-- Layer 4 (bigger flakes)
+	createEmitter(part, 350, 0.35, 0.45, 9, 14)
+
+	-- Layer 5 (rare chunky flakes)
+	createEmitter(part, 120, 0.5, 0.65, 10, 15)
 
 	snowPart = part
 
