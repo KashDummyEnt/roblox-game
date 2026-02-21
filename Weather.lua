@@ -137,7 +137,7 @@ local function createSnow()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		part.Position = cam.CFrame.Position + Vector3.new(0, 35, 0)
+		part.Position = cam.CFrame.Position + Vector3.new(0, 45, 0)
 	end)
 end
 
