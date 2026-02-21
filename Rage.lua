@@ -1,7 +1,7 @@
 --!strict
 -- Rage.lua
 -- Distance-Priority Rage Aimbot (HIGGI SYSTEM)
--- Includes AutoWall toggle support
+-- Stable lock handling + no snap on visibility loss
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -53,6 +53,8 @@ local connection: RBXScriptConnection? = nil
 local fovGui: ScreenGui? = nil
 local teamCheckEnabled = true
 local autoWallEnabled = false
+
+local currentTarget: BasePart? = nil
 
 ----------------------------------------------------
 -- CAMERA
@@ -156,7 +158,7 @@ local function destroyFov()
 end
 
 ----------------------------------------------------
--- TARGET HELPERS
+-- HELPERS
 ----------------------------------------------------
 
 local function isAlive(plr: Player): boolean
@@ -205,7 +207,7 @@ local function isVisible(part: BasePart): boolean
 end
 
 ----------------------------------------------------
--- DISTANCE-PRIORITY TARGETING
+-- TARGETING
 ----------------------------------------------------
 
 local function getClosestTarget(): BasePart?
@@ -228,7 +230,6 @@ local function getClosestTarget(): BasePart?
 		local part = getAimPart(plr)
 		if not part then continue end
 
-		-- AUTOWALL LOGIC
 		if not autoWallEnabled then
 			if not isVisible(part) then
 				continue
@@ -259,8 +260,16 @@ end
 ----------------------------------------------------
 
 local function smoothLookAt(targetPos: Vector3)
+	if not Camera then return end
+
 	local camCF = Camera.CFrame
 	local desired = CFrame.new(camCF.Position, targetPos)
+
+	-- Prevent extreme 180 flips
+	if desired.LookVector:Dot(camCF.LookVector) < -0.999 then
+		return
+	end
+
 	Camera.CFrame = camCF:Lerp(desired, 1 - smoothness)
 end
 
@@ -270,13 +279,30 @@ end
 
 local function start()
 	if connection then return end
+
 	createFov()
 	applyFovToCircle()
 
 	connection = RunService.RenderStepped:Connect(function()
-		local target = getClosestTarget()
-		if not target then return end
-		smoothLookAt(target.Position)
+
+		local newTarget = getClosestTarget()
+
+		-- If current target lost, release cleanly
+		if currentTarget then
+			if not newTarget or newTarget ~= currentTarget then
+				currentTarget = nil
+			end
+		end
+
+		-- Acquire new target
+		if not currentTarget and newTarget then
+			currentTarget = newTarget
+		end
+
+		if currentTarget then
+			smoothLookAt(currentTarget.Position)
+		end
+
 	end)
 end
 
@@ -285,6 +311,8 @@ local function stop()
 		connection:Disconnect()
 		connection = nil
 	end
+
+	currentTarget = nil
 	destroyFov()
 end
 
