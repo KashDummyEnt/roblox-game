@@ -1058,72 +1058,6 @@ Toggles.AddToggleDropDownCard(
 )
 
 
-------------------------------------------------------------
--- RGB Accent System
-------------------------------------------------------------
-
-local rgbEnabled = false
-local rgbConnection: RBXScriptConnection? = nil
-local hue = 0
-
-local function applyAccentColor(color: Color3)
-	CONFIG.Accent = color
-end
-
-local function repaintAccent()
-	-- Update tab visuals live
-	for _, btn in pairs(tabButtons) do
-		local stroke = btn:FindFirstChildOfClass("UIStroke")
-		if stroke then
-			if currentTabName == btn.Name then
-				(stroke :: UIStroke).Color = CONFIG.Accent ;
-			end
-		end
-
-		local accentBar = btn:FindFirstChild("AccentBar")
-		if accentBar and accentBar:IsA("Frame") then
-			accentBar.BackgroundColor3 = CONFIG.Accent
-		end
-	end
-end
-
-local function startRGB()
-	if rgbConnection then
-		return
-	end
-
-	rgbConnection = RunService.RenderStepped:Connect(function(dt)
-		hue += dt * 0.2
-		if hue > 1 then
-			hue -= 1
-		end
-
-		local rgbColor = Color3.fromHSV(hue, 1, 1)
-		CONFIG.Accent = rgbColor
-
-		repaintAccent()
-	end)
-end
-
-local function stopRGB()
-	if rgbConnection then
-		rgbConnection:Disconnect()
-		rgbConnection = nil
-	end
-
-	applyAccentColor(DEFAULT_ACCENT)
-end
-
-Toggles.Subscribe("settings_rgb_accent", function(state: boolean)
-	rgbEnabled = state
-
-	if state then
-		startRGB()
-	else
-		stopRGB()
-	end
-end)
-
 --================================================================================
 -- Tab system
 --================================================================================
@@ -1392,6 +1326,73 @@ end)
 setActivePage("Main")
 setTabVisuals("Main")
 setOpen(false)
+
+
+------------------------------------------------------------
+-- RGB Accent System
+------------------------------------------------------------
+
+local rgbEnabled = false
+local rgbConnection: RBXScriptConnection? = nil
+local hue = 0
+
+local function applyAccentColor(color: Color3)
+	CONFIG.Accent = color
+end
+
+local function repaintAccent()
+	-- Update tab visuals live
+	for _, btn in pairs(tabButtons) do
+		local stroke = btn:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			if currentTabName == btn.Name then
+				(stroke :: UIStroke).Color = CONFIG.Accent ;
+			end
+		end
+
+		local accentBar = btn:FindFirstChild("AccentBar")
+		if accentBar and accentBar:IsA("Frame") then
+			accentBar.BackgroundColor3 = CONFIG.Accent
+		end
+	end
+end
+
+local function startRGB()
+	if rgbConnection then
+		return
+	end
+
+	rgbConnection = RunService.RenderStepped:Connect(function(dt)
+		hue += dt * 0.2
+		if hue > 1 then
+			hue -= 1
+		end
+
+		local rgbColor = Color3.fromHSV(hue, 1, 1)
+		CONFIG.Accent = rgbColor
+
+		repaintAccent()
+	end)
+end
+
+local function stopRGB()
+	if rgbConnection then
+		rgbConnection:Disconnect()
+		rgbConnection = nil
+	end
+
+	applyAccentColor(DEFAULT_ACCENT)
+end
+
+Toggles.Subscribe("settings_rgb_accent", function(state: boolean)
+	rgbEnabled = state
+
+	if state then
+		startRGB()
+	else
+		stopRGB()
+	end
+end)
 
 -- If you ever need to read a toggle anywhere in this file:
 -- print("ESP Boxes currently:", Toggles.GetState("visuals_boxes", false))
