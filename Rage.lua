@@ -277,16 +277,12 @@ local function rotateCharacterTowards(targetPos: Vector3)
 	if not LocalPlayer.Character then return end
 
 	local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-	local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-	if not root or not hum then return end
-
-	-- Disable default auto-rotate so it doesn’t fight us
-	hum.AutoRotate = false
+	if not root then return end
 
 	local rootPos = root.Position
 	local flatTarget = Vector3.new(targetPos.X, rootPos.Y, targetPos.Z)
-	local desired = CFrame.new(rootPos, flatTarget)
 
+	local desired = CFrame.new(rootPos, flatTarget)
 	root.CFrame = root.CFrame:Lerp(desired, 1 - smoothness)
 end
 
@@ -304,7 +300,7 @@ local function start()
 
 		local newTarget = getClosestTarget()
 
-		-- If current target lost, release cleanly
+		-- Release lock if target lost
 		if currentTarget then
 			if not newTarget or newTarget ~= currentTarget then
 				currentTarget = nil
@@ -316,20 +312,40 @@ local function start()
 			currentTarget = newTarget
 		end
 
-		if currentTarget then
-	local pos = currentTarget.Position
+		local character = LocalPlayer.Character
+		local hum = character and character:FindFirstChildOfClass("Humanoid")
 
-	smoothLookAt(pos)
-	rotateCharacterTowards(pos)
-end
+		if currentTarget then
+			-- Disable auto rotate ONLY while locked
+			if hum then
+				hum.AutoRotate = false
+			end
+
+			local pos = currentTarget.Position
+			smoothLookAt(pos)
+			rotateCharacterTowards(pos)
+		else
+			-- Restore normal player rotation when not locked
+			if hum then
+				hum.AutoRotate = true
+			end
+		end
 
 	end)
 end
+
 
 local function stop()
 	if connection then
 		connection:Disconnect()
 		connection = nil
+	end
+
+	-- Restore AutoRotate when rage disabled
+	local character = LocalPlayer.Character
+	local hum = character and character:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum.AutoRotate = true
 	end
 
 	currentTarget = nil
