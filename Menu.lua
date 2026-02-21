@@ -532,16 +532,29 @@ local header = make("Frame", {
 	Parent = popup,
 })
 
-make("TextLabel", {
+local logo = make("ImageLabel", {
+	Name = "Logo",
+	BackgroundTransparency = 1,
+	Image = "rbxassetid://70596288325600",
+	ImageColor3 = CONFIG.Accent, -- initial tint
+	Size = UDim2.fromOffset(28, 28),
+	Position = UDim2.new(0, 14, 0.5, -14),
+	ZIndex = 42,
+	Parent = header,
+})
+
+local titleLabel = make("TextLabel", {
 	Name = "Title",
 	BackgroundTransparency = 1,
-	Text = "Higgi's EBT Menu",
+	Text = "EBTware",
 	TextColor3 = CONFIG.Text,
-	TextSize = 18,
-	Font = Enum.Font.GothamSemibold,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	Size = UDim2.new(1, -88, 1, 0),
-	Position = UDim2.new(0, 20, 0, 0),
+	TextSize = 22,
+	Font = Enum.Font.GothamBlack, -- thick bold
+	TextXAlignment = Enum.TextXAlignment.Center,
+	TextYAlignment = Enum.TextYAlignment.Center,
+	Size = UDim2.new(1, -100, 1, 0), -- leaves room for close button
+	Position = UDim2.new(0.5, 0, 0, 0),
+	AnchorPoint = Vector2.new(0.5, 0),
 	ZIndex = 42,
 	Parent = header,
 })
