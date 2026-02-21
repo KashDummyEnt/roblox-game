@@ -62,11 +62,10 @@ local enabled = false
 local currentType = Toggles.GetValue(VALUE_KEY, "Snow")
 
 local snowPart: Part? = nil
-local snowEmitter: ParticleEmitter? = nil
 local followConn: RBXScriptConnection? = nil
 
 ------------------------------------------------------------
--- SNOW (CEILING METHOD)
+-- SNOW (REALISTIC CEILING METHOD)
 ------------------------------------------------------------
 
 local function createSnow()
@@ -76,9 +75,7 @@ local function createSnow()
 
 	local part = Instance.new("Part")
 	part.Name = "LocalSnowCeiling"
-
-	-- Large flat plane above player
-	part.Size = Vector3.new(300, 1, 300)
+	part.Size = Vector3.new(350, 1, 350)
 
 	part.Anchored = true
 	part.CanCollide = false
@@ -88,50 +85,73 @@ local function createSnow()
 	part.CastShadow = false
 	part.Parent = workspace
 
-	local emitter = Instance.new("ParticleEmitter")
-	emitter.Name = "SnowEmitter"
+	-- WIND (constant sideways drift)
+	local windX = math.random(-2, 2)
+	local windZ = math.random(-2, 2)
 
-	emitter.Texture = "rbxassetid://118641183"
+	--------------------------------------------------------
+	-- SMALL FLAKES (base layer)
+	--------------------------------------------------------
 
-	-- DENSITY CONTROL (adjust this)
-	emitter.Rate = 1500
+	local small = Instance.new("ParticleEmitter")
+	small.Texture = "rbxassetid://118641183"
 
-	-- Long lifetime so they overlap
-	emitter.Lifetime = NumberRange.new(8, 12)
+	small.Rate = 2000
+	small.Lifetime = NumberRange.new(12, 18)
+	small.Speed = NumberRange.new(0.5, 1.5)
 
-	-- No upward pop
-	emitter.Speed = NumberRange.new(2, 4)
+	small.Size = NumberSequence.new(0.2)
 
-	-- Emit straight down
-	emitter.EmissionDirection = Enum.NormalId.Bottom
+	small.EmissionDirection = Enum.NormalId.Bottom
+	small.VelocitySpread = 180
 
-	-- Small flakes
-	emitter.Size = NumberSequence.new(0.2)
+	small.Acceleration = Vector3.new(windX, -1.5, windZ)
 
-	-- Downward gravity
-	emitter.Acceleration = Vector3.new(0, -6, 0)
+	small.Rotation = NumberRange.new(0, 360)
+	small.RotSpeed = NumberRange.new(-25, 25)
 
-	emitter.Rotation = NumberRange.new(0, 360)
-	emitter.RotSpeed = NumberRange.new(-5, 5)
-
-	emitter.Transparency = NumberSequence.new({
+	small.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0.1),
 		NumberSequenceKeypoint.new(1, 1),
 	})
 
-	emitter.Parent = part
+	small.Parent = part
+
+	--------------------------------------------------------
+	-- MEDIUM FLAKES (depth layer)
+	--------------------------------------------------------
+
+	local medium = Instance.new("ParticleEmitter")
+	medium.Texture = "rbxassetid://118641183"
+
+	medium.Rate = 600
+	medium.Lifetime = NumberRange.new(14, 20)
+	medium.Speed = NumberRange.new(0.3, 1)
+
+	medium.Size = NumberSequence.new(0.35)
+
+	medium.EmissionDirection = Enum.NormalId.Bottom
+	medium.VelocitySpread = 180
+
+	medium.Acceleration = Vector3.new(windX * 1.2, -1.2, windZ * 1.2)
+
+	medium.Rotation = NumberRange.new(0, 360)
+	medium.RotSpeed = NumberRange.new(-30, 30)
+
+	medium.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.05),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+
+	medium.Parent = part
 
 	snowPart = part
-	snowEmitter = emitter
 
 	followConn = RunService.RenderStepped:Connect(function()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		local camPos = cam.CFrame.Position
-
-		-- Always stay above player
-		part.Position = camPos + Vector3.new(0, 60, 0)
+		part.Position = cam.CFrame.Position + Vector3.new(0, 70, 0)
 	end)
 end
 
@@ -139,11 +159,6 @@ local function removeSnow()
 	if followConn then
 		followConn:Disconnect()
 		followConn = nil
-	end
-
-	if snowEmitter then
-		snowEmitter:Destroy()
-		snowEmitter = nil
 	end
 
 	if snowPart then
