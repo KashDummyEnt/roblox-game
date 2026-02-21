@@ -22,7 +22,7 @@ local TWEEN_NPC_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-gam
 local FASTMODE_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/FastMode.lua"
 local SPEED_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/PlayerSpeed.lua"
 local RAGE_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Rage.lua"
-
+local WEATHER_URL = "https://raw.githubusercontent.com/KashDummyEnt/roblox-game/refs/heads/main/Weather.lua"
 
 
 local player = Players.LocalPlayer
@@ -964,6 +964,35 @@ Toggles.AddToggleCard(pageWorld, "world_fastmode", "Fast Mode", "Disable world t
 		ensureFeatureLoaded("world_fastmode", FASTMODE_URL)
 	end
 end)
+
+local function getWeatherTypes(): {string}
+	return {
+		"Snow",
+		-- future:
+		-- "Rain",
+		-- "Ash",
+	}
+end
+
+Toggles.AddToggleDropDownCard(
+	pageWorld,
+	"world_weather",                -- toggle key
+	"world_weather_type",           -- dropdown value key
+	"Weather FX",
+	"Client-side weather effects.",
+	6,                              -- layout order (adjust if needed)
+	false,
+	"Snow",                         -- default dropdown value
+	getWeatherTypes,
+	CONFIG,
+	TOGGLE_SERVICES,
+	function(state)
+		if state then
+			ensureFeatureLoaded("world_weather", WEATHER_URL)
+		end
+	end,
+	nil
+)
 
 
 -- Settings tab (EXAMPLE TOGGLES)
