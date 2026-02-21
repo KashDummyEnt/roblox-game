@@ -273,6 +273,23 @@ local function smoothLookAt(targetPos: Vector3)
 	Camera.CFrame = camCF:Lerp(desired, 1 - smoothness)
 end
 
+local function rotateCharacterTowards(targetPos: Vector3)
+	if not LocalPlayer.Character then return end
+
+	local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	if not root or not hum then return end
+
+	-- Disable default auto-rotate so it doesn’t fight us
+	hum.AutoRotate = false
+
+	local rootPos = root.Position
+	local flatTarget = Vector3.new(targetPos.X, rootPos.Y, targetPos.Z)
+	local desired = CFrame.new(rootPos, flatTarget)
+
+	root.CFrame = root.CFrame:Lerp(desired, 1 - smoothness)
+end
+
 ----------------------------------------------------
 -- CONTROL
 ----------------------------------------------------
@@ -300,8 +317,11 @@ local function start()
 		end
 
 		if currentTarget then
-			smoothLookAt(currentTarget.Position)
-		end
+	local pos = currentTarget.Position
+
+	smoothLookAt(pos)
+	rotateCharacterTowards(pos)
+end
 
 	end)
 end
