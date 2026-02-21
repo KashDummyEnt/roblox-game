@@ -2,6 +2,7 @@
 -- Must return a table.
 
 local ToggleSwitches = {}
+local RunService = game:GetService("RunService")
 
 local function getGlobal()
 	if typeof(getgenv) == "function" then
@@ -336,6 +337,17 @@ function ToggleSwitches.AddToggleCard(parent, key, title, desc, order, defaultSt
 
 	applyVisual(Store.states[key], true)
 
+	-- Live accent update
+RunService.RenderStepped:Connect(function()
+	if Store.states[key] then
+		track.BackgroundColor3 = config.Accent
+		local trackStroke = track:FindFirstChildOfClass("UIStroke")
+		if trackStroke then
+			(trackStroke :: UIStroke).Color = config.Accent ;
+		end
+	end
+end)
+
 	if not isTouchDevice(UserInputService) then
 		card.MouseEnter:Connect(function()
 			card.BackgroundColor3 = config.Bg3
@@ -544,6 +556,16 @@ function ToggleSwitches.AddToggleDropDownCard(
 	end
 
 	applyToggleVisual(Store.states[toggleKey], true)
+
+	RunService.RenderStepped:Connect(function()
+	if Store.states[toggleKey] then
+		track.BackgroundColor3 = config.Accent
+		local trackStroke = track:FindFirstChildOfClass("UIStroke")
+		if trackStroke then
+			(trackStroke :: UIStroke).Color = config.Accent ;
+		end
+	end
+end)
 
 	switchBtn.MouseButton1Click:Connect(function()
 		setToggleState(not Store.states[toggleKey])
@@ -1023,6 +1045,12 @@ function ToggleSwitches.AddSliderCard(
 		ZIndex = 48,
 		Parent = sliderBar,
 	})
+
+	RunService.RenderStepped:Connect(function()
+	fill.BackgroundColor3 = config.Accent
+	knob.BackgroundColor3 = config.Accent
+end)
+	
 	addCorner(knob, 999)
 	addStroke(knob, 1, Color3.fromRGB(0, 0, 0), 0.4)
 
