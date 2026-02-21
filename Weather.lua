@@ -121,16 +121,16 @@ local function createSnow()
 	createEmitter(part, 1800, 0.12, 0.18, 6, 9)
 
 	-- Layer 2 (small flakes)
-	createEmitter(part, 1200, 0.18, 0.24, 7, 10)
+	createEmitter(part, 2500, 0.18, 0.24, 7, 10)
 
 	-- Layer 3 (medium flakes)
-	createEmitter(part, 700, 0.25, 0.32, 8, 12)
+	createEmitter(part, 1500, 0.25, 0.32, 8, 12)
 
 	-- Layer 4 (bigger flakes)
-	createEmitter(part, 350, 0.35, 0.45, 9, 14)
+	createEmitter(part, 650, 0.35, 0.45, 9, 14)
 
 	-- Layer 5 (rare chunky flakes)
-	createEmitter(part, 120, 0.5, 0.65, 10, 15)
+	createEmitter(part, 240, 0.5, 0.65, 10, 15)
 
 	snowPart = part
 
