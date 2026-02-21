@@ -77,7 +77,10 @@ local function createSnow()
 
 	local part = Instance.new("Part")
 	part.Name = "LocalSnowVolume"
-	part.Size = Vector3.new(120, 2, 120)
+
+	-- MUCH bigger volume
+	part.Size = Vector3.new(200, 2, 200)
+
 	part.Anchored = true
 	part.CanCollide = false
 	part.CanQuery = false
@@ -88,21 +91,32 @@ local function createSnow()
 
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Name = "SnowEmitter"
-	emitter.Texture = "rbxassetid://284205403"
-	emitter.Rate = 300
-	emitter.Lifetime = NumberRange.new(5, 7)
-	emitter.Speed = NumberRange.new(10, 14)
+	emitter.Texture = "rbxassetid://118641183"
+
+	-- DENSITY BOOST
+	emitter.Rate = 600
+
+	-- More visible flakes at once
+	emitter.Lifetime = NumberRange.new(6, 8)
+
+	-- Slightly slower fall for realism
+	emitter.Speed = NumberRange.new(8, 12)
+
+	-- Spread across entire plane
 	emitter.SpreadAngle = Vector2.new(180, 180)
-	emitter.Acceleration = Vector3.new(0, -5, 0)
+
+	-- Stronger gravity pull
+	emitter.Acceleration = Vector3.new(0, -6, 0)
+
 	emitter.VelocitySpread = 180
 
 	emitter.Size = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.6),
-		NumberSequenceKeypoint.new(1, 0.6),
+		NumberSequenceKeypoint.new(0, 0.2),
+		NumberSequenceKeypoint.new(1, 0.2),
 	})
 
 	emitter.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.2),
+		NumberSequenceKeypoint.new(0, 0.1),
 		NumberSequenceKeypoint.new(1, 1),
 	})
 
@@ -111,15 +125,14 @@ local function createSnow()
 	snowPart = part
 	snowEmitter = emitter
 
-	-- Follow camera smoothly
 	followConn = RunService.RenderStepped:Connect(function()
 		local cam = workspace.CurrentCamera
-		if not cam then
-			return
-		end
+		if not cam then return end
 
 		local camPos = cam.CFrame.Position
-		part.Position = camPos + Vector3.new(0, 35, 0)
+
+		-- spawn higher up so it falls longer
+		part.Position = camPos + Vector3.new(0, 50, 0)
 	end)
 end
 
