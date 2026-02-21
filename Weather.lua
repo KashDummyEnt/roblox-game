@@ -61,13 +61,12 @@ end
 local enabled = false
 local currentType = Toggles.GetValue(VALUE_KEY, "Snow")
 
--- Snow system
 local snowPart: Part? = nil
 local snowEmitter: ParticleEmitter? = nil
 local followConn: RBXScriptConnection? = nil
 
 ------------------------------------------------------------
--- SNOW (CAMERA VOLUME SYSTEM)
+-- SNOW (STUDIO STYLE VOLUME)
 ------------------------------------------------------------
 
 local function createSnow()
@@ -78,8 +77,8 @@ local function createSnow()
 	local part = Instance.new("Part")
 	part.Name = "LocalSnowVolume"
 
-	-- MUCH bigger volume
-	part.Size = Vector3.new(200, 2, 200)
+	-- Big 3D sky volume (not flat)
+	part.Size = Vector3.new(300, 120, 300)
 
 	part.Anchored = true
 	part.CanCollide = false
@@ -91,29 +90,29 @@ local function createSnow()
 
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Name = "SnowEmitter"
+
+	-- Your texture
 	emitter.Texture = "rbxassetid://118641183"
 
-	-- DENSITY BOOST
-	emitter.Rate = 600
+	-- Studio-style stacking effect
+	emitter.Rate = 1000
+	emitter.Lifetime = NumberRange.new(5, 80)
+	emitter.Speed = NumberRange.new(4, 6)
 
-	-- More visible flakes at once
-	emitter.Lifetime = NumberRange.new(6, 8)
+	-- Small flakes like studio
+	emitter.Size = NumberSequence.new(0.2)
 
-	-- Slightly slower fall for realism
-	emitter.Speed = NumberRange.new(8, 12)
+	-- TRUE VOLUME EMISSION
+	emitter.Shape = Enum.ParticleEmitterShape.Box
+	emitter.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	emitter.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
 
-	-- Spread across entire plane
-	emitter.SpreadAngle = Vector2.new(180, 180)
+	-- Soft gravity drift
+	emitter.Acceleration = Vector3.new(0, -2, 0)
 
-	-- Stronger gravity pull
-	emitter.Acceleration = Vector3.new(0, -6, 0)
-
-	emitter.VelocitySpread = 180
-
-	emitter.Size = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.2),
-		NumberSequenceKeypoint.new(1, 0.2),
-	})
+	-- Keep random rotation subtle
+	emitter.Rotation = NumberRange.new(0, 360)
+	emitter.RotSpeed = NumberRange.new(-10, 10)
 
 	emitter.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0.1),
@@ -125,14 +124,15 @@ local function createSnow()
 	snowPart = part
 	snowEmitter = emitter
 
+	-- Follow camera smoothly
 	followConn = RunService.RenderStepped:Connect(function()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
 		local camPos = cam.CFrame.Position
 
-		-- spawn higher up so it falls longer
-		part.Position = camPos + Vector3.new(0, 50, 0)
+		-- Center volume above player
+		part.Position = camPos + Vector3.new(0, 60, 0)
 	end)
 end
 
@@ -159,10 +159,7 @@ end
 ------------------------------------------------------------
 
 local function applyWeather()
-	if enabled then
-		return
-	end
-
+	if enabled then return end
 	enabled = true
 
 	if currentType == "Snow" then
@@ -173,14 +170,9 @@ local function applyWeather()
 end
 
 local function revertWeather()
-	if not enabled then
-		return
-	end
-
+	if not enabled then return end
 	enabled = false
-
 	removeSnow()
-
 	print("[Weather] disabled")
 end
 
@@ -208,7 +200,6 @@ end
 Toggles.Subscribe(TOGGLE_KEY, onToggle)
 Toggles.SubscribeValue(VALUE_KEY, onTypeChanged)
 
--- auto-enable if already on
 if Toggles.GetState(TOGGLE_KEY, false) then
 	applyWeather()
 end
