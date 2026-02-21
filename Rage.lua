@@ -1,15 +1,15 @@
 --!strict
 -- Rage.lua
--- Stable Delta-Based Rage Aimbot (Menu Smoothing Compatible)
+-- Distance-Priority Rage Aimbot (HIGGI SYSTEM)
+-- Stable lock handling + no snap on visibility loss
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 
 ----------------------------------------------------
--- DEFAULTS (overwritten by menu)
+-- DEFAULTS
 ----------------------------------------------------
 
 local fov = 120
@@ -50,11 +50,24 @@ end
 ----------------------------------------------------
 
 local connection: RBXScriptConnection? = nil
+local fovGui: ScreenGui? = nil
 local teamCheckEnabled = true
+local autoWallEnabled = false
+
 local currentTarget: BasePart? = nil
 
 ----------------------------------------------------
--- TEAM CHECK
+-- CAMERA
+----------------------------------------------------
+
+local Camera = workspace.CurrentCamera or workspace:WaitForChild("Camera")
+
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	Camera = workspace.CurrentCamera or Camera
+end)
+
+----------------------------------------------------
+-- TEAM DETECTION
 ----------------------------------------------------
 
 local function isEnemy(plr: Player): boolean
@@ -70,7 +83,78 @@ local function isEnemy(plr: Player): boolean
 		return plr.Team ~= LocalPlayer.Team
 	end
 
+	if LocalPlayer.TeamColor and plr.TeamColor then
+		return plr.TeamColor ~= LocalPlayer.TeamColor
+	end
+
+	local localAttrTeam = LocalPlayer:GetAttribute("Team")
+	local plrAttrTeam = plr:GetAttribute("Team")
+	if localAttrTeam ~= nil and plrAttrTeam ~= nil then
+		return localAttrTeam ~= plrAttrTeam
+	end
+
+	local localFaction = LocalPlayer:GetAttribute("Faction")
+	local plrFaction = plr:GetAttribute("Faction")
+	if localFaction ~= nil and plrFaction ~= nil then
+		return localFaction ~= plrFaction
+	end
+
 	return true
+end
+
+----------------------------------------------------
+-- FOV CIRCLE
+----------------------------------------------------
+
+local function getFovCircleFrame(): Frame?
+	if not fovGui then return nil end
+	local circle = fovGui:FindFirstChild("Circle")
+	if circle and circle:IsA("Frame") then
+		return circle
+	end
+	return nil
+end
+
+local function applyFovToCircle()
+	local circle = getFovCircleFrame()
+	if not circle then return end
+	circle.Size = UDim2.fromOffset(fov * 2, fov * 2)
+end
+
+local function createFov()
+	if fovGui then return end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "RageFovGui"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+	local circle = Instance.new("Frame")
+	circle.Name = "Circle"
+	circle.AnchorPoint = Vector2.new(0.5, 0.5)
+	circle.Position = UDim2.new(0.5, 0, 0.5, 0)
+	circle.Size = UDim2.fromOffset(fov * 2, fov * 2)
+	circle.BackgroundTransparency = 1
+	circle.Parent = gui
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(255, 255, 255)
+	stroke.Parent = circle
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = circle
+
+	fovGui = gui
+end
+
+local function destroyFov()
+	if fovGui then
+		fovGui:Destroy()
+		fovGui = nil
+	end
 end
 
 ----------------------------------------------------
@@ -91,6 +175,38 @@ local function getAimPart(plr: Player): BasePart?
 end
 
 ----------------------------------------------------
+-- VISIBILITY
+----------------------------------------------------
+
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+rayParams.IgnoreWater = true
+
+local function isVisible(part: BasePart): boolean
+	if not Camera then return false end
+	if not LocalPlayer.Character then return false end
+
+	local origin = Camera.CFrame.Position
+	local direction = part.Position - origin
+
+	rayParams.FilterDescendantsInstances = {
+		LocalPlayer.Character
+	}
+
+	local result = workspace:Raycast(origin, direction, rayParams)
+
+	if not result then
+		return true
+	end
+
+	if result.Instance:IsDescendantOf(part.Parent) then
+		return true
+	end
+
+	return false
+end
+
+----------------------------------------------------
 -- TARGETING
 ----------------------------------------------------
 
@@ -105,7 +221,7 @@ local function getClosestTarget(): BasePart?
 	local center = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
 
 	local bestPart: BasePart? = nil
-	local bestDist = math.huge
+	local bestWorldDist = math.huge
 
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if not isEnemy(plr) then continue end
@@ -114,17 +230,24 @@ local function getClosestTarget(): BasePart?
 		local part = getAimPart(plr)
 		if not part then continue end
 
+		if not autoWallEnabled then
+			if not isVisible(part) then
+				continue
+			end
+		end
+
 		local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
 		if not onScreen or screenPos.Z <= 0 then continue end
 
 		local dx = screenPos.X - center.X
 		local dy = screenPos.Y - center.Y
-		local dist2 = dx*dx + dy*dy
-		if dist2 > fov*fov then continue end
+		local dist2 = dx * dx + dy * dy
+		if dist2 > fov * fov then continue end
 
 		local worldDist = (part.Position - root.Position).Magnitude
-		if worldDist < bestDist then
-			bestDist = worldDist
+
+		if worldDist < bestWorldDist then
+			bestWorldDist = worldDist
 			bestPart = part
 		end
 	end
@@ -133,41 +256,34 @@ local function getClosestTarget(): BasePart?
 end
 
 ----------------------------------------------------
--- SMOOTH DELTA ROTATION
+-- SMOOTH AIM
 ----------------------------------------------------
 
-local function rotateCharacterTowards(targetPos: Vector3)
-	local character = LocalPlayer.Character
-	if not character then return end
+local function smoothLookAt(targetPos: Vector3)
+	if not Camera then return end
 
-	local root = character:FindFirstChild("HumanoidRootPart")
+	local camCF = Camera.CFrame
+	local desired = CFrame.new(camCF.Position, targetPos)
+
+	-- Prevent extreme 180 flips
+	if desired.LookVector:Dot(camCF.LookVector) < -0.999 then
+		return
+	end
+
+	Camera.CFrame = camCF:Lerp(desired, 1 - smoothness)
+end
+
+local function rotateCharacterTowards(targetPos: Vector3)
+	if not LocalPlayer.Character then return end
+
+	local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
 	if not root then return end
 
 	local rootPos = root.Position
 	local flatTarget = Vector3.new(targetPos.X, rootPos.Y, targetPos.Z)
 
-	local desiredDir = (flatTarget - rootPos).Unit
-	local currentDir = root.CFrame.LookVector
-
-	local dot = math.clamp(currentDir:Dot(desiredDir), -1, 1)
-	local angle = math.acos(dot)
-
-	if angle < 0.0005 then return end
-
-	local cross = currentDir:Cross(desiredDir)
-	local sign = cross.Y >= 0 and 1 or -1
-
-	local deltaYaw = angle * sign
-
-	-- menu-safe smoothing curve
-	-- 0 = instant, 1 = slow
-	local smoothingFactor = math.clamp(1 - smoothness, 0, 1)
-
-	-- prevent massive snap if target teleports
-	local maxStep = math.rad(35)
-	local step = math.clamp(deltaYaw * smoothingFactor, -maxStep, maxStep)
-
-	root.CFrame = root.CFrame * CFrame.Angles(0, step, 0)
+	local desired = CFrame.new(rootPos, flatTarget)
+	root.CFrame = root.CFrame:Lerp(desired, 1 - smoothness)
 end
 
 ----------------------------------------------------
@@ -177,14 +293,21 @@ end
 local function start()
 	if connection then return end
 
+	createFov()
+	applyFovToCircle()
+
 	connection = RunService.RenderStepped:Connect(function()
 
 		local newTarget = getClosestTarget()
 
-		if currentTarget and (not newTarget or newTarget ~= currentTarget) then
-			currentTarget = nil
+		-- Release lock if target lost
+		if currentTarget then
+			if not newTarget or newTarget ~= currentTarget then
+				currentTarget = nil
+			end
 		end
 
+		-- Acquire new target
 		if not currentTarget and newTarget then
 			currentTarget = newTarget
 		end
@@ -193,12 +316,16 @@ local function start()
 		local hum = character and character:FindFirstChildOfClass("Humanoid")
 
 		if currentTarget then
+			-- Disable auto rotate ONLY while locked
 			if hum then
 				hum.AutoRotate = false
 			end
 
-			rotateCharacterTowards(currentTarget.Position)
+			local pos = currentTarget.Position
+			smoothLookAt(pos)
+			rotateCharacterTowards(pos)
 		else
+			-- Restore normal player rotation when not locked
 			if hum then
 				hum.AutoRotate = true
 			end
@@ -207,12 +334,14 @@ local function start()
 	end)
 end
 
+
 local function stop()
 	if connection then
 		connection:Disconnect()
 		connection = nil
 	end
 
+	-- Restore AutoRotate when rage disabled
 	local character = LocalPlayer.Character
 	local hum = character and character:FindFirstChildOfClass("Humanoid")
 	if hum then
@@ -220,19 +349,22 @@ local function stop()
 	end
 
 	currentTarget = nil
+	destroyFov()
 end
 
 ----------------------------------------------------
--- VALUE LINKS (UNCHANGED FOR MENU)
+-- VALUE LINKS
 ----------------------------------------------------
 
 local function applyFromStore()
 	fov = Toggles.GetValue("combat_rage_fov", 120)
 	smoothness = Toggles.GetValue("combat_rage_smooth", 0.18)
+	applyFovToCircle()
 end
 
 Toggles.SubscribeValue("combat_rage_fov", function(v)
 	fov = v
+	applyFovToCircle()
 end)
 
 Toggles.SubscribeValue("combat_rage_smooth", function(v)
@@ -257,8 +389,13 @@ Toggles.Subscribe("combat_rage_teamcheck", function(state)
 	teamCheckEnabled = state
 end)
 
+Toggles.Subscribe("combat_rage_autowall", function(state)
+	autoWallEnabled = state
+end)
+
 if Toggles.GetState("combat_rage", false) then
 	start()
 end
 
 teamCheckEnabled = Toggles.GetState("combat_rage_teamcheck", true)
+autoWallEnabled = Toggles.GetState("combat_rage_autowall", false)
