@@ -65,8 +65,50 @@ local snowPart: Part? = nil
 local followConn: RBXScriptConnection? = nil
 
 ------------------------------------------------------------
--- SNOW (REALISTIC CEILING METHOD)
+-- SNOW (CEILING METHOD - LAYERED)
 ------------------------------------------------------------
+
+local function createEmitter(parent: Instance, rate: number, sizeMin: number, sizeMax: number)
+	local emitter = Instance.new("ParticleEmitter")
+
+	emitter.Texture = "rbxassetid://118641183"
+
+	emitter.Rate = rate
+	emitter.Lifetime = NumberRange.new(12, 18)
+
+	-- Slow initial drop
+	emitter.Speed = NumberRange.new(0.5, 1.5)
+
+	-- Emit downward
+	emitter.EmissionDirection = Enum.NormalId.Bottom
+
+	-- Slightly different sizes
+	emitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, math.random(sizeMin*100, sizeMax*100)/100),
+		NumberSequenceKeypoint.new(1, math.random(sizeMin*100, sizeMax*100)/100),
+	})
+
+	-- Soft floaty gravity + sideways drift
+	emitter.Acceleration = Vector3.new(
+		math.random(-2,2),
+		-1.5,
+		math.random(-2,2)
+	)
+
+	emitter.VelocitySpread = 180
+
+	emitter.Rotation = NumberRange.new(0, 360)
+	emitter.RotSpeed = NumberRange.new(-15, 15)
+
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+
+	emitter.Parent = parent
+
+	return emitter
+end
 
 local function createSnow()
 	if snowPart then
@@ -75,6 +117,7 @@ local function createSnow()
 
 	local part = Instance.new("Part")
 	part.Name = "LocalSnowCeiling"
+
 	part.Size = Vector3.new(350, 1, 350)
 
 	part.Anchored = true
@@ -85,65 +128,14 @@ local function createSnow()
 	part.CastShadow = false
 	part.Parent = workspace
 
-	-- WIND (constant sideways drift)
-	local windX = math.random(-2, 2)
-	local windZ = math.random(-2, 2)
+	-- Layer 1: Small flakes (main density)
+	createEmitter(part, 1400, 0.15, 0.25)
 
-	--------------------------------------------------------
-	-- SMALL FLAKES (base layer)
-	--------------------------------------------------------
+	-- Layer 2: Medium flakes
+	createEmitter(part, 500, 0.25, 0.35)
 
-	local small = Instance.new("ParticleEmitter")
-	small.Texture = "rbxassetid://118641183"
-
-	small.Rate = 2000
-	small.Lifetime = NumberRange.new(12, 18)
-	small.Speed = NumberRange.new(0.5, 1.5)
-
-	small.Size = NumberSequence.new(0.2)
-
-	small.EmissionDirection = Enum.NormalId.Bottom
-	small.VelocitySpread = 180
-
-	small.Acceleration = Vector3.new(windX, -1.5, windZ)
-
-	small.Rotation = NumberRange.new(0, 360)
-	small.RotSpeed = NumberRange.new(-25, 25)
-
-	small.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.1),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-
-	small.Parent = part
-
-	--------------------------------------------------------
-	-- MEDIUM FLAKES (depth layer)
-	--------------------------------------------------------
-
-	local medium = Instance.new("ParticleEmitter")
-	medium.Texture = "rbxassetid://118641183"
-
-	medium.Rate = 600
-	medium.Lifetime = NumberRange.new(14, 20)
-	medium.Speed = NumberRange.new(0.3, 1)
-
-	medium.Size = NumberSequence.new(0.35)
-
-	medium.EmissionDirection = Enum.NormalId.Bottom
-	medium.VelocitySpread = 180
-
-	medium.Acceleration = Vector3.new(windX * 1.2, -1.2, windZ * 1.2)
-
-	medium.Rotation = NumberRange.new(0, 360)
-	medium.RotSpeed = NumberRange.new(-30, 30)
-
-	medium.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.05),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-
-	medium.Parent = part
+	-- Layer 3: Occasional larger flakes
+	createEmitter(part, 150, 0.35, 0.5)
 
 	snowPart = part
 
@@ -151,7 +143,7 @@ local function createSnow()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		part.Position = cam.CFrame.Position + Vector3.new(0, 70, 0)
+		part.Position = cam.CFrame.Position + Vector3.new(0, 60, 0)
 	end)
 end
 
