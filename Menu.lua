@@ -52,6 +52,7 @@ local CONFIG = {
 	Stroke = Color3.fromRGB(55, 55, 65),
 }
 
+local DEFAULT_ACCENT = CONFIG.Accent
 local SIDEBAR_WIDTH = 140
 
 --// Global shared toggle access (so other remote scripts can read/subscribe)
@@ -996,9 +997,17 @@ Toggles.AddToggleDropDownCard(
 
 
 -- Settings tab (EXAMPLE TOGGLES)
-Toggles.AddToggleCard(pageSettings, "settings_keybinds", "Keybind Hints", "Show keybind tips in UI.", 1, true, CONFIG, TOGGLE_SERVICES, function(state: boolean)
-	print("Keybind Hints:", state)
-end)
+Toggles.AddToggleCard(
+	pageSettings,
+	"settings_rgb_accent",
+	"RGB Accent",
+	"Animate accent color with RGB cycle.",
+	3,
+	false,
+	CONFIG,
+	TOGGLE_SERVICES,
+	nil
+)
 
 Toggles.AddToggleCard(pageSettings, "settings_sfx", "UI Sounds", "Toggle UI click sounds.", 2, false, CONFIG, TOGGLE_SERVICES, function(state: boolean)
 	print("UI Sounds:", state)
@@ -1047,6 +1056,54 @@ Toggles.AddToggleDropDownCard(
 		G.__HIGGI_SELECTED_NPC = selectedName
 	end
 )
+
+
+------------------------------------------------------------
+-- RGB Accent System
+------------------------------------------------------------
+
+local rgbEnabled = false
+local rgbConnection: RBXScriptConnection? = nil
+local hue = 0
+
+local function applyAccentColor(color: Color3)
+	CONFIG.Accent = color
+end
+
+local function startRGB()
+	if rgbConnection then
+		return
+	end
+
+	rgbConnection = RunService.RenderStepped:Connect(function(dt)
+		hue += dt * 0.2 -- speed control
+		if hue > 1 then
+			hue -= 1
+		end
+
+		local rgbColor = Color3.fromHSV(hue, 1, 1)
+		applyAccentColor(rgbColor)
+	end)
+end
+
+local function stopRGB()
+	if rgbConnection then
+		rgbConnection:Disconnect()
+		rgbConnection = nil
+	end
+
+	applyAccentColor(DEFAULT_ACCENT)
+end
+
+Toggles.Subscribe("settings_rgb_accent", function(state: boolean)
+	rgbEnabled = state
+
+	if state then
+		startRGB()
+	else
+		stopRGB()
+	end
+end)
 
 --================================================================================
 -- Tab system
