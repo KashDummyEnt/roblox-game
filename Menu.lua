@@ -537,8 +537,8 @@ local logo = make("ImageLabel", {
 	BackgroundTransparency = 1,
 	Image = "rbxassetid://70596288325600",
 	ImageColor3 = CONFIG.Accent, -- initial tint
-	Size = UDim2.fromOffset(66, 66),
-	Position = UDim2.new(0, 14, 0.5, -33),
+	Size = UDim2.fromOffset(66, 50),
+	Position = UDim2.new(0, 14, 0.5, -25),
 	ZIndex = 42,
 	Parent = header,
 })
