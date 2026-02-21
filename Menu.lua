@@ -1070,19 +1070,38 @@ local function applyAccentColor(color: Color3)
 	CONFIG.Accent = color
 end
 
+local function repaintAccent()
+	-- Update tab visuals live
+	for _, btn in pairs(tabButtons) do
+		local stroke = btn:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			if currentTabName == btn.Name then
+				(stroke :: UIStroke).Color = CONFIG.Accent ;
+			end
+		end
+
+		local accentBar = btn:FindFirstChild("AccentBar")
+		if accentBar and accentBar:IsA("Frame") then
+			accentBar.BackgroundColor3 = CONFIG.Accent
+		end
+	end
+end
+
 local function startRGB()
 	if rgbConnection then
 		return
 	end
 
 	rgbConnection = RunService.RenderStepped:Connect(function(dt)
-		hue += dt * 0.2 -- speed control
+		hue += dt * 0.2
 		if hue > 1 then
 			hue -= 1
 		end
 
 		local rgbColor = Color3.fromHSV(hue, 1, 1)
-		applyAccentColor(rgbColor)
+		CONFIG.Accent = rgbColor
+
+		repaintAccent()
 	end)
 end
 
