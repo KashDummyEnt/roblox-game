@@ -92,10 +92,7 @@ local function createEmitter(parent: Instance, rate: number, sizeMin: number, si
 	emitter.Rotation = NumberRange.new(0, 360)
 	emitter.RotSpeed = NumberRange.new(-8, 8)
 
-	emitter.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.1),
-		NumberSequenceKeypoint.new(1, 1),
-	})
+emitter.Transparency = NumberSequence.new(0.05)
 
 	emitter.Parent = parent
 end
