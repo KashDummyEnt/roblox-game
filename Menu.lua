@@ -532,36 +532,23 @@ local header = make("Frame", {
 	Parent = popup,
 })
 
-local logo = make("ImageLabel", {
-	Name = "Logo",
-	BackgroundTransparency = 1,
-	Image = "rbxassetid://70596288325600",
-	ImageColor3 = CONFIG.Accent, -- initial tint
-	Size = UDim2.fromOffset(50, 50),
-	Position = UDim2.new(0, 14, 0.5, -25),
-	ZIndex = 42,
-	Parent = header,
-})
-
-RunService.RenderStepped:Connect(function()
-	logo.ImageColor3 = CONFIG.Accent
-end)
-
 local titleLabel = make("TextLabel", {
 	Name = "Title",
 	BackgroundTransparency = 1,
 	Text = "EBTware",
-	TextColor3 = CONFIG.Text,
-	TextSize = 22,
+	TextColor3 = CONFIG.Accent, -- start as accent
+	TextSize = 24, -- bigger
 	Font = Enum.Font.GothamBlack, -- thick bold
-	TextXAlignment = Enum.TextXAlignment.Center,
+	TextXAlignment = Enum.TextXAlignment.Left,
 	TextYAlignment = Enum.TextYAlignment.Center,
-	Size = UDim2.new(1, -100, 1, 0), -- leaves room for close button
-	Position = UDim2.new(0.5, 0, 0, 0),
-	AnchorPoint = Vector2.new(0.5, 0),
+	Size = UDim2.new(1, -88, 1, 0),
+	Position = UDim2.new(0, 20, 0, 0),
 	ZIndex = 42,
 	Parent = header,
 })
+RunService.RenderStepped:Connect(function()
+	titleLabel.TextColor3 = CONFIG.Accent
+end)
 
 local closeBtn = make("TextButton", {
 	Name = "Close",
